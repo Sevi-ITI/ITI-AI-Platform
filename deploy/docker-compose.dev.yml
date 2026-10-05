@@ -1,0 +1,24 @@
+# Postgres 17 with pgvector, for the laptop. Start: docker compose -f deploy/docker-compose.dev.yml up -d
+# Data lives in the named volume "iti-pg", so it survives restarts and `docker compose down`
+# (only `down -v` deletes it). Port bound to 127.0.0.1: other PCs on the network can't reach it.
+services:
+  postgres:
+    image: pgvector/pgvector:0.8.7-pg17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: iti
+      POSTGRES_PASSWORD: ${ITI_PG_PASSWORD:?set ITI_PG_PASSWORD in deploy/.env}
+      POSTGRES_DB: iti_ai
+      TZ: Asia/Manila
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - iti-pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U iti -d iti_ai"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  iti-pg:
