@@ -44,7 +44,7 @@ def test_local_ollama_addresses_are_accepted(url, tmp_path):
     assert load_settings({"ITI_OLLAMA_URL": url}, env_file=tmp_path / "missing.env").ollama_url == url.rstrip("/")
 
 
-@pytest.mark.parametrize("url", ["http://10.0.0.5:11434", "https://api.example.com", "http://ollama.example.com:11434"])
+@pytest.mark.parametrize("url", ["http://10.0.0.5:11434", "https://api.example.com", "https://ollama.example.com:11434"])
 def test_ollama_on_another_computer_is_refused(url, tmp_path):
     # Hard rule: nothing leaves the laptop.
     with pytest.raises(ValueError, match="this computer"):

@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 import requests
 
 from collections.abc import Sequence, Iterator
-from app.rag.b_splitter import Chunk
+from app.rag.passage import Passage
 from app.rag.c_embeddings import OLLAMA_URL, embed
 from app.rag.config import SETTINGS
 from app.rag.d_vectorstore.pg_store import PgStore
@@ -26,7 +26,7 @@ TIMEOUT_SECONDS = 300
 @dataclass(frozen=True)
 class Citation:
     source: str
-    page: int
+    page: int | None
     text: str = field(default="", compare=False)
 
 @dataclass(frozen=True)
@@ -73,7 +73,7 @@ def official_company_name(answer: str) -> str:
     answer = COMPANY_NAME_VARIANT.sub(COMPANY_NAME, answer)
     return BRAND.sub("Intellismart", answer)
 
-CITATION_MARK = re.compile(r"\[(\d+(?:\s*,\s*\d+)*)\]")  # [1] or [1, 2]; group 1 = the numbers
+CITATION_MARK = re.compile(r"\[(\d+(?:\s*,\s*\d+)*)]")  # [1] or [1, 2]; group 1 = the numbers
 SOURCES_HEADING = re.compile(r"^[\W_]*sources?[\W_]*(?::|$)", re.IGNORECASE)  # "**Sources:**", "### Sources", "*Source: ..."
 
 def drop_model_sources(answer: str) -> str:
@@ -91,7 +91,7 @@ def drop_model_sources(answer: str) -> str:
             return answer
     return answer
 
-def renumber_citations(answer: str, chunks: list[Chunk]) -> tuple[str, list[Citation]]:
+def renumber_citations(answer: str, chunks: list[Passage]) -> tuple[str, list[Citation]]:
     """Number every cited file + page once (1, 2, 3 ... in order of first mention) and rewrite the [n] markers,
     which count the chunks the model was given, to those numbers: [n] in the answer is then line n of the sources."""
     citations = []
@@ -116,7 +116,7 @@ NUMBER = re.compile(r"\d+(?:[.,:/-]\d+)*")  # 90, 6.1.2, 27001:2022, 1,000, 2026
 ORDINAL_WORDS = ["first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth"]
 
 
-def unsupported_numbers(answer: str, chunks: list[Chunk]) -> list[str]:
+def unsupported_numbers(answer: str, chunks: list[Passage]) -> list[str]:
     """Numbers and dates in the answer that appear nowhere in the chunks the model was given."""
     answer = LIST_MARKER.sub("", CITATION_MARK.sub("", answer))
     # "Fifth Offense" in a source may come back as "5th Offense" (F-E): drop those ordinals before checking.
@@ -142,7 +142,7 @@ def search_text(question: str, history: Sequence[str]) -> str:
 def _refuse(question: str, reason: str) -> Answer:
     return Answer(text=refusal_for(question), citations=[], refused=True, reason=reason)
 
-def _retrieve(question: str, store: PgStore, history: Sequence[str], threshold: float) -> list[Chunk] | Answer:
+def _retrieve(question: str, store: PgStore, history: Sequence[str], threshold: float) -> list[Passage] | Answer:
     """Steps 1-3: the chunks to answer from, or a refusal Answer when the model must not be called."""
     # 1. A blank question would still "find" 4 chunks, so refuse before searching.
     if not question.strip():
@@ -155,7 +155,7 @@ def _retrieve(question: str, store: PgStore, history: Sequence[str], threshold: 
     return chunks
 
 
-def _finish(question: str, reply: str, chunks: list[Chunk]) -> Answer:
+def _finish(question: str, reply: str, chunks: list[Passage]) -> Answer:
     """Steps 5-7: everything that happens to the model's full reply."""
     answer = normalize_citations(reply)
     # 5. The model refused (refusal layers 2 and 3 are the template and the system prompt).

@@ -1,7 +1,7 @@
 import re
 
 from collections.abc import Sequence
-from app.rag.b_splitter import Chunk
+from app.rag.passage import Passage
 
 REFUSAL_EN = "I don't know. I couldn't find that in the uploaded documents."
 REFUSAL_FIL = "Hindi ko alam. Wala ito sa mga na-upload na dokumento."
@@ -58,13 +58,13 @@ def refusal_for(question: str) -> str:
 def is_refusal(answer: str) -> bool:
     return answer.strip() in (REFUSAL_FIL, REFUSAL_EN)
 
-def format_context(chunks: list[Chunk]) -> str:
+def format_context(chunks: Sequence[Passage]) -> str:
     return "\n".join(
         f'<source id="{n}" name="{chunk.source}" page="{chunk.page}">\n{chunk.text}\n</source>'
         for n, chunk in enumerate(chunks,1)
     )
 
-def build_messages(question: str, chunks: list[Chunk], history: Sequence[str] = ()) -> list[dict]:
+def build_messages(question: str, chunks: Sequence[Passage], history: Sequence[str] = ()) -> list[dict]:
     system = SYSTEM_PROMPT + "\n\n" + RAG_TEMPLATE.replace("{{CONTEXT}}", format_context(chunks))
     if history:
         earlier = "\n".join(f"- {q}" for q in history[-MAX_HISTORY:])

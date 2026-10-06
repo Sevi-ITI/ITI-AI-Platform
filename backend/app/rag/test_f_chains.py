@@ -1,13 +1,17 @@
 """pytest for f_chains, with a fake model and fake embeddings (no Ollama needed). Run from backend/:  pytest apps/rag/test_f_chains.py -v"""
 import pytest
 
+from typing import cast
 from app.rag import f_chains
 from app.rag.b_splitter import Chunk
+from app.rag.d_vectorstore.pg_store import PgStore
 from app.rag.e_prompts import REFUSAL_EN, REFUSAL_FIL
 from app.rag.f_chains import (
     Citation, ask, drop_model_sources, normalize_citations, official_company_name, renumber_citations,
-    unsupported_numbers, ask_stream, stream_from_ollama,
+    unsupported_numbers, ask_stream, stream_from_ollama, Answer,
 )
+
+FAKE_STORE = cast(PgStore, object())
 
 
 class FakeModel:
@@ -61,7 +65,7 @@ class FakeStreamResponse:
     def iter_lines(self):
         return iter(self.lines)
 
-def never_called(messages: list[dict]) -> str:
+def never_called(_messages: list[dict]) -> str:
     raise AssertionError("the model must not be called")
 
 
@@ -77,12 +81,13 @@ LENGTH = _chunk("a.pdf", 2, 1, "Passwords need at least 12 characters.")  # same
 @pytest.fixture(autouse=True)
 def fake_embed(monkeypatch):
     # Every question becomes the same 3-number vector: closest to PASSWORDS, then OFFICE, then LENGTH.
+    # noinspection PyUnresolvedReferences
     monkeypatch.setattr(f_chains, "embed", lambda texts: [[1.0, 0.0, 0.0] for _ in texts])
 
 
 def fake_search(pairs):
     """Stands in for d_vectorstore.search: ranks (chunk, vector) pairs by similarity to the question's vector."""
-    def search(store, vector, k=4):
+    def search(_store, vector, k=4):
         scored = [(chunk, sum(a * b for a, b in zip(vector, v))) for chunk, v in pairs]
         return sorted(scored, key=lambda s: s[1], reverse=True)[:k]
     return search
@@ -90,14 +95,16 @@ def fake_search(pairs):
 
 @pytest.fixture
 def store(monkeypatch):
+    # noinspection PyUnresolvedReferences
     monkeypatch.setattr(f_chains, "search", fake_search(
         [(PASSWORDS, [1.0, 0.0, 0.0]), (OFFICE, [0.8, 0.6, 0.0]), (LENGTH, [0.6, 0.8, 0.0])]))
-    return object()  # ask() only hands the store on to search()
+    return FAKE_STORE  # ask() only hands the store on to search()
 
 
 # --- ask(): when the model must not be called ---
 
 def test_blank_question_is_refused_without_searching(store, monkeypatch):
+    # noinspection PyUnresolvedReferences
     monkeypatch.setattr(f_chains, "embed", never_called)
     answer = ask("   ", store, chat=never_called)
     assert (answer.text, answer.refused, answer.reason, answer.citations) == (REFUSAL_EN, True, "blank", [])
@@ -109,8 +116,9 @@ def test_nothing_above_the_threshold_is_refused_without_calling_the_model(store)
 
 
 def test_empty_store_is_refused_without_calling_the_model(monkeypatch):
+    # noinspection PyUnresolvedReferences
     monkeypatch.setattr(f_chains, "search", fake_search([]))
-    answer = ask("Kailan mag-e-expire ang password?", object(), chat=never_called)
+    answer = ask("Kailan mag-e-expire ang password?", FAKE_STORE, chat=never_called)
     assert (answer.text, answer.reason) == (REFUSAL_FIL, "no_relevant_chunks")
 
 # --- ask(): what happens with the model's reply ---
@@ -189,9 +197,10 @@ def test_answer_shows_the_official_company_name(store):
 
 def test_citation_keeps_the_file_name_exactly_as_stored(monkeypatch):
     # The company-name fix changes the answer text, never the file name in the citation.
+    # noinspection PyUnresolvedReferences
     monkeypatch.setattr(f_chains, "search", fake_search(
         [(_chunk("IntelliSmart Policy.pdf", 3, 0, "Uniforms are blue."), [1.0, 0.0, 0.0])]))
-    answer = ask("What color are uniforms?", object(), chat=FakeModel("Blue, says IntelliSmart [1]."))
+    answer = ask("What color are uniforms?", FAKE_STORE, chat=FakeModel("Blue, says IntelliSmart [1]."))
     assert answer.text == "Blue, says Intellismart [1]."
     assert answer.citations[0].source == "IntelliSmart Policy.pdf"
 
@@ -319,6 +328,7 @@ def test_ordinal_written_as_a_word_in_the_source(answer, expected):
 
 def test_without_history_the_search_uses_the_question_only(store, monkeypatch):
     embed = RecordingEmbed()
+    # noinspection PyUnresolvedReferences
     monkeypatch.setattr(f_chains, "embed", embed)
     ask("When do passwords expire?", store, chat=FakeModel("Every 90 days [1]."))
     assert embed.texts == ["When do passwords expire?"]
@@ -326,6 +336,7 @@ def test_without_history_the_search_uses_the_question_only(store, monkeypatch):
 
 def test_a_follow_up_searches_with_the_previous_question_too(store, monkeypatch):
     embed = RecordingEmbed()
+    # noinspection PyUnresolvedReferences
     monkeypatch.setattr(f_chains, "embed", embed)
     history = ["What is the dress code?", "How many vacation leaves do regular employees get?"]
     ask("And for probationary employees?", store, history, chat=FakeModel("Every 90 days [1]."))
@@ -342,14 +353,30 @@ def test_the_model_sees_only_the_last_three_earlier_questions(store):
 
 
 def test_blank_question_with_history_is_still_refused_without_searching(store, monkeypatch):
+    # noinspection PyUnresolvedReferences
     monkeypatch.setattr(f_chains, "embed", never_called)
     answer = ask("   ", store, ["How many vacation leaves?"], chat=never_called)
     assert (answer.reason, answer.citations) == ("blank", [])
 
 # --- ask_stream(): the answer word by word (gap 4) ---
 
-def _kinds(events):
+# --- ask_stream(): the answer word by word (gap 4) ---
+
+def _kinds(events) -> list[str]:
+    """Just the event kinds, e.g. ["token", "token", "done"]."""
     return [kind for kind, _ in events]
+
+
+def _token_text(events) -> str:
+    """All "token" pieces joined: what the user saw while the answer was being written."""
+    return "".join(v for k, v in events if k == "token" and isinstance(v, str))
+
+
+def _done(events) -> Answer:
+    """The final Answer from the last ("done", Answer) event."""
+    kind, answer = events[-1]
+    assert kind == "done" and isinstance(answer, Answer)
+    return answer
 
 
 def test_stream_sends_the_pieces_then_one_done_with_the_same_answer_as_ask(store):
@@ -371,23 +398,22 @@ def test_stream_done_has_the_renumbered_text_which_can_differ_from_the_tokens(st
 def test_stream_blank_question_sends_only_done_without_calling_the_model(store):
     events = list(ask_stream("   ", store, chat_stream=never_called))
     assert _kinds(events) == ["done"]
-    assert events[0][1].reason == "blank"
+    assert _done(events).reason == "blank"
 
 
 def test_stream_with_nothing_relevant_sends_only_done_without_calling_the_model(store):
     events = list(ask_stream("When do passwords expire?", store, threshold=1.5, chat_stream=never_called))
     assert _kinds(events) == ["done"]
-    assert events[0][1].reason == "no_relevant_chunks"
-
+    assert _done(events).reason == "no_relevant_chunks"
 
 def test_stream_invented_number_ends_in_a_refusal_after_the_tokens(store):
     events = list(ask_stream("When do passwords expire?", store, chat_stream=FakeStreamModel("Every 45 ", "days [1].")))
     assert _kinds(events) == ["token", "token", "done"]
-    assert (events[-1][1].text, events[-1][1].reason) == (REFUSAL_EN, "check_failed")
-
+    assert (_done(events).text, _done(events).reason) == (REFUSAL_EN, "check_failed")
 
 def test_stream_uses_the_history_like_ask(store, monkeypatch):
     embed = RecordingEmbed()
+    # noinspection PyUnresolvedReferences
     monkeypatch.setattr(f_chains, "embed", embed)
     model = FakeStreamModel("Every 90 days [1].")
     list(ask_stream("And for probationary employees?", store, ["How many vacation leaves?"], chat_stream=model))
@@ -404,10 +430,11 @@ def test_stream_from_ollama_reads_the_pieces_line_by_line(monkeypatch):
     ]
     sent = {}
 
-    def fake_post(url, json, stream, timeout):
+    def fake_post(url, json, stream, **_):
         sent.update(url=url, body=json, stream=stream)
         return FakeStreamResponse(lines)
 
+    # noinspection PyUnresolvedReferences
     monkeypatch.setattr(f_chains.requests, "post", fake_post)
     assert list(stream_from_ollama([{"role": "user", "content": "Q"}])) == ["Every ", "90 days."]
     assert sent["url"].endswith("/api/chat") and sent["stream"] is True
