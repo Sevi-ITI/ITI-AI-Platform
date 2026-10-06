@@ -6,7 +6,7 @@ from app.rag.b_splitter import Chunk
 from app.rag.e_prompts import REFUSAL_EN, REFUSAL_FIL
 from app.rag.f_chains import (
     Citation, ask, drop_model_sources, normalize_citations, official_company_name, renumber_citations,
-    unsupported_numbers, with_sources,
+    unsupported_numbers,
 )
 
 
@@ -101,8 +101,7 @@ def test_citations_become_file_and_page_without_repeats(store):
     assert answer.reason == "answered"
     assert answer.citations == [Citation("b.pdf", 5), Citation("a.pdf", 2)]
     # Numbered by first mention: chunk 2 (b.pdf p5) becomes [1], chunk 1 (a.pdf p2) becomes [2]; [9] points at nothing.
-    assert answer.text == "90 days [1]. Also [2] and [1]. See [9].\n\nSources:\nb.pdf (page 5) [1]\na.pdf (page 2) [2]"
-
+    assert answer.text == "90 days [1]. Also [2] and [1]. See [9]."
 
 def test_citation_range_is_checked_and_cited_like_single_citations(store):
     # F-B: the model sometimes cites a range; "1-3" must not be read as an unknown number.
@@ -115,7 +114,7 @@ def test_citation_range_is_checked_and_cited_like_single_citations(store):
 def test_two_chunks_from_the_same_page_give_one_citation(store):
     answer = ask("What are the password rules?", store, chat=FakeModel("Every 90 days [1], at least 12 characters [3]."))
     assert answer.citations == [Citation("a.pdf", 2)]
-    assert answer.text == "Every 90 days [1], at least 12 characters [1].\n\nSources:\na.pdf (page 2) [1]"
+    assert answer.text == "Every 90 days [1], at least 12 characters [1]."
 
 def test_every_citation_carries_the_text_of_the_chunk_it_cites(store):
     # rag-interface.md: the service shows Citation.text as the snippet next to each source.
@@ -147,19 +146,28 @@ def test_answer_using_only_numbers_from_the_sources_is_kept(store):
 def test_answer_shows_the_official_company_name(store):
     # SC-5: documents write "IntelliSmart Technology, Inc."; the answer must say "Intellismart Technology Inc."
     answer = ask("Who issued the policy?", store, chat=FakeModel("IntelliSmart Technology, Inc. issued it [1]."))
-    assert answer.text == "Intellismart Technology Inc. issued it [1].\n\nSources:\na.pdf (page 2) [1]"
+    assert answer.text == "Intellismart Technology Inc. issued it [1]."
 
-
-def test_sources_list_shows_file_names_exactly_as_stored(monkeypatch):
+def test_citation_keeps_the_file_name_exactly_as_stored(monkeypatch):
+    # The company-name fix changes the answer text, never the file name in the citation.
     monkeypatch.setattr(f_chains, "search", fake_search(
         [(_chunk("IntelliSmart Policy.pdf", 3, 0, "Uniforms are blue."), [1.0, 0.0, 0.0])]))
     answer = ask("What color are uniforms?", object(), chat=FakeModel("Blue, says IntelliSmart [1]."))
+    assert answer.text == "Blue, says Intellismart [1]."
+    assert answer.citations[0].source == "IntelliSmart Policy.pdf"
 
-def test_the_models_own_sources_list_is_replaced_by_ours(store):
+def test_the_models_own_sources_list_is_removed(store):
     reply = "Every 90 days [1].\n\n**Sources:**\n* [1] a.pdf (Page 2)\n* [2] b.pdf (Page 5)"
     answer = ask("When do passwords expire?", store, chat=FakeModel(reply))
-    assert answer.text == "Every 90 days [1].\n\nSources:\na.pdf (page 2) [1]"
+    assert answer.text == "Every 90 days [1]."
+    assert answer.citations == [Citation("a.pdf", 2)]
 
+
+@pytest.mark.parametrize("question", ["When do passwords expire?", "Kailan mag-e-expire ang password?"])
+def test_answer_text_never_ends_with_a_sources_list(store, question):
+    # SC-8: sources travel only in the citations array.
+    answer = ask(question, store, chat=FakeModel("Every 90 days [1]."))
+    assert "Sources:" not in answer.text and "Mga sanggunian:" not in answer.text
 
 # --- the helpers on their own ---
 
@@ -211,22 +219,6 @@ def test_official_company_name(written, expected):
 )
 def test_renumber_citations(answer, expected_text, expected_citations):
     assert renumber_citations(answer, [PASSWORDS, OFFICE, LENGTH]) == (expected_text, expected_citations)
-
-
-@pytest.mark.parametrize(
-    "question, expected_list",
-    [
-        ("Why?", "Sources:\na.pdf (page 2) [1]\nb.pdf (page 5) [2]"),
-        ("Bakit?", "Mga sanggunian:\na.pdf (pahina 2) [1]\nb.pdf (pahina 5) [2]"),
-    ],
-)
-def test_with_sources(question, expected_list):
-    citations = [Citation("a.pdf", 2), Citation("b.pdf", 5)]
-    assert with_sources("The answer [1] [2].", citations, question) == f"The answer [1] [2].\n\n{expected_list}"
-
-
-def test_with_sources_without_citations_leaves_the_answer_alone():
-    assert with_sources("The answer.", [], "Why?") == "The answer."
 
 
 @pytest.mark.parametrize(

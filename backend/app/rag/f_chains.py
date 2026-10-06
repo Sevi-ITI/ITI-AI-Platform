@@ -9,7 +9,7 @@ from app.rag.c_embeddings import OLLAMA_URL, embed
 from app.rag.config import SETTINGS
 from app.rag.d_vectorstore.pg_store import PgStore
 from app.rag.d_vectorstore.search import search
-from app.rag.e_prompts import build_messages, is_filipino, is_refusal, refusal_for
+from app.rag.e_prompts import build_messages, is_refusal, refusal_for
 
 TOP_K = 4  # chunks per question (spec 5.5); used to live in the Chroma d_vectorstore.py
 
@@ -110,14 +110,6 @@ def renumber_citations(answer: str, chunks: list[Chunk]) -> tuple[str, list[Cita
 
     return CITATION_MARK.sub(rewrite, answer), citations
 
-def with_sources(answer: str, citations: list[Citation], question: str) -> str:
-    """End the answer with its numbered sources (SC-5), one line per file + page: line n is [n] in the text.
-    Built from the citations, never written by the model."""
-    if not citations:
-        return answer
-    heading, page = ("Mga sanggunian:", "pahina") if is_filipino(question) else ("Sources:", "page")
-    lines = [f"{citation.source} ({page} {citation.page}) [{n}]" for n, citation in enumerate(citations, start=1)]
-    return f"{answer}\n\n{heading}\n" + "\n".join(lines)
 LIST_MARKER = re.compile(r"^\s*\d+[.)]\s", re.MULTILINE)  # "1. " or "2) " at the start of a line
 NUMBER = re.compile(r"\d+(?:[.,:/-]\d+)*")  # 90, 6.1.2, 27001:2022, 1,000, 2026-10-12
 ORDINAL_WORDS = ["first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth"]
@@ -175,6 +167,7 @@ def ask(
     # 6. Number the cited files and pages 1, 2, 3 ... and rewrite [n] to match; ours replaces the model's own list.
     answer, citations = renumber_citations(drop_model_sources(answer), chunks)
 
-    # 7. Official company name, then the numbered sources at the end (SC-5). Name first, so file names stay exact.
-    text = with_sources(official_company_name(answer), citations, question)
+    # 7. Official company name (SC-5). No "Sources:" list (SC-8): sources travel only in `citations`,
+    #    and [n] in the text is citations[n-1].
+    text = official_company_name(answer)
     return Answer(text=text, citations=citations, refused=False, reason="answered")
