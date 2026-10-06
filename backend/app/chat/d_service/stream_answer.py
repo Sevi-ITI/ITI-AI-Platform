@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from app.chat.a_schemas.chat_request import ChatRequest
 from app.chat.c_repository.recent_questions import recent_questions
 from app.chat.c_repository.save_turn import save_turn
+from app.chat.d_service.error_event import error_event
 from app.chat.d_service.to_citations import to_citations
 from app.core.b_logging.request_id_var import REQUEST_ID
 from app.core.d_metrics.record_metric import record_metric
@@ -25,10 +26,6 @@ from app.core.h_stores.get_store import get_store
 from app.rag import f_chains
 
 log = logging.getLogger(__name__)
-
-def error_event(code: str, message: str) -> ServerSentEvent:
-    record_metric(error_code=code)
-    return ServerSentEvent(event="error", data={"code": code, "message": message})
 
 
 def stream_answer(db: Session, conversation_id: str, req: ChatRequest) -> Iterator[ServerSentEvent]:
