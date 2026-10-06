@@ -1,10 +1,11 @@
+import json
 import logging
 import re
 from dataclasses import dataclass, field
 
 import requests
 
-from collections.abc import Sequence
+from collections.abc import Sequence, Iterator
 from app.rag.b_splitter import Chunk
 from app.rag.c_embeddings import OLLAMA_URL, embed
 from app.rag.config import SETTINGS
@@ -35,20 +36,19 @@ class Answer:
     refused: bool
     reason: str # "answered", "blank", "no_relevant_chunks", "model_refused" or "check_failed"
 
+def _chat_request(messages: list[dict], stream: bool) -> dict:
+    """The /api/chat body shared by the normal and the streamed call: same model and settings."""
+    return {
+        "model": CHAT_MODEL,
+        "messages": messages,
+        "stream": stream,
+        "think": False,
+        "options": {"temperature": TEMPERATURE, "num_ctx": NUM_CTX},
+    }
+
+
 def chat_with_ollama(messages: list[dict]) -> str:
-    response = requests.post(
-        f"{OLLAMA_URL}/api/chat",
-        json = {
-            "model": CHAT_MODEL,
-            "messages": messages,
-            "stream" : False,
-            "think" : False,
-            "options" : {"temperature" : TEMPERATURE, "num_ctx" : NUM_CTX},
-        },
-
-        timeout=TIMEOUT_SECONDS,
-    )
-
+    response = requests.post(f"{OLLAMA_URL}/api/chat", json=_chat_request(messages, stream=False), timeout=TIMEOUT_SECONDS)
     response.raise_for_status()
     return response.json()["message"]["content"].strip()
 
@@ -142,6 +142,36 @@ def search_text(question: str, history: Sequence[str]) -> str:
 def _refuse(question: str, reason: str) -> Answer:
     return Answer(text=refusal_for(question), citations=[], refused=True, reason=reason)
 
+def _retrieve(question: str, store: PgStore, history: Sequence[str], threshold: float) -> list[Chunk] | Answer:
+    """Steps 1-3: the chunks to answer from, or a refusal Answer when the model must not be called."""
+    # 1. A blank question would still "find" 4 chunks, so refuse before searching.
+    if not question.strip():
+        return _refuse(question, "blank")
+    # 2-3. Retrieve (with the previous question, D-6), then keep only chunks that pass the threshold (refusal layer 1).
+    hits = search(store, embed([search_text(question, history)])[0], k=TOP_K)
+    chunks = [chunk for chunk, score in hits if score >= threshold]
+    if not chunks:
+        return _refuse(question, "no_relevant_chunks")
+    return chunks
+
+
+def _finish(question: str, reply: str, chunks: list[Chunk]) -> Answer:
+    """Steps 5-7: everything that happens to the model's full reply."""
+    answer = normalize_citations(reply)
+    # 5. The model refused (refusal layers 2 and 3 are the template and the system prompt).
+    if is_refusal(answer):
+        return _refuse(question, "model_refused")
+    # 6. Answer check (SC-3): a number or date the chunks don't contain was made up.
+    missing = unsupported_numbers(answer, chunks)
+    if missing:
+        logger.warning("Answer check failed, not in the sources: %s", missing)
+        return _refuse(question, "check_failed")
+    # 7. Number the cited files and pages 1, 2, 3 ...; drop the model's own list; official company name (SC-5).
+    #    No "Sources:" list (SC-8): sources travel only in `citations`, and [n] is citations[n-1].
+    answer, citations = renumber_citations(drop_model_sources(answer), chunks)
+    return Answer(text=official_company_name(answer), citations=citations, refused=False, reason="answered")
+
+
 def ask(
         question: str,
         store: PgStore,
@@ -149,32 +179,45 @@ def ask(
         threshold: float = RELEVANCE_THRESHOLD,
         chat = chat_with_ollama,
 ) -> Answer:
+    found = _retrieve(question, store, history, threshold)
+    if isinstance(found, Answer):
+        return found
+    # 4. Generate.
+    return _finish(question, chat(build_messages(question, found, history)), found)
 
-    # 1. A blank question would still "find" 4 chunks, so refuse before searching.
-    if not question.strip():
-        return _refuse(question, "blank")
+def stream_from_ollama(messages: list[dict]) -> Iterator[str]:
+    """The model's reply piece by piece. Ollama sends one JSON object per line; the last one has "done": true."""
+    with requests.post(
+        f"{OLLAMA_URL}/api/chat", json=_chat_request(messages, stream=True), stream=True, timeout=TIMEOUT_SECONDS
+    ) as response:
+        response.raise_for_status()
+        for line in response.iter_lines():
+            if not line:
+                continue
+            part = json.loads(line)
+            piece = part.get("message", {}).get("content", "")
+            if piece:
+                yield piece
+            if part.get("done"):
+                break
 
-    # 2-3. Retrieve, then keep only chunks that pass the relevance threshold (refusal layer 1).
-    hits = search(store, embed([search_text(question, history)])[0], k=TOP_K)
-    chunks = [chunk for chunk, score in hits if score >= threshold]
-    if not chunks:
-        return _refuse(question, "no_relevant_chunks")
 
-    # 4. Generate (refusal layers 2 and 3 are the template and the system prompt).
-    answer = normalize_citations(chat(build_messages(question, chunks, history)))
-    if is_refusal(answer):
-        return _refuse(question, "model_refused")
-
-    # 5. Answer check (spec change SC-3): a number or date the chunks don't contain was made up.
-    missing = unsupported_numbers(answer, chunks)
-    if missing:
-        logger.warning("Answer check failed, not in the sources: %s", missing)
-        return _refuse(question, "check_failed")
-
-    # 6. Number the cited files and pages 1, 2, 3 ... and rewrite [n] to match; ours replaces the model's own list.
-    answer, citations = renumber_citations(drop_model_sources(answer), chunks)
-
-    # 7. Official company name (SC-5). No "Sources:" list (SC-8): sources travel only in `citations`,
-    #    and [n] in the text is citations[n-1].
-    text = official_company_name(answer)
-    return Answer(text=text, citations=citations, refused=False, reason="answered")
+def ask_stream(
+        question: str,
+        store: PgStore,
+        history: Sequence[str] = (),
+        threshold: float = RELEVANCE_THRESHOLD,
+        chat_stream = stream_from_ollama,
+) -> Iterator[tuple[str, str | Answer]]:
+    """Yields ("token", text) as the model writes, then exactly one ("done", Answer).
+    The checks need the full text, so they run before "done": its text can differ from the joined tokens
+    (renumbered [n], or a refusal after the answer check). Clients show the "done" answer at the end."""
+    found = _retrieve(question, store, history, threshold)
+    if isinstance(found, Answer):
+        yield "done", found
+        return
+    pieces = []
+    for piece in chat_stream(build_messages(question, found, history)):
+        pieces.append(piece)
+        yield "token", piece
+    yield "done", _finish(question, "".join(pieces).strip(), found)

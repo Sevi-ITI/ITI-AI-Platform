@@ -6,7 +6,7 @@ from app.rag.b_splitter import Chunk
 from app.rag.e_prompts import REFUSAL_EN, REFUSAL_FIL
 from app.rag.f_chains import (
     Citation, ask, drop_model_sources, normalize_citations, official_company_name, renumber_citations,
-    unsupported_numbers,
+    unsupported_numbers, ask_stream, stream_from_ollama,
 )
 
 
@@ -30,6 +30,36 @@ class RecordingEmbed:
     def __call__(self, texts):
         self.texts.extend(texts)
         return [[1.0, 0.0, 0.0] for _ in texts]
+
+class FakeStreamModel:
+    """Stands in for qwen3.5:4b in streaming mode: sends its reply in pieces and remembers what it was sent."""
+
+    def __init__(self, *pieces: str):
+        self.pieces = pieces
+        self.calls = []
+
+    def __call__(self, messages: list[dict]):
+        self.calls.append(messages)
+        yield from self.pieces
+
+
+class FakeStreamResponse:
+    """Stands in for the streamed HTTP response from Ollama: one JSON object per line."""
+
+    def __init__(self, lines: list[bytes]):
+        self.lines = lines
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def raise_for_status(self):
+        pass
+
+    def iter_lines(self):
+        return iter(self.lines)
 
 def never_called(messages: list[dict]) -> str:
     raise AssertionError("the model must not be called")
@@ -315,3 +345,70 @@ def test_blank_question_with_history_is_still_refused_without_searching(store, m
     monkeypatch.setattr(f_chains, "embed", never_called)
     answer = ask("   ", store, ["How many vacation leaves?"], chat=never_called)
     assert (answer.reason, answer.citations) == ("blank", [])
+
+# --- ask_stream(): the answer word by word (gap 4) ---
+
+def _kinds(events):
+    return [kind for kind, _ in events]
+
+
+def test_stream_sends_the_pieces_then_one_done_with_the_same_answer_as_ask(store):
+    pieces = ("Every ", "90 days ", "[1].")
+    events = list(ask_stream("When do passwords expire?", store, chat_stream=FakeStreamModel(*pieces)))
+    assert events[:-1] == [("token", p) for p in pieces]
+    kind, answer = events[-1]
+    assert kind == "done"
+    assert answer == ask("When do passwords expire?", store, chat=FakeModel("Every 90 days [1]."))
+
+
+def test_stream_done_has_the_renumbered_text_which_can_differ_from_the_tokens(store):
+    events = list(ask_stream("When do passwords expire?", store,
+                             chat_stream=FakeStreamModel("Office at 6 PM [2], ", "every 90 days [1].")))
+    assert "".join(v for k, v in events if k == "token") == "Office at 6 PM [2], every 90 days [1]."
+    assert events[-1][1].text == "Office at 6 PM [1], every 90 days [2]."
+
+
+def test_stream_blank_question_sends_only_done_without_calling_the_model(store):
+    events = list(ask_stream("   ", store, chat_stream=never_called))
+    assert _kinds(events) == ["done"]
+    assert events[0][1].reason == "blank"
+
+
+def test_stream_with_nothing_relevant_sends_only_done_without_calling_the_model(store):
+    events = list(ask_stream("When do passwords expire?", store, threshold=1.5, chat_stream=never_called))
+    assert _kinds(events) == ["done"]
+    assert events[0][1].reason == "no_relevant_chunks"
+
+
+def test_stream_invented_number_ends_in_a_refusal_after_the_tokens(store):
+    events = list(ask_stream("When do passwords expire?", store, chat_stream=FakeStreamModel("Every 45 ", "days [1].")))
+    assert _kinds(events) == ["token", "token", "done"]
+    assert (events[-1][1].text, events[-1][1].reason) == (REFUSAL_EN, "check_failed")
+
+
+def test_stream_uses_the_history_like_ask(store, monkeypatch):
+    embed = RecordingEmbed()
+    monkeypatch.setattr(f_chains, "embed", embed)
+    model = FakeStreamModel("Every 90 days [1].")
+    list(ask_stream("And for probationary employees?", store, ["How many vacation leaves?"], chat_stream=model))
+    assert embed.texts == ["How many vacation leaves?\nAnd for probationary employees?"]
+    assert "How many vacation leaves?" in model.calls[0][0]["content"]
+
+
+def test_stream_from_ollama_reads_the_pieces_line_by_line(monkeypatch):
+    lines = [
+        b'{"message": {"content": "Every "}, "done": false}',
+        b"",  # Ollama can send blank lines between objects
+        b'{"message": {"content": "90 days."}, "done": false}',
+        b'{"message": {"content": ""}, "done": true}',
+    ]
+    sent = {}
+
+    def fake_post(url, json, stream, timeout):
+        sent.update(url=url, body=json, stream=stream)
+        return FakeStreamResponse(lines)
+
+    monkeypatch.setattr(f_chains.requests, "post", fake_post)
+    assert list(stream_from_ollama([{"role": "user", "content": "Q"}])) == ["Every ", "90 days."]
+    assert sent["url"].endswith("/api/chat") and sent["stream"] is True
+    assert sent["body"]["stream"] is True and sent["body"]["think"] is False
