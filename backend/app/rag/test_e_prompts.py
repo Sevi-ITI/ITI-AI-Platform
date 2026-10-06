@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from app.rag.e_prompts import MAX_HISTORY
 from app.rag.b_splitter import Chunk
 from app.rag.e_prompts import (
     RAG_TEMPLATE,
@@ -102,3 +103,21 @@ def test_build_messages_puts_rules_and_context_in_system_and_question_in_user():
     assert system["content"].startswith(SYSTEM_PROMPT)
     assert '<source id="1" name="a.pdf" page="2">\nOffice closes at 6 PM.\n</source>' in system["content"]
     assert "{{CONTEXT}}" not in system["content"]
+
+# --- follow-up questions (D-6, SC-7) ---
+
+HISTORY_CHUNK = Chunk(id="a.pdf:p1:c0", source="a.pdf", page=1, index=0, text="Passwords expire every 90 days.")
+
+
+def test_without_history_there_is_no_earlier_questions_block():
+    system = build_messages("When do passwords expire?", [HISTORY_CHUNK])[0]["content"]
+    assert "<earlier_questions>" not in system
+
+
+def test_history_adds_only_the_last_max_history_questions_after_the_context():
+    history = [f"Q{n}?" for n in range(1, MAX_HISTORY + 2)]  # one more question than the limit
+    system = build_messages("And the rules?", [HISTORY_CHUNK], history)[0]["content"]
+    block = system.split("<earlier_questions>")[1]
+    assert history[0] not in block                  # the oldest question is dropped
+    assert all(q in block for q in history[1:])     # the last MAX_HISTORY questions are kept
+    assert system.index("</context>") < system.index("<earlier_questions>")

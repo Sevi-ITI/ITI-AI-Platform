@@ -1,5 +1,6 @@
 import re
 
+from collections.abc import Sequence
 from app.rag.b_splitter import Chunk
 
 REFUSAL_EN = "I don't know. I couldn't find that in the uploaded documents."
@@ -33,6 +34,15 @@ Answer the user's question using ONLY the information inside <context>.
 {{CONTEXT}}
 </context>"""
 
+MAX_HISTORY = 3  # D-6: the prompt remembers the last 3 earlier questions, never earlier answers
+# Added below the context only when the conversation has earlier questions. SYSTEM_PROMPT and
+# RAG_TEMPLATE stay word for word as in the spec (test_prompts_match_the_spec_word_for_word).
+EARLIER_QUESTIONS = """### Earlier questions in this conversation
+Use them only to understand what the new question refers to. They are not sources: answer only from <context>.
+<earlier_questions>
+{{QUESTIONS}}
+</earlier_questions>"""
+
 TAGALOG_WORDS = {
     "ang", "ng", "mga", "sa", "ano", "anong", "paano", "sino", "saan", "kailan", "bakit", "ilan", "magkano",
     "hindi", "ba", "po", "ko", "ka", "ito", "yung", "kung", "dapat", "wala", "meron", "nasa", "para", "lang", "rin",
@@ -54,9 +64,12 @@ def format_context(chunks: list[Chunk]) -> str:
         for n, chunk in enumerate(chunks,1)
     )
 
-def build_messages(question: str, chunks: list[Chunk]) -> list[dict]:
-    rag_prompt = RAG_TEMPLATE.replace("{{CONTEXT}}", format_context(chunks))
+def build_messages(question: str, chunks: list[Chunk], history: Sequence[str] = ()) -> list[dict]:
+    system = SYSTEM_PROMPT + "\n\n" + RAG_TEMPLATE.replace("{{CONTEXT}}", format_context(chunks))
+    if history:
+        earlier = "\n".join(f"- {q}" for q in history[-MAX_HISTORY:])
+        system += "\n\n" + EARLIER_QUESTIONS.replace("{{QUESTIONS}}", earlier)
     return [
-        {"role": "system", "content": SYSTEM_PROMPT + "\n\n" + rag_prompt},
+        {"role": "system", "content": system},
         {"role": "user", "content": question},
     ]

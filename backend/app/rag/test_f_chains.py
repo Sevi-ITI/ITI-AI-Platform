@@ -21,6 +21,15 @@ class FakeModel:
         self.calls.append(messages)
         return self.reply
 
+class RecordingEmbed:
+    """Stands in for bge-m3: returns the same vector for every text and remembers which texts were embedded."""
+
+    def __init__(self):
+        self.texts = []
+
+    def __call__(self, texts):
+        self.texts.extend(texts)
+        return [[1.0, 0.0, 0.0] for _ in texts]
 
 def never_called(messages: list[dict]) -> str:
     raise AssertionError("the model must not be called")
@@ -275,3 +284,34 @@ OFFENSES = _chunk("dress.pdf", 3, 0, "First Offense: verbal warning. Second Offe
 def test_ordinal_written_as_a_word_in_the_source(answer, expected):
     # F-E: the source says "Fifth Offense", the model may write "5th Offense".
     assert unsupported_numbers(answer, [OFFENSES]) == expected
+
+# --- follow-up questions (D-6, SC-7) ---
+
+def test_without_history_the_search_uses_the_question_only(store, monkeypatch):
+    embed = RecordingEmbed()
+    monkeypatch.setattr(f_chains, "embed", embed)
+    ask("When do passwords expire?", store, chat=FakeModel("Every 90 days [1]."))
+    assert embed.texts == ["When do passwords expire?"]
+
+
+def test_a_follow_up_searches_with_the_previous_question_too(store, monkeypatch):
+    embed = RecordingEmbed()
+    monkeypatch.setattr(f_chains, "embed", embed)
+    history = ["What is the dress code?", "How many vacation leaves do regular employees get?"]
+    ask("And for probationary employees?", store, history, chat=FakeModel("Every 90 days [1]."))
+    assert embed.texts == ["How many vacation leaves do regular employees get?\nAnd for probationary employees?"]
+
+
+def test_the_model_sees_only_the_last_three_earlier_questions(store):
+    model = FakeModel("Every 90 days [1].")
+    ask("And the rules?", store, ["Q1?", "Q2?", "Q3?", "Q4?"], chat=model)
+    (system, user), = model.calls
+    assert user == {"role": "user", "content": "And the rules?"}  # the new question alone, as before
+    assert "Q1?" not in system["content"]
+    assert all(q in system["content"] for q in ["Q2?", "Q3?", "Q4?"])
+
+
+def test_blank_question_with_history_is_still_refused_without_searching(store, monkeypatch):
+    monkeypatch.setattr(f_chains, "embed", never_called)
+    answer = ask("   ", store, ["How many vacation leaves?"], chat=never_called)
+    assert (answer.reason, answer.citations) == ("blank", [])

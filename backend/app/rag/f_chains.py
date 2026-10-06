@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 
 import requests
 
+from collections.abc import Sequence
 from app.rag.b_splitter import Chunk
 from app.rag.c_embeddings import OLLAMA_URL, embed
 from app.rag.config import SETTINGS
@@ -133,12 +134,18 @@ def unsupported_numbers(answer: str, chunks: list[Chunk]) -> list[str]:
             missing.append(number)
     return missing
 
+def search_text(question: str, history: Sequence[str]) -> str:
+    """D-6 option B: the previous question + the new one, so "And for probationary employees?"
+    after a question about vacation leave still finds the leave policy. No extra model call."""
+    return f"{history[-1]}\n{question}" if history else question
+
 def _refuse(question: str, reason: str) -> Answer:
     return Answer(text=refusal_for(question), citations=[], refused=True, reason=reason)
 
 def ask(
         question: str,
         store: PgStore,
+        history: Sequence[str] = (),
         threshold: float = RELEVANCE_THRESHOLD,
         chat = chat_with_ollama,
 ) -> Answer:
@@ -148,13 +155,13 @@ def ask(
         return _refuse(question, "blank")
 
     # 2-3. Retrieve, then keep only chunks that pass the relevance threshold (refusal layer 1).
-    hits = search(store, embed([question]) [0], k=TOP_K)
+    hits = search(store, embed([search_text(question, history)])[0], k=TOP_K)
     chunks = [chunk for chunk, score in hits if score >= threshold]
     if not chunks:
         return _refuse(question, "no_relevant_chunks")
 
     # 4. Generate (refusal layers 2 and 3 are the template and the system prompt).
-    answer = normalize_citations(chat(build_messages(question, chunks)))
+    answer = normalize_citations(chat(build_messages(question, chunks, history)))
     if is_refusal(answer):
         return _refuse(question, "model_refused")
 
