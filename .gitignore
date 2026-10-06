@@ -5,10 +5,9 @@ __pycache__/
 media/
 data/
 *.env
-backend/apps/rag/fixtures/*.pdf
+backend/app/rag/fixtures/*.pdf
 lab/
 .env.local
 .env
-.env.example
 admin-ui/node_modules/
 admin-ui/.next/
