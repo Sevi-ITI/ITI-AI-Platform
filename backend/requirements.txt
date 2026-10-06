@@ -28,5 +28,6 @@ python-dotenv==1.2.3          # rag/config.py reads .env with it
 # --- dev ---
 pytest==9.1.1
 ruff==0.16.10
+httpx2==2.13.1
 
 # Not needed any more: chromadb (replaced by pgvector), django.

@@ -1,6 +1,6 @@
 """request_id_and_timing(): runs around EVERY request.
 
-1. Picks the request id (the caller's safe X-Request-Id, or a new one) and echoes it back.
+1. Picks the request id (the caller's safe ITI-Request-Id, or a new one) and echoes it back.
 2. Creates the request's metrics dict, which dependencies and services fill in.
 3. When the reply has been sent completely (streams included), saves one request_logs row.
 
@@ -24,7 +24,7 @@ SAFE_ID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
 async def request_id_and_timing(request: Request, call_next):
     incoming = request.headers.get("ITI-Request-Id", "")
-    rid = incoming if SAFE_ID.match(incoming) else f"iti_{uuid.uuid4().hex[:12]}"
+    rid = incoming if SAFE_ID.match(incoming) else f"iti_req_{uuid.uuid4().hex[:12]}"
     REQUEST_ID.set(rid)
     metrics = {"request_id": rid, "method": request.method, "path": request.url.path[:200]}
     REQUEST_METRICS.set(metrics)
