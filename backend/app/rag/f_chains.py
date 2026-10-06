@@ -1,6 +1,6 @@
 import logging
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import requests
 
@@ -25,6 +25,7 @@ TIMEOUT_SECONDS = 300
 class Citation:
     source: str
     page: int
+    text: str = field(default="", compare=False)
 
 @dataclass(frozen=True)
 class Answer:
@@ -99,7 +100,7 @@ def renumber_citations(answer: str, chunks: list[Chunk]) -> tuple[str, list[Cita
         for number in match[1].split(","):
             n = int(number)
             if 1 <= n <= len(chunks):  # [0] or [9] point at no chunk
-                citation = Citation(chunks[n - 1].source, chunks[n - 1].page)
+                citation = Citation(chunks[n - 1].source, chunks[n - 1].page, chunks[n - 1].text)
                 if citation not in citations:
                     citations.append(citation)
                 numbers.append(citations.index(citation) + 1)

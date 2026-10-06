@@ -117,6 +117,16 @@ def test_two_chunks_from_the_same_page_give_one_citation(store):
     assert answer.citations == [Citation("a.pdf", 2)]
     assert answer.text == "Every 90 days [1], at least 12 characters [1].\n\nSources:\na.pdf (page 2) [1]"
 
+def test_every_citation_carries_the_text_of_the_chunk_it_cites(store):
+    # rag-interface.md: the service shows Citation.text as the snippet next to each source.
+    answer = ask("When do passwords expire?", store, chat=FakeModel("Every 90 days [1]; the office closes at 6 PM [2]."))
+    assert [c.text for c in answer.citations] == [PASSWORDS.text, OFFICE.text]
+
+
+def test_two_chunks_from_one_page_keep_the_first_cited_chunks_text(store):
+    answer = ask("What are the password rules?", store, chat=FakeModel("At least 12 characters [3], every 90 days [1]."))
+    assert answer.citations == [Citation("a.pdf", 2)]  # still one citation per file + page
+    assert answer.citations[0].text == LENGTH.text     # [3] was mentioned first
 
 def test_answer_with_an_invented_number_is_refused(store):
     answer = ask("When do passwords expire?", store, chat=FakeModel("Every 45 days [1]."))
