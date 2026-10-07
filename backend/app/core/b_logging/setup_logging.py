@@ -4,6 +4,7 @@ import logging
 
 from app.core.b_logging.request_id_filter import RequestIdFilter
 
+
 def setup_logging(level: str = 'INFO') -> None:
     handler = logging.StreamHandler()
     handler.addFilter(RequestIdFilter())

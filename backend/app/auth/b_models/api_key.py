@@ -8,6 +8,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.core.c_database.base import Base
 from app.core.c_database.utcnow import utcnow
 
+
 class ApiKey(Base):
     __tablename__ = "api_keys"
 

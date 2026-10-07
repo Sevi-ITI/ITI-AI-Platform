@@ -1,17 +1,17 @@
 import json
 import logging
 import re
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass, field
 
 import requests
 
-from collections.abc import Sequence, Iterator
-from app.rag.passage import Passage
 from app.rag.c_embeddings import OLLAMA_URL, embed
 from app.rag.config import SETTINGS
 from app.rag.d_vectorstore.pg_store import PgStore
 from app.rag.d_vectorstore.search import search
 from app.rag.e_prompts import build_messages, is_refusal, refusal_for
+from app.rag.passage import Passage
 
 TOP_K = 4  # chunks per question (spec 5.5); used to live in the Chroma d_vectorstore.py
 

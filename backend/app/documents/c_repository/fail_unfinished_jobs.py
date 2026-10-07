@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.core.c_database.utcnow import utcnow
 from app.documents.b_models.ingest_job import IngestJob
 
+
 def fail_unfinished_jobs(db: Session) -> int:
     result = db.execute(
         update(IngestJob)

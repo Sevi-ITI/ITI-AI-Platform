@@ -1,6 +1,6 @@
 import re
-
 from collections.abc import Sequence
+
 from app.rag.passage import Passage
 
 REFUSAL_EN = "I don't know. I couldn't find that in the uploaded documents."

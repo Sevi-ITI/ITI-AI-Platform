@@ -2,6 +2,7 @@
 
 from pydantic import BaseModel
 
+
 class Citation(BaseModel):
     doc_id: str
     title: str

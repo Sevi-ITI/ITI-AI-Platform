@@ -4,6 +4,7 @@ import logging
 
 from app.core.b_logging.request_id_var import REQUEST_ID
 
+
 class RequestIdFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
         record.request_id = REQUEST_ID.get()

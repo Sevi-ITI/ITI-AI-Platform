@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.chat.b_models.conversation import Conversation
 
+
 def create_conversation(db: Session, app_id: str, user_id: str, collection: str) -> Conversation:
     row = Conversation(
         id=f"iti_conv_{uuid.uuid4().hex[:12]}",

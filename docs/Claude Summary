@@ -1,0 +1,969 @@
+# Task: Produce a Complete Codebase Documentation Guide
+
+You are acting as a senior software architect and technical documentation engineer.
+
+Your task is to **read and analyze the entire codebase** and produce a comprehensive PDF document that serves as a long-term technical guide for understanding, maintaining, extending, and onboarding developers to this system.
+
+Do **not** begin writing the documentation until you have sufficiently explored the entire repository.
+
+---
+
+## 1. Repository Exploration
+
+First, inspect the complete repository structure.
+
+You must:
+
+- Recursively inspect all relevant directories and files.
+- Identify the application entry points.
+- Identify the frontend, backend, database, API, services, utilities, configuration, tests, scripts, infrastructure, and documentation.
+- Read the actual source code rather than relying primarily on filenames.
+- Identify relationships and dependencies between modules.
+- Trace important execution flows across multiple files.
+- Inspect configuration files such as:
+  - `.env.example`
+  - `pyproject.toml`
+  - `requirements.txt`
+  - `package.json`
+  - `tsconfig.json`
+  - `Dockerfile`
+  - `docker-compose.yml`
+  - migration files
+  - CI/CD configuration
+  - linting/formatting configuration
+  - test configuration
+  - other project-specific configuration
+- Inspect database models and migrations.
+- Inspect API routes/endpoints.
+- Inspect schemas/DTOs/models.
+- Inspect services and business logic.
+- Inspect authentication and authorization.
+- Inspect external integrations.
+- Inspect background jobs, queues, workers, schedulers, or event systems if present.
+- Inspect frontend components, pages, hooks, state management, API clients, and routing if present.
+- Inspect tests and determine what parts of the system they cover.
+
+Do not assume that a module is unimportant simply because it is small.
+
+---
+
+# 2. Build a Mental Model Before Documenting
+
+Before generating the final document, determine:
+
+1. What problem does this application solve?
+2. What are the major subsystems?
+3. How do those subsystems communicate?
+4. What happens from the moment a user performs a major action until the result is returned?
+5. What are the primary data flows?
+6. What are the major dependencies?
+7. Where does business logic live?
+8. Where does validation occur?
+9. Where does persistence occur?
+10. Where are external services called?
+11. Where are errors handled?
+12. Where are authentication and authorization enforced?
+13. Which components are tightly coupled?
+14. Which components are designed to be reusable?
+15. Which parts are configuration-driven?
+16. Which parts are likely to be modified when adding a new feature?
+
+When necessary, trace execution across multiple files instead of documenting each file in isolation.
+
+---
+
+# 3. Documentation Requirements
+
+Create a detailed PDF titled:
+
+**"Complete Codebase Technical Guide"**
+
+The PDF should be written as documentation for another developer who has never seen this project before.
+
+It must explain both:
+
+- **WHAT each component does**
+- **WHY it exists and HOW it interacts with the rest of the system**
+
+Do not merely reproduce source code.
+
+---
+
+# 4. Required Document Structure
+
+Use the following structure.
+
+## 1. Executive Overview
+
+Explain:
+
+- What the system is
+- What problem it solves
+- Primary users
+- Primary use cases
+- High-level architecture
+- Major technologies
+- Major architectural patterns
+
+Include a concise architecture diagram if possible.
+
+---
+
+## 2. Repository Structure
+
+Provide a tree-style representation of the important repository structure.
+
+For example:
+
+```text
+project/
+├── backend/
+│   ├── api/
+│   ├── services/
+│   ├── models/
+│   └── ...
+├── frontend/
+│   ├── components/
+│   ├── pages/
+│   └── ...
+├── tests/
+└── ...
+```
+
+For each important directory, explain:
+
+- Its purpose
+- What belongs there
+- What should NOT normally be placed there
+- Which other parts of the application depend on it
+
+---
+
+## 3. Technology Stack
+
+Create a table containing:
+
+| Technology | Version | Purpose | Where Used |
+|---|---|---|---|
+
+Include frameworks, libraries, databases, infrastructure, testing tools, AI/ML libraries, external APIs, and other significant dependencies.
+
+Only state versions that can actually be determined from the repository.
+
+If a version cannot be determined, state:
+
+**"Not explicitly specified."**
+
+Do not guess.
+
+---
+
+# 4. System Architecture
+
+Explain the architecture in detail.
+
+Cover:
+
+- Frontend
+- Backend
+- API layer
+- Service layer
+- Data layer
+- Database
+- External services
+- Authentication
+- Authorization
+- Background processing
+- AI/LLM components if present
+- File/document processing if present
+- Caching if present
+- Logging
+- Monitoring
+
+Explain how these components communicate.
+
+Include architecture diagrams where useful.
+
+---
+
+# 5. Application Entry Points
+
+Identify every important entry point.
+
+For each one explain:
+
+- File
+- Function/class
+- Purpose
+- What initializes
+- What it calls
+- What calls it
+- Runtime/environment in which it executes
+
+Example:
+
+```text
+main.py
+└── create_app()
+    ├── register_routes()
+    ├── initialize_database()
+    └── configure_middleware()
+```
+
+---
+
+# 6. Module-by-Module Documentation
+
+For **every significant module**, document:
+
+### Module Name
+
+**Location:**
+`path/to/module`
+
+**Purpose:**
+
+Explain what the module is responsible for.
+
+**Responsibilities:**
+
+- Responsibility 1
+- Responsibility 2
+- Responsibility 3
+
+**Dependencies:**
+
+Explain what this module imports and why.
+
+**Dependents:**
+
+Explain which other modules use it.
+
+**Important Classes:**
+
+For every significant class:
+
+- Name
+- Purpose
+- Constructor
+- Important attributes
+- Public methods
+- Internal methods
+- Relationships with other classes
+
+**Important Functions:**
+
+For every significant function:
+
+- Function name
+- File/location
+- Purpose
+- Parameters
+- Parameter types
+- Return type
+- Side effects
+- Exceptions/errors
+- Important dependencies
+- Where it is called
+- What calls it
+- Brief execution explanation
+
+Example:
+
+```text
+process_document()
+
+Input:
+    document: UploadedDocument
+
+Flow:
+    1. Validate document
+    2. Extract text
+    3. Split text into chunks
+    4. Generate embeddings
+    5. Store vectors
+    6. Return document ID
+
+Output:
+    DocumentProcessingResult
+```
+
+Do not document only function names. Explain their behavior.
+
+---
+
+# 7. API Documentation
+
+If the application exposes an API, document every endpoint.
+
+For each endpoint include:
+
+- HTTP method
+- Route
+- Authentication requirements
+- Authorization requirements
+- Request headers
+- Path parameters
+- Query parameters
+- Request body
+- Validation rules
+- Response format
+- HTTP status codes
+- Error responses
+- Internal execution flow
+- Database interactions
+- External service interactions
+
+Example:
+
+```text
+POST /api/v1/chat
+
+Authentication:
+    API Key
+
+Request:
+    {
+        "conversation_id": "...",
+        "message": "..."
+    }
+
+Execution:
+    Route
+      ↓
+    Authentication
+      ↓
+    Request validation
+      ↓
+    Chat service
+      ↓
+    Retrieval
+      ↓
+    LLM
+      ↓
+    Persistence
+      ↓
+    Response
+```
+
+---
+
+# 8. Database Documentation
+
+Document the complete database design.
+
+For every table include:
+
+| Column | Type | Nullable | Default | Purpose |
+|---|---|---|---|---|
+
+Also document:
+
+- Primary keys
+- Foreign keys
+- Unique constraints
+- Indexes
+- Relationships
+- Cascades
+- Enums
+- Important queries
+- ORM models
+- Migrations
+
+Create an ER diagram if practical.
+
+Explain relationships such as:
+
+```text
+Account
+   │
+   ├── Users
+   ├── Chatbots
+   ├── Knowledge Bases
+   └── Integrations
+          └── API Keys
+```
+
+Do not invent relationships that are not present in the code.
+
+---
+
+# 9. Data Flow Documentation
+
+Document the most important end-to-end workflows.
+
+For example:
+
+### User Authentication
+
+```text
+Client
+ ↓
+API endpoint
+ ↓
+Authentication middleware
+ ↓
+User lookup
+ ↓
+Credential/token validation
+ ↓
+Authorization
+ ↓
+Application logic
+ ↓
+Response
+```
+
+### Chat Request
+
+```text
+Client
+ ↓
+API
+ ↓
+Authentication
+ ↓
+Chat service
+ ↓
+Conversation retrieval
+ ↓
+Knowledge retrieval
+ ↓
+LLM
+ ↓
+Response processing
+ ↓
+Database
+ ↓
+Client
+```
+
+Use the actual application's implementation rather than these examples.
+
+Document every major workflow you discover.
+
+---
+
+# 10. Authentication & Security
+
+Document:
+
+- Authentication mechanism
+- API keys
+- JWT/session handling
+- Password handling
+- Authorization
+- Roles
+- Permissions
+- Tenant isolation
+- Secrets
+- Environment variables
+- CORS
+- CSRF if applicable
+- Input validation
+- File upload security
+- Rate limiting
+- Sensitive data handling
+
+Identify potential security-sensitive areas.
+
+Clearly distinguish between:
+
+**Implemented**
+
+and
+
+**Not implemented / potential concern**
+
+Do not claim a security feature exists unless the code demonstrates it.
+
+---
+
+# 11. Configuration
+
+Document all important configuration.
+
+Create a table:
+
+| Variable | Purpose | Required | Default | Used By |
+|---|---|---|---|---|
+
+Do not expose actual secrets.
+
+If a `.env` file exists, document variable names and purposes but **never reproduce secret values**.
+
+---
+
+# 12. Error Handling
+
+Document:
+
+- Custom exceptions
+- HTTP exception handling
+- Validation errors
+- Database errors
+- External API failures
+- Retry mechanisms
+- Logging
+- Error response formats
+
+Explain where errors originate and where they are handled.
+
+---
+
+# 13. Testing
+
+Document:
+
+- Unit tests
+- Integration tests
+- End-to-end tests
+- Test structure
+- Fixtures
+- Mocking
+- Test configuration
+- Important test cases
+- Coverage if available
+
+Create a mapping where possible:
+
+```text
+Component → Test File → Test Coverage
+```
+
+Identify important areas that appear to lack tests.
+
+Do not invent coverage percentages.
+
+---
+
+# 14. External Services and Integrations
+
+For every external dependency explain:
+
+- Service
+- Purpose
+- Authentication
+- API/client library
+- Where it is called
+- Data sent
+- Data received
+- Failure handling
+- Configuration
+
+Examples may include:
+
+- LLM providers
+- Vector databases
+- Email services
+- Storage providers
+- Payment providers
+- OAuth providers
+- Third-party APIs
+
+Only document integrations actually present in the repository.
+
+---
+
+# 15. AI / LLM / RAG Architecture
+
+If applicable, document:
+
+- LLM providers
+- Models
+- Prompt construction
+- System prompts
+- Context construction
+- Embeddings
+- Chunking
+- Retrieval
+- Reranking
+- Vector storage
+- Conversation memory
+- Tool calling
+- Agent logic
+- Structured outputs
+- Token handling
+- Streaming
+
+Explain the complete pipeline.
+
+For example:
+
+```text
+User Message
+      ↓
+Query Processing
+      ↓
+Embedding
+      ↓
+Vector Search
+      ↓
+Retrieved Context
+      ↓
+Prompt Construction
+      ↓
+LLM
+      ↓
+Response Validation
+      ↓
+Persistence
+      ↓
+Client
+```
+
+Use the actual architecture discovered in the codebase.
+
+---
+
+# 16. Frontend Architecture
+
+If a frontend exists, document:
+
+- Application entry point
+- Routing
+- Pages
+- Components
+- Layouts
+- State management
+- Hooks
+- API clients
+- Authentication state
+- Forms
+- Validation
+- Error handling
+- Loading states
+- Important UI workflows
+
+Explain component relationships.
+
+---
+
+# 17. Backend Architecture
+
+Document:
+
+- Routes
+- Controllers
+- Services
+- Repositories
+- Models
+- Schemas
+- Middleware
+- Dependencies
+- Background workers
+- Utilities
+
+Explain the intended responsibility of each layer.
+
+Identify cases where business logic appears in an unexpected layer.
+
+---
+
+# 18. Important Execution Flows
+
+Select the most important 5–10 workflows in the system and explain them in detail.
+
+For each:
+
+1. Starting point
+2. Initial function
+3. Functions called
+4. Data transformations
+5. Database interactions
+6. External service calls
+7. Error handling
+8. Final result
+
+Include sequence diagrams when useful.
+
+---
+
+# 19. Dependency Map
+
+Create a high-level dependency map.
+
+Example:
+
+```text
+API Routes
+    ↓
+Services
+    ↓
+Repositories
+    ↓
+Database
+
+Services
+    ↓
+External APIs
+
+Frontend
+    ↓
+API Routes
+```
+
+Identify highly coupled modules.
+
+---
+
+# 20. Environment & Deployment
+
+Document:
+
+- Local development setup
+- Required environment variables
+- Build commands
+- Run commands
+- Test commands
+- Docker configuration
+- Production configuration
+- Deployment architecture
+- Database migrations
+- Static assets
+- Background processes
+
+Only document commands that are actually supported by the repository.
+
+---
+
+# 21. Developer Guide
+
+Explain how a new developer should approach the codebase.
+
+Include:
+
+### "Where do I start?"
+
+### "Where do I add a new API endpoint?"
+
+### "Where do I add business logic?"
+
+### "Where do I add a database table?"
+
+### "Where do I add a new chatbot feature?"
+
+### "Where do I modify authentication?"
+
+### "Where do I modify the frontend?"
+
+### "Where do I add tests?"
+
+### "Where do I modify integrations?"
+
+### "Where do I configure the application?"
+
+Answer each using the actual architecture.
+
+---
+
+# 22. Feature Modification Guide
+
+Explain the likely files/modules that must be modified for common changes.
+
+Example:
+
+```text
+Adding a new API feature
+    ↓
+Route
+    ↓
+Schema
+    ↓
+Service
+    ↓
+Repository
+    ↓
+Model
+    ↓
+Migration
+    ↓
+Tests
+```
+
+Adapt this to the actual project.
+
+---
+
+# 23. Code Quality & Architecture Assessment
+
+Provide a separate section evaluating the codebase.
+
+Discuss:
+
+### Strengths
+
+- Good architectural decisions
+- Good separation of concerns
+- Reusable abstractions
+- Good testing
+- Good security practices
+
+### Technical Debt
+
+- Duplicated logic
+- Excessive coupling
+- Large functions
+- Inconsistent naming
+- Missing abstractions
+- Missing tests
+- Dead code
+- Configuration problems
+
+### Risks
+
+Identify issues that could cause:
+
+- Bugs
+- Security problems
+- Scaling problems
+- Maintenance problems
+- Deployment problems
+
+Do not exaggerate minor issues.
+
+---
+
+# 24. Unknowns and Ambiguities
+
+Create a section explicitly listing things that cannot be determined confidently from the repository.
+
+Use:
+
+**"Unknown / Requires Confirmation"**
+
+rather than guessing.
+
+This section is important.
+
+---
+
+# 25. Glossary
+
+Define project-specific terminology, abbreviations, classes, concepts, and domain terminology that a new developer would need to understand.
+
+---
+
+# 26. Quick Reference
+
+Finish the document with a concise reference section containing:
+
+- Important directories
+- Important files
+- Entry points
+- Important commands
+- API base URL/configuration
+- Database
+- Authentication
+- Core services
+- External integrations
+- Test commands
+- Deployment commands
+- Important environment variables
+
+---
+
+# 27. Accuracy Requirements
+
+These rules are mandatory.
+
+### NEVER:
+
+- Invent functionality.
+- Invent API endpoints.
+- Invent database tables.
+- Invent dependencies.
+- Assume behavior from filenames alone.
+- Claim something is implemented when it is only planned.
+- Expose secrets.
+- Invent version numbers.
+- Invent architecture that does not exist.
+
+### ALWAYS:
+
+- Base documentation on actual code.
+- Trace function calls when necessary.
+- Cross-reference modules.
+- Identify uncertainty.
+- Distinguish implementation from assumptions.
+- Use exact file paths.
+- Use exact class/function names.
+- Explain relationships between components.
+- Prefer implementation evidence over naming conventions.
+
+---
+
+# 28. PDF Requirements
+
+The final output must be a professionally formatted PDF.
+
+Use:
+
+- Clear hierarchy
+- Table of contents
+- Page numbers
+- Section numbering
+- Code blocks
+- Tables
+- Architecture diagrams
+- Database diagrams where useful
+- Sequence diagrams where useful
+- Consistent typography
+- Headers/footers
+
+The document should be readable as a technical manual rather than a raw code dump.
+
+Target approximately **50–150+ pages if the codebase warrants it**.
+
+Do not artificially inflate the document to reach a page count.
+
+The level of detail should be determined by the complexity of the repository.
+
+---
+
+# 29. Final Verification
+
+Before generating the PDF, perform a final documentation audit.
+
+Verify that:
+
+- Every major directory is documented.
+- Every major module is documented.
+- Important classes are documented.
+- Important functions are documented.
+- API endpoints are documented.
+- Database tables are documented.
+- Major workflows are documented.
+- Authentication is documented.
+- Configuration is documented.
+- Tests are documented.
+- External integrations are documented.
+- Important dependencies are documented.
+- Unknowns are explicitly identified.
+- No secrets are exposed.
+- No major architectural assumptions are presented as facts.
+
+Then generate the final PDF.
+
+---
+
+# Final Deliverable
+
+Produce:
+
+**`Complete_Codebase_Technical_Guide.pdf`**
+
+This document should function as the project's **technical source-of-truth guide** for:
+
+- onboarding developers
+- understanding the architecture
+- debugging
+- maintaining the application
+- extending features
+- reviewing dependencies
+- understanding data flows
+- understanding API behavior
+- understanding database relationships
+- understanding the purpose of individual modules and functions
+
+The goal is that a competent developer can read this document and understand the codebase substantially **without having to reverse-engineer the entire repository from scratch**.

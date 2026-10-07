@@ -3,6 +3,7 @@ Does nothing outside a request (scripts, background jobs), so it is always safe 
 
 from app.core.d_metrics.request_metrics_var import REQUEST_METRICS
 
+
 def record_metric(**fields) -> None:
     metrics = REQUEST_METRICS.get()
     if metrics is not None:

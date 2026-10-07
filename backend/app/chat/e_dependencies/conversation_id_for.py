@@ -11,6 +11,7 @@ from app.chat.e_dependencies.user_id_header import UserIdHeader
 from app.core.c_database.get_db import get_db
 from app.core.d_metrics.record_metric import record_metric
 
+
 def conversation_id_for(
         req: ChatRequest,
         user_id: UserIdHeader,

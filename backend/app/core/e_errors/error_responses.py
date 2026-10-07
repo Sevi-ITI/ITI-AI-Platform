@@ -2,8 +2,7 @@
 
 from app.core.e_errors.error_response import ErrorResponse
 
-ERROR_RESPONSES = {s: {"model": ErrorResponse} for s in (401, 403, 404, 413, 415, 422, 500, 503)}
-
+ERROR_RESPONSES = {s: {"model": ErrorResponse} for s in (401, 403, 404, 409, 413, 415, 422, 500, 503)}
 """
 Error Codes:
     401 - Invalid Request

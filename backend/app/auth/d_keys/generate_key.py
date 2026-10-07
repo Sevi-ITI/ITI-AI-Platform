@@ -6,6 +6,7 @@ import secrets
 from app.auth.d_keys.hash_secret import hash_secret
 from app.auth.d_keys.key_prefix import KEY_PREFIX
 
+
 def generate_key() -> tuple[str, str, str]:
     key_id = secrets.token_hex(6)
     secret = secrets.token_urlsafe(32)

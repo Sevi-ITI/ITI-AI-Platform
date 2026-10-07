@@ -9,6 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.core.c_database.base import Base
 from app.core.c_database.utcnow import utcnow
 
+
 class RequestLog(Base):
     __tablename__ = "request_logs"
 

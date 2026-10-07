@@ -9,6 +9,7 @@ from app.chat.d_service.answer_question import answer_question
 from app.chat.e_dependencies.conversation_id_for import conversation_id_for
 from app.core.c_database.get_db import get_db
 
+
 def post_chat(
         req: ChatRequest,
         conversation_id: str = Depends(conversation_id_for),

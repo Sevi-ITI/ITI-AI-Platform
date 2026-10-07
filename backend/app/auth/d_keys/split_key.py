@@ -2,6 +2,7 @@
 
 from app.auth.d_keys.key_prefix import KEY_PREFIX
 
+
 def split_key(raw: str) -> tuple[str, str] | None:
     if not raw.startswith(KEY_PREFIX):
         return None

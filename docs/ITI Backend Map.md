@@ -25,7 +25,7 @@ This guide was read in full on Oct 5, 2026, including every code sample and ever
 | 1 | **FastAPI only, no Django.** The service in this guide is the backend; the C# apps and your Next.js admin page call it over HTTP. | The Django part of D-2 (B-4 `documents` app, B-5 `chat` app in Django) | D-4 |
 | 2 | **PostgreSQL + pgvector in Docker, now.** Chroma is dropped: no Chroma stage in between. | Hard rule "No Docker for the MVP"; DB-2 "pgvector at deployment" | D-5, DB-2 |
 | 3 | **Follow-up questions use the conversation (option B).** Search uses the previous question plus the new one. The prompt's memory holds the **last 3 earlier questions only**, never earlier answers. | "Each message stands alone" | D-6, SC-7 |
-| 4 | **Sources only in the `citations` array.** `answer` keeps its `[n]` markers but no "Sources:" list; `citations[n-1]` is source `[n]`. | The "Sources:" list at the end of the answer (second half of SC-5) | SC-8 |
+| 4 | **Sources only in the `citation.py` array.** `answer` keeps its `[n]` markers but no "Sources:" list; `citations[n-1]` is source `[n]`. | The "Sources:" list at the end of the answer (second half of SC-5) | SC-8 |
 | 5 | **A separate project** for `iti-ai-platform`. Vince adapts the Track B `rag/` pipeline to it himself; tests use the real documents in `lab\corpus`. | "Track B grows into the Django backend" | D-4 |
 
 ### First thing to pin down: what the service needs from `rag/`
@@ -46,7 +46,7 @@ Write this down before installing anything (for example as `docs/rag-interface.m
 | # | Gap | What happens if it isn't fixed | Direction |
 |---|---|---|---|
 | 1 | `Citation` has only `source` and `page` (`f_chains.py`) | `to_citations` reads `c.text`: **every answered chat is a 500** | Add `text` to `Citation`, filled from the cited chunk |
-| 2 | `ask()` ends the text with `with_sources()` | Sources show twice in the C# apps (text and `citations`) | Stop calling `with_sources` in `ask()`; keep `renumber_citations` and `drop_model_sources` |
+| 2 | `ask()` ends the text with `with_sources()` | Sources show twice in the C# apps (text and `citation.py`) | Stop calling `with_sources` in `ask()`; keep `renumber_citations` and `drop_model_sources` |
 | 3 | `ask(question, store)` takes no history | "And for probationary employees?" finds nothing and is refused | Add `history` (option B, below) |
 | 4 | No `ask_stream` | `/v1/chat/stream`, the streaming load test and the C# smoke test's streaming line fail | Add it (Ollama `stream: true`); the answer check and renumbering run on the full text before `done` |
 | 5 | Imports are `from rag.…` | `ModuleNotFoundError`: the service imports `app.rag.…` | Change every import to `app.rag.…` |
@@ -207,7 +207,7 @@ X-Request-Id: 7c1e9b0a-55f2-4d0e-9a51-0b6f0e2d8c11
 }
 ```
 
-Since the Oct 5 review (SC-8), this is exactly the target shape: `answer` keeps `[1]` but carries no "Sources:" list; the source is only in `citations`.
+Since the Oct 5 review (SC-8), this is exactly the target shape: `answer` keeps `[1]` but carries no "Sources:" list; the source is only in `citation.py`.
 
 ### The same data, spelled three ways
 
@@ -503,13 +503,13 @@ Each side reads and writes only its own database. A C# developer who wants chat 
 
 ### The schema at a glance
 
-Seven tables plus Alembic's bookkeeping table (`alembic_version`: one row, the id of the last migration applied; `alembic current` reads it). Real foreign keys (deleting the parent deletes the children): `conversations` → `messages`, `documents` → `ingest_jobs`. Links by value only (the same text in two columns, with no constraint): `chunks.source` ↔ `documents.filename`, `api_keys.app_id` ↔ `conversations.app_id`, `messages.request_id` ↔ `request_logs.request_id`.
+Seven tables plus Alembic's bookkeeping table (`alembic_version`: one row, the id of the last migration applied; `alembic current` reads it). Real foreign keys (deleting the parent deletes the children): `conversation.py` → `messages`, `documents` → `ingest_jobs`. Links by value only (the same text in two columns, with no constraint): `chunks.source` ↔ `documents.filename`, `api_keys.app_id` ↔ `conversations.app_id`, `messages.request_id` ↔ `request_logs.request_id`.
 
 PK = primary key. FK = foreign key. Every time column is `timestamp with time zone`: one exact instant, stored as UTC.
 
 ### Every table, column by column
 
-**`conversations`**: one row per chat thread: which app, which employee, which documents. Written by `chat/c_repository/create_conversation`. Grows one row per new chat. Kept until deleted (no automatic clean-up yet).
+**`conversation.py`**: one row per chat thread: which app, which employee, which documents. Written by `chat/c_repository/create_conversation`. Grows one row per new chat. Kept until deleted (no automatic clean-up yet).
 
 | Column | Type | Key / null | Meaning |
 |---|---|---|---|
@@ -1746,4 +1746,4 @@ Every code sample on this page is read from the tested project files. Service: 3
 
 Prepared Oct 5, 2026 for Vince, ITI In-House LLM project. Companion to the written guide "ITI FastAPI Backend Guide".
 
-Reviewed Oct 5, 2026: section 0 records the decisions (FastAPI only, PostgreSQL + pgvector now, follow-up questions with option B, sources only in `citations`) and the gaps between this guide and the Track B `rag/` package. Decision records: `docs/decisions.md` D-4 to D-6, `docs/spec-changes.md` SC-7 and SC-8.
+Reviewed Oct 5, 2026: section 0 records the decisions (FastAPI only, PostgreSQL + pgvector now, follow-up questions with option B, sources only in `citation.py`) and the gaps between this guide and the Track B `rag/` package. Decision records: `docs/decisions.md` D-4 to D-6, `docs/spec-changes.md` SC-7 and SC-8.

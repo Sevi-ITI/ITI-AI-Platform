@@ -4,6 +4,7 @@ from pydantic import BaseModel
 
 from app.documents.a_schemas.job_state import JobState
 
+
 class UploadAccepted(BaseModel):
     job_id: str
     document_id: str

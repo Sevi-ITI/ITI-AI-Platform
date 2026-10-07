@@ -1,11 +1,13 @@
 """Conversation: the conversations table. Belongs to one app AND one user of that app."""
 
 from datetime import datetime
+
 from sqlalchemy import DateTime, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.c_database.base import Base
 from app.core.c_database.utcnow import utcnow
+
 
 class Conversation(Base):
     __tablename__ = 'conversations'

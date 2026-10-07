@@ -2,5 +2,6 @@
 
 import hashlib
 
+
 def hash_secret(secret: str) -> str:
     return hashlib.sha256(secret.encode()).hexdigest()

@@ -1,14 +1,23 @@
 """pytest for f_chains, with a fake model and fake embeddings (no Ollama needed). Run from backend/:  pytest apps/rag/test_f_chains.py -v"""
+from typing import cast
+
 import pytest
 
-from typing import cast
 from app.rag import f_chains
 from app.rag.b_splitter import Chunk
 from app.rag.d_vectorstore.pg_store import PgStore
 from app.rag.e_prompts import REFUSAL_EN, REFUSAL_FIL
 from app.rag.f_chains import (
-    Citation, ask, drop_model_sources, normalize_citations, official_company_name, renumber_citations,
-    unsupported_numbers, ask_stream, stream_from_ollama, Answer,
+    Answer,
+    Citation,
+    ask,
+    ask_stream,
+    drop_model_sources,
+    normalize_citations,
+    official_company_name,
+    renumber_citations,
+    stream_from_ollama,
+    unsupported_numbers,
 )
 
 FAKE_STORE = cast(PgStore, object())

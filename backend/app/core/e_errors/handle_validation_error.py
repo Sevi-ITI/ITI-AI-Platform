@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 
 from app.core.e_errors.error_json import error_json
 
+
 def handle_validation_error(request: Request, exc: RequestValidationError) -> JSONResponse:
     first = exc.errors()[0]
     where = ".".join(str(p) for p in first["loc"])

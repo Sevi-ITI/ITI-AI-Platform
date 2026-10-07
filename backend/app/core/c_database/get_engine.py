@@ -4,9 +4,9 @@ pool_size + max_overflow = how many requests can hold a database session at the 
 from functools import lru_cache
 
 from sqlalchemy import create_engine
-from sqlalchemy.engine import Engine
 
 from app.core.a_config.get_settings import get_settings
+
 
 @lru_cache()
 def get_engine():

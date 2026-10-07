@@ -5,9 +5,9 @@ from pathlib import Path
 import pytest
 import requests
 
+from app.rag import c_embeddings
 from app.rag.a_loader import load_pdf
 from app.rag.b_splitter import split_pages
-from app.rag import c_embeddings
 from app.rag.c_embeddings import BATCH_SIZE, EMBED_DIM, OLLAMA_URL, embed
 
 FIXTURE = Path(__file__).parent / "fixtures" / "sample.pdf"

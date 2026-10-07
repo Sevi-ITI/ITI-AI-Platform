@@ -1,0 +1,14 @@
+# ruff: style and bug checks for backend/. From backend\:  ruff check .        (add --fix to fix imports, whitespace)
+line-length = 120
+target-version = "py311"
+
+[lint]
+select = ["E", "F", "W", "I", "B"]  # pycodestyle, pyflakes, whitespace, import order, bugbear (likely bugs)
+ignore = [
+    "B008",  # FastAPI's Depends()/Query() as defaults is the intended pattern, not a bug
+    "E501",  # long lines are allowed: a few docstrings and test names read better on one line
+]
+
+[lint.per-file-ignores]
+"migrations/versions/*" = ["W291"]  # alembic's template leaves a trailing space after "Revises:"
+"app/rag/test_*.py" = ["B905"]  # zip() over lists the test itself built with equal lengths

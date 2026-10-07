@@ -17,4 +17,3 @@ def save_request_log(metrics: dict) -> None:
     except Exception:
         log.exception("Could not save the request log row.")
 
-        

@@ -20,7 +20,7 @@ from app.documents.b_models.document import Document
 from app.documents.c_repository.create_document_and_job import create_document_and_job
 from app.documents.c_repository.new_id import new_id
 from app.documents.d_service.clean_filename import clean_filename
-from app.documents.d_service.refuse_duplicate import refuse_duplicate          # NEW
+from app.documents.d_service.refuse_duplicate import refuse_duplicate  # NEW
 
 PIECE = 1024 * 1024  # copy 1 MB at a time, so a big upload never sits in memory whole
 

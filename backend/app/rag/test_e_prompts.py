@@ -4,9 +4,9 @@ from pathlib import Path
 
 import pytest
 
-from app.rag.e_prompts import MAX_HISTORY
 from app.rag.b_splitter import Chunk
 from app.rag.e_prompts import (
+    MAX_HISTORY,
     RAG_TEMPLATE,
     REFUSAL_EN,
     REFUSAL_FIL,

@@ -4,6 +4,7 @@ from pydantic import BaseModel
 
 from app.chat.a_schemas.citation import Citation
 
+
 class ChatResponse(BaseModel):
     answer: str
     found: bool
@@ -11,4 +12,3 @@ class ChatResponse(BaseModel):
     conversation_id: str
     request_id: str
 
-    

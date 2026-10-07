@@ -6,6 +6,7 @@ from fastapi.responses import JSONResponse
 from app.core.b_logging.request_id_var import REQUEST_ID
 from app.core.d_metrics.record_metric import record_metric
 
+
 def error_json(status: int, code: str, message: str) -> JSONResponse:
     record_metric(error_code=code)
     body ={

@@ -11,7 +11,7 @@ from urllib.parse import urlparse
 
 from dotenv import dotenv_values
 
-ENV_FILE = Path(__file__).resolve().parents[2] / ".env"  # rag/ -> app/ -> backend/  (the same .env as the service) # rag/ -> apps/ -> backend/ -> project root
+ENV_FILE = Path(__file__).resolve().parents[2] / ".env"  # rag/ -> app/ -> backend/  (the same .env as the service)
 DEFAULTS = {
     "ITI_OLLAMA_URL": "http://127.0.0.1:11434",
     "ITI_CHAT_MODEL": "qwen3.5:4b",  # the MVP's model (spec change SC-4)

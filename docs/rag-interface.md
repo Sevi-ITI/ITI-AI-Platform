@@ -66,9 +66,9 @@ Last updated: Oct 5, 2026. Decisions: D-4, D-5, D-6, SC-7, SC-8.
 
 **Output (`Answer.text`)**
 - Answered: the answer with `[n]` markers. `citations[n-1]` is source `[n]`. **No "Sources:" list**
-  (SC-8): sources travel only in `citations`.
+  (SC-8): sources travel only in `citation.py`.
 - Refused: exactly `I don't know. I couldn't find that in the uploaded documents.`, or the Filipino
-  text when the question is Filipino or Taglish. `citations` is empty.
+  text when the question is Filipino or Taglish. `citation.py` is empty.
 
 **Streaming (`ask_stream`)**
 - Steps 1 to 3 refuse with only a `done` event (no tokens).

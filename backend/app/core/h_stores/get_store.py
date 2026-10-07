@@ -4,6 +4,7 @@ from app.core.e_errors.app_error import AppError
 from app.core.h_stores.store_registry import STORES
 from app.rag.d_vectorstore.pg_store import PgStore
 
+
 def get_store(collection: str) -> PgStore:
     try:
         return STORES[collection]

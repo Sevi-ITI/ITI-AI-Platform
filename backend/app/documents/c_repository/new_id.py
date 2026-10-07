@@ -2,5 +2,6 @@
 
 import uuid
 
+
 def new_id(kind: str) -> str:
     return f"iti_{kind}_{uuid.uuid4().hex[:12]}"

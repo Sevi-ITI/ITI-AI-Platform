@@ -2,6 +2,7 @@
 
 from pydantic import BaseModel
 
+
 class AppPrincipal(BaseModel):
     key_id: str
     app_id: str

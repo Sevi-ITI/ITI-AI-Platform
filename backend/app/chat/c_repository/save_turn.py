@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.chat.b_models.message import Message
 
+
 def save_turn(
         db: Session,
         conversation_id: str,
