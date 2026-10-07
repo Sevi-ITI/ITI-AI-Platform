@@ -13,7 +13,7 @@ from app.rag.d_vectorstore.search import search
 from app.rag.e_prompts import build_messages, is_refusal, refusal_for
 from app.rag.passage import Passage
 
-TOP_K = 4  # chunks per question (spec 5.5); used to live in the Chroma d_vectorstore.py
+TOP_K = 6  # chunks per question (spec 5.5); used to live in the Chroma d_vectorstore.py
 
 logger = logging.getLogger(__name__)
 

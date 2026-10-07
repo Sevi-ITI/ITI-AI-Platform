@@ -56,7 +56,9 @@ def refusal_for(question: str) -> str:
     return REFUSAL_FIL if is_filipino(question) else REFUSAL_EN
 
 def is_refusal(answer: str) -> bool:
-    return answer.strip() in (REFUSAL_FIL, REFUSAL_EN)
+    """The reply is only the refusal: English, Filipino, or both (the model sometimes writes both lines)."""
+    rest = answer.replace(REFUSAL_EN, "").replace(REFUSAL_FIL, "")
+    return rest != answer and rest.strip() == ""
 
 def format_context(chunks: Sequence[Passage]) -> str:
     return "\n".join(
