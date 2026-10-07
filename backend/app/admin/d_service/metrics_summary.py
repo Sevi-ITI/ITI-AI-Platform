@@ -9,6 +9,7 @@ from app.admin.a_schemas.app_usage import AppUsage
 from app.admin.a_schemas.metrics_summary import MetricsSummary
 from app.admin.a_schemas.route_usage import RouteUsage
 from app.admin.c_repository.request_logs_since import request_logs_since
+from app.admin.d_service.is_server_error import is_server_error
 from app.admin.d_service.latency_stats import latency_stats
 from app.admin.d_service.percentile import percentile
 from app.core.c_database.utcnow import utcnow
@@ -23,12 +24,12 @@ def metrics_summary(db: Session, window_minutes: int) -> MetricsSummary:
     for r in rows:
         if r.app_id:
             apps[r.app_id][0] += 1
-            apps[r.app_id][1] += r.status >= 500
+            apps[r.app_id][1] += is_server_error(r)
         routes[r.route or r.path].append(r)
     return MetricsSummary(
         window_minutes=window_minutes,
         requests=len(rows),
-        errors=sum(r.status >= 500 for r in rows),
+        errors=sum(is_server_error(r) for r in rows),
         client_errors=sum(400 <= r.status < 500 for r in rows),
         chats=len(chats),
         answered=sum(r.found is True for r in chats),
@@ -46,7 +47,7 @@ def metrics_summary(db: Session, window_minutes: int) -> MetricsSummary:
                 RouteUsage(
                     route=k,
                     requests=len(v),
-                    errors=sum(r.status >= 500 for r in v),
+                    errors=sum(is_server_error(r) for r in v),
                     p95_ms=percentile([r.duration_ms for r in v], 95),
                 )
                 for k, v in routes.items()

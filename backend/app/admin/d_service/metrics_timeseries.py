@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.admin.a_schemas.timeseries_point import TimeseriesPoint
 from app.admin.c_repository.request_logs_since import request_logs_since
+from app.admin.d_service.is_server_error import is_server_error
 from app.admin.d_service.percentile import percentile
 from app.core.c_database.utcnow import utcnow
 
@@ -30,7 +31,7 @@ def metrics_timeseries(db: Session, window_minutes: int, bucket_minutes: int) ->
         TimeseriesPoint(
             bucket_start=s,
             requests=len(rows),
-            errors=sum(r.status >= 500 for r in rows),
+            errors=sum(is_server_error(r) for r in rows),
             p50_ms=percentile([r.duration_ms for r in rows], 50),
             p95_ms=percentile([r.duration_ms for r in rows], 95),
             queue_p95_ms=percentile([r.queue_ms for r in rows if r.queue_ms is not None], 95),

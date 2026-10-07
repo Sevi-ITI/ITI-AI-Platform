@@ -1,9 +1,11 @@
 """Admin API: keys, users and chat histories, the request log, metrics, health, documents, collections."""
 
 import pytest
+import requests
 
 import app.admin.d_service.health_report as health
 from app.admin.a_schemas.component_health import ComponentHealth
+from app.rag import f_chains
 
 Q = {"question": "How many vacation days?", "collection": "iti-docs"}
 NEW_KEY = {"app_id": "hr-portal", "scopes": ["chat:invoke", "documents:write"], "allowed_collections": ["iti-docs"]}
@@ -80,6 +82,25 @@ def test_request_log_and_metrics_count_real_traffic_but_not_admin_reads(client, 
     assert client.get("/v1/admin/metrics/summary?window_minutes=1", headers=admin).status_code == 422
 
 
+def test_a_stream_that_fails_after_its_200_counts_as_an_error(client, admin, make_key, monkeypatch):
+    def down(*args, **kwargs):
+        raise requests.ConnectionError("Connection refused")
+        yield  # a generator, like the real ask_stream
+
+    monkeypatch.setattr(f_chains, "ask_stream", down)
+    hr = make_key("hr-portal") | {"ITI-User-Id": "1042"}
+    assert "llm_unavailable" in client.post("/v1/chat/stream", headers=hr, json=Q).text
+
+    errors = client.get("/v1/admin/requests?errors_only=true", headers=admin).json()
+    assert [(e["route"], e["status"], e["error_code"]) for e in errors] == [("/v1/chat/stream", 200, "llm_unavailable")]
+    m = client.get("/v1/admin/metrics/summary", headers=admin).json()
+    assert (m["errors"], m["client_errors"]) == (1, 0)
+    assert m["by_app"] == [{"app_id": "hr-portal", "requests": 1, "errors": 1}]
+    assert [r["errors"] for r in m["by_route"]] == [1]
+    points = client.get("/v1/admin/metrics/timeseries?window_minutes=60&bucket_minutes=5", headers=admin).json()
+    assert sum(p["errors"] for p in points) == 1
+
+
 def test_health_report(client, admin, monkeypatch):
     monkeypatch.setattr(health, "ollama_status", lambda: (ComponentHealth(ok=True, latency_ms=1, detail="Ollama"), []))
     monkeypatch.setattr(health, "gpu_status", lambda: None)
@@ -109,7 +130,6 @@ def test_documents_and_collections(client, admin, make_key):
     assert client.get("/v1/admin/collections", headers=admin).json() == [
         {"name": "iti-docs", "documents": 2, "chunks": 3}
     ]
-
 
 
 def test_remove_a_document_completely(client, admin, make_key, db_engine):

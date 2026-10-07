@@ -1,6 +1,6 @@
 """list_request_logs(): request log rows, newest first, with optional filters."""
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.core.d_metrics.request_log import RequestLog
@@ -15,5 +15,6 @@ def list_request_logs(
     if user_id:
         stmt = stmt.where(RequestLog.user_id == user_id)
     if errors_only:
-        stmt = stmt.where(RequestLog.status >= 400)
+        # status >= 400, plus streams that failed after their 200 (status 200 with an error_code)
+        stmt = stmt.where(or_(RequestLog.status >= 400, RequestLog.error_code.is_not(None)))
     return list(db.scalars(stmt))
