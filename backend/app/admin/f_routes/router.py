@@ -13,6 +13,7 @@ from app.admin.a_schemas.metrics_summary import MetricsSummary
 from app.admin.a_schemas.request_log_out import RequestLogOut
 from app.admin.a_schemas.timeseries_point import TimeseriesPoint
 from app.admin.a_schemas.user_summary import UserSummary
+from app.admin.f_routes.delete_document import delete_document
 from app.admin.f_routes.delete_key import delete_key
 from app.admin.f_routes.get_admin_conversation_messages import get_admin_conversation_messages
 from app.admin.f_routes.get_admin_conversations import get_admin_conversations
@@ -45,4 +46,5 @@ add("/v1/admin/metrics/summary", get_metrics_summary, methods=["GET"], response_
 add("/v1/admin/metrics/timeseries", get_metrics_timeseries, methods=["GET"], response_model=list[TimeseriesPoint])
 add("/v1/admin/health", get_health_report, methods=["GET"], response_model=HealthReport)
 add("/v1/admin/documents", get_documents, methods=["GET"], response_model=list[DocumentRow])
+add("/v1/admin/documents", delete_document, methods=["DELETE"], status_code=204)
 add("/v1/admin/collections", get_collections, methods=["GET"], response_model=list[CollectionInfo])

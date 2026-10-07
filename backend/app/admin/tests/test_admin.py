@@ -109,3 +109,30 @@ def test_documents_and_collections(client, admin, make_key):
     assert client.get("/v1/admin/collections", headers=admin).json() == [
         {"name": "iti-docs", "documents": 2, "chunks": 3}
     ]
+
+
+
+def test_remove_a_document_completely(client, admin, make_key, db_engine):
+    from pathlib import Path
+
+    from app.core.a_config.get_settings import get_settings
+
+    hr = make_key("hr-portal", scopes=["documents:write"])
+    files = {"file": ("Old Policy.pdf", b"page one|page two", "application/pdf")}
+    client.post("/v1/documents", headers=hr, data={"collection": "iti-docs"}, files=files)
+    stored = Path(get_settings().upload_dir) / "iti-docs" / "Old Policy.pdf"
+    assert stored.exists()
+
+    where = {"collection": "iti-docs", "filename": "Old Policy.pdf"}
+    assert client.delete("/v1/admin/documents", params=where, headers=hr).status_code == 403
+    assert client.delete("/v1/admin/documents", params=where, headers=admin).status_code == 204
+    assert not stored.exists()
+    assert client.get("/v1/admin/collections", headers=admin).json()[0]["chunks"] == 0
+    assert all(d["filename"] != "Old Policy.pdf" for d in client.get("/v1/admin/documents", headers=admin).json())
+
+    again = client.delete("/v1/admin/documents", params=where, headers=admin)
+    assert again.status_code == 404 and again.json()["error"]["code"] == "document_not_found"
+    sneaky = client.delete("/v1/admin/documents", params=where | {"filename": "..\\..\\x.pdf"}, headers=admin)
+    assert sneaky.status_code == 422
+    unknown = client.delete("/v1/admin/documents", params=where | {"collection": "nope"}, headers=admin)
+    assert unknown.json()["error"]["code"] == "collection_not_found"
