@@ -145,6 +145,9 @@ def main() -> None:
     times = [r["seconds"] for r in results if r["seconds"] != ""]
     if times:
         print(f"\nseconds per question: median {statistics.median(times):.1f}, slowest {max(times):.1f}")
+    uncited = [r["id"] for r in results if r["found"] is True and not r["cited"]]
+    if uncited:  # the API leaves citations empty; the C# app shows "No source cited, please verify with HR"
+        print("answered without a citation:", ", ".join(uncited))
     errors = [r for r in results if r["error"]]
     if errors:
         print("errors:", ", ".join(f"{r['id']} ({r['error']})" for r in errors))
