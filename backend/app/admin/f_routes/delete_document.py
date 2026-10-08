@@ -3,10 +3,10 @@
 from fastapi import Depends
 from sqlalchemy.orm import Session
 
-from app.admin.d_service.remove_document import remove_document
 from app.admin.e_dependencies.require_admin import require_admin
 from app.auth.a_schemas.app_principal import AppPrincipal
 from app.core.c_database.get_db import get_db
+from app.documents.d_service.remove_document import remove_document
 
 
 def delete_document(

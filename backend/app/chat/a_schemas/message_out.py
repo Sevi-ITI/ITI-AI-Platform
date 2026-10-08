@@ -4,6 +4,7 @@ from typing import Literal
 
 from pydantic import BaseModel
 
+from app.chat.a_schemas.citation import Citation
 from app.core.f_types.utc_datetime import UtcDateTime
 
 
@@ -12,4 +13,5 @@ class MessageOut(BaseModel):
     content: str
     request_id: str
     created_at: UtcDateTime
+    citations: list[Citation] | None = None  # assistant messages; None for questions and for chats before 6A.2
 

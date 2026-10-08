@@ -7,7 +7,7 @@ from fastapi import BackgroundTasks, Depends, File, Form, UploadFile
 from sqlalchemy.orm import Session
 
 from app.auth.a_schemas.app_principal import AppPrincipal
-from app.auth.e_dependencies.check_can_replace import check_can_replace
+from app.auth.e_dependencies.check_can_change_existing import check_can_change_existing
 from app.auth.e_dependencies.check_collection import check_collection
 from app.auth.e_dependencies.require_scope import require_scope
 from app.core.c_database.get_db import get_db
@@ -27,7 +27,7 @@ def post_document(
 ) -> UploadAccepted:
     check_collection(principal, collection)
     if replace:
-        check_can_replace(principal)  # supervisors: new files only # supervisors: new files only
+        check_can_change_existing(principal)  # supervisors: new files only
     get_store(collection)  # 404 collection_not_found before anything is saved
     accepted, staged = save_upload(db, principal, collection, file, replace)
     background.add_task(run_ingest, accepted.job_id, staged, collection)

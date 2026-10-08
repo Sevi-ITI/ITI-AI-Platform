@@ -25,6 +25,7 @@ class RequestLog(Base):
     app_id: Mapped[str | None] = mapped_column(String(64), index=True)
     key_id: Mapped[str | None] = mapped_column(String(16), index=True)
     user_id: Mapped[str | None] = mapped_column(String(100), index=True)
+    user_role: Mapped[str | None] = mapped_column(String(50))  # ITI-User-Role label from the app, lowercased
     collection: Mapped[str | None] = mapped_column(String(64))
     conversation_id: Mapped[str | None] = mapped_column(String(32))
     found: Mapped[bool | None] = mapped_column(Boolean)

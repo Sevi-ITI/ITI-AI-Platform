@@ -23,9 +23,9 @@ def test_unknown_url_uses_the_one_error_shape(client):
     assert body["request_id"] == r.headers["ITI-Request-Id"]
 
 
-def test_contract_lists_all_23_endpoints_and_both_auth_headers(client):
+def test_contract_lists_all_32_endpoints_and_both_auth_headers(client):
     spec = client.get("/openapi.json").json()
-    assert sum(len(methods) for methods in spec["paths"].values()) == 23
+    assert sum(len(methods) for methods in spec["paths"].values()) == 32
     assert spec["components"]["securitySchemes"]["APIKeyHeader"] == {
         "type": "apiKey",
         "in": "header",

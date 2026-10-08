@@ -11,6 +11,7 @@ from app.core.c_database.get_sessionmaker import get_sessionmaker
 PASSWORD = "correct horse battery"
 Q = {"question": "How many vacation days?", "collection": "iti-docs"}
 NEW_KEY = {"app_id": "hr-portal", "scopes": ["chat:invoke"], "allowed_collections": ["iti-docs"]}
+SUPER_ADMIN_ONLY_READS = {"/v1/admin/accounts"}  # the Accounts page: supervisors may not even see it
 
 
 @pytest.fixture
@@ -36,10 +37,13 @@ def admin_routes(client):
 
 def test_a_supervisor_reads_every_admin_page_but_every_change_is_refused(client, people):
     routes = list(admin_routes(client))
-    assert len(routes) == 13  # 10 reads + 3 changes today; a new admin route is checked automatically
+    assert len(routes) == 21  # 12 reads + 9 changes today; a new admin route is checked automatically
     for method, path in routes:
-        r = client.request(method, path, headers=people["boss"], params={"collection": "iti-docs", "filename": "x"})
-        if method == "GET":
+        params = {"collection": "iti-docs", "filename": "x", "app_id": "x", "user_id": "x"}
+        r = client.request(method, path, headers=people["boss"], params=params)
+        if path in SUPER_ADMIN_ONLY_READS:
+            assert r.status_code == 403, (method, path, r.text)
+        elif method == "GET":
             assert r.status_code not in (401, 403), (method, path, r.text)
         else:
             assert r.status_code == 403 and r.json()["error"]["code"] == "scope_forbidden", (method, path, r.text)
@@ -66,6 +70,9 @@ def test_a_supervisor_uploads_new_files_only_and_is_recorded_as_the_uploader(cli
     assert replace.status_code == 403 and replace.json()["error"]["code"] == "scope_forbidden"
     by_vince = client.post("/v1/documents", headers=people["vince"], data=form | {"replace": "true"}, files=files)
     assert by_vince.status_code == 202
+    where = {"collection": "iti-docs", "filename": "Boss Memo.pdf"}
+    delete = client.delete("/v1/documents", headers=people["boss"], params=where)
+    assert delete.status_code == 403 and delete.json()["error"]["code"] == "scope_forbidden"
 
     rows = client.get("/v1/admin/documents", headers=people["boss"]).json()
     assert [(d["uploaded_by"], d["uploaded_by_user"]) for d in rows] == [("iti-console", "vince"), ("iti-console", "boss")]

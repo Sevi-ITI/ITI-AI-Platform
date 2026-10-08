@@ -34,11 +34,12 @@ def answer_question(db: Session, conversation_id: str, req: ChatRequest) -> Chat
     found = result.reason == "answered"
     record_metric(found=found, reason=result.reason)
     request_id = REQUEST_ID.get()
-    save_turn(db, conversation_id, req.question, result.text, result.reason, request_id)
+    citations = to_citations(result)
+    save_turn(db, conversation_id, req.question, result.text, result.reason, request_id, [c.model_dump() for c in citations])
     return ChatResponse(
         answer=result.text,
         found=found,
-        citations=to_citations(result),
+        citations=citations,
         conversation_id=conversation_id,
         request_id=request_id,
     )

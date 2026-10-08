@@ -16,6 +16,7 @@ class RequestLogOut(BaseModel):
     duration_ms: int
     app_id: str | None
     user_id: str | None
+    user_role: str | None
     collection: str | None
     conversation_id: str | None
     found: bool | None

@@ -13,6 +13,8 @@ def conversation_messages(db: Session, principal: AppPrincipal, user_id: str, co
     record_metric(user_id=user_id, conversation_id=conversation_id)
     open_conversation(db, principal, user_id, conversation_id, collection="")  # ownership check only
     return [
-        MessageOut(role=m.role, content=m.content, request_id=m.request_id, created_at=m.created_at)
+        MessageOut(
+            role=m.role, content=m.content, request_id=m.request_id, created_at=m.created_at, citations=m.citations
+        )
         for m in list_messages(db, conversation_id)
     ]

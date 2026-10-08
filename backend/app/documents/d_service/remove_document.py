@@ -1,15 +1,15 @@
 """remove_document(): takes one file out of a collection completely: its chunks (no longer searchable),
 every uploaded version and job, and the stored PDF. Chunks go first, so a half-finished removal never
-leaves the file answerable."""
+leaves the file answerable. Used by DELETE /v1/admin/documents and by DELETE /v1/documents (apps)."""
 
 from pathlib import Path
 
 from sqlalchemy.orm import Session
 
-from app.admin.c_repository.delete_document_rows import delete_document_rows
 from app.core.a_config.get_settings import get_settings
 from app.core.e_errors.app_error import AppError
 from app.core.h_stores.get_store import get_store
+from app.documents.c_repository.delete_document_rows import delete_document_rows
 from app.documents.c_repository.find_latest_upload import find_latest_upload
 from app.documents.d_service.clean_filename import clean_filename
 from app.rag.d_vectorstore.delete_source import delete_source

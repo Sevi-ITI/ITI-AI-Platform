@@ -12,6 +12,13 @@ def admin_conversation_messages(db: Session, conversation_id: str) -> list[Admin
     if get_conversation(db, conversation_id) is None:
         raise AppError(404, "conversation_not_found", "No such conversation.")
     return [
-        AdminMessage(role=m.role, content=m.content, reason=m.reason, request_id=m.request_id, created_at=m.created_at)
+        AdminMessage(
+            role=m.role,
+            content=m.content,
+            reason=m.reason,
+            request_id=m.request_id,
+            created_at=m.created_at,
+            citations=m.citations,
+        )
         for m in list_conversation_messages(db, conversation_id)
     ]

@@ -48,8 +48,8 @@ def stream_answer(db: Session, conversation_id: str, req: ChatRequest) -> Iterat
                     record_metric(
                         rag_ms=int((time.perf_counter() - start) * 1000), tokens=tokens, found=found, reason=value.reason
                     )
-                    save_turn(db, conversation_id, req.question, value.text, value.reason, request_id)
                     citations = [c.model_dump() for c in to_citations(value)]
+                    save_turn(db, conversation_id, req.question, value.text, value.reason, request_id, citations)
                     yield ServerSentEvent(
                         event="done", data={"answer": value.text, "found": found, "citations": citations}
                     )
