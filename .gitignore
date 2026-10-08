@@ -12,7 +12,6 @@ lab/
 admin-ui/node_modules/
 admin-ui/.next/
 ITI-MVP-Progress-Log.md
-docs/ITI-MVP-Progress-Log.md
-docs/handover.md
-docs/ITI-Console-Plan.md
+# docs/ is never committed (Vince, Oct 9): handover, plans, progress log, guides, test plans
+docs/
 PostGreQuery.sql

@@ -8,17 +8,30 @@ import { createCollection, jobStatus } from "./actions";
 import dash from "../dashboard.module.css";
 import styles from "./chat.module.css";
 
-// The + button and its dialog: upload a PDF into a collection, or into a new collection made here.
-// The file goes to /api/documents (streamed to FastAPI); then the indexing job is checked until it ends.
+// The + button (or a text button, with `label`) and its dialog: upload a PDF into a collection, or into a new
+// collection made here. The file goes to /api/documents (streamed to FastAPI); then the indexing job is checked
+// until it ends. With `canReplace` (super admin), a name that already exists can be replaced: same file, sent
+// again with replace=true (FastAPI refuses supervisors anyway).
 
 const NEW = "__new__";
 type State =
   | { step: "idle" }
   | { step: "working"; label: string }
   | { step: "done"; label: string }
-  | { step: "error"; label: string };
+  | { step: "error"; label: string }
+  | { step: "exists"; label: string };
 
-export default function AddDocument({ collections, initial }: { collections: string[]; initial?: string }) {
+export default function AddDocument({
+  collections,
+  initial,
+  label,
+  canReplace = false,
+}: {
+  collections: string[];
+  initial?: string;
+  label?: string;
+  canReplace?: boolean;
+}) {
   const router = useRouter();
   const dialog = useRef<HTMLDialogElement>(null);
   const [created, setCreated] = useState<string[]>([]); // made here, until the page shows them
@@ -35,7 +48,7 @@ export default function AddDocument({ collections, initial }: { collections: str
     dialog.current?.showModal();
   }
 
-  async function upload(form: HTMLFormElement) {
+  async function upload(form: HTMLFormElement, replace: boolean) {
     const data = new FormData(form);
     const file = data.get("file");
     if (!(file instanceof File) || file.size === 0) return setState({ step: "error", label: "Choose a PDF." });
@@ -55,10 +68,17 @@ export default function AddDocument({ collections, initial }: { collections: str
     const body = new FormData();
     body.set("collection", collection);
     body.set("file", file);
+    if (replace) body.set("replace", "true");
     const res = await fetch("/api/documents", { method: "POST", body }).catch(() => null);
     if (res?.status === 401) return router.push("/login");
     const json = await res?.json().catch(() => null);
     if (!res?.ok) {
+      if (json?.error?.code === "document_exists" && canReplace) {
+        return setState({
+          step: "exists",
+          label: `${file.name} is already in ${collection}. Replace the existing file?`,
+        });
+      }
       return setState({
         step: "error",
         label: json?.error?.message ?? "The upload failed. Check that FastAPI is running.",
@@ -92,22 +112,30 @@ export default function AddDocument({ collections, initial }: { collections: str
 
   return (
     <>
-      <button
-        type="button"
-        className={styles.roundGhost}
-        onClick={open}
-        aria-label="Add a document"
-        title="Add a document"
-      >
-        <PlusIcon />
-      </button>
+      {label ? (
+        <button type="button" className={dash.apply} onClick={open}>
+          {label}
+        </button>
+      ) : (
+        <button
+          type="button"
+          className={styles.roundGhost}
+          onClick={open}
+          aria-label="Add a document"
+          title="Add a document"
+        >
+          <PlusIcon />
+        </button>
+      )}
       <dialog ref={dialog} className={dash.dialog} aria-labelledby="add-document-title">
         <form
           className={dash.dialogForm}
           onSubmit={(e) => {
             e.preventDefault();
-            void upload(e.currentTarget);
+            void upload(e.currentTarget, state.step === "exists");
           }}
+          // a different file or collection is a new question: back to a plain upload
+          onChange={() => state.step === "exists" && setState({ step: "idle" })}
         >
           <h2 id="add-document-title">Add a document</h2>
           <label className={dash.field}>
@@ -145,7 +173,15 @@ export default function AddDocument({ collections, initial }: { collections: str
           )}
           <p
             role="status"
-            className={state.step === "error" ? styles.failed : state.step === "done" ? styles.ready : styles.muted}
+            className={
+              state.step === "error"
+                ? styles.failed
+                : state.step === "done"
+                  ? styles.ready
+                  : state.step === "exists"
+                    ? dash.warn
+                    : styles.muted
+            }
           >
             {state.step === "idle" ? "Only PDFs with a text layer can be read (no scanned images)." : state.label}
           </p>
@@ -154,7 +190,7 @@ export default function AddDocument({ collections, initial }: { collections: str
               {state.step === "done" ? "Close" : "Cancel"}
             </button>
             <button type="submit" className={styles.send} disabled={busy} aria-busy={busy}>
-              {busy ? "Working…" : "Upload"}
+              {busy ? "Working…" : state.step === "exists" ? "Replace file" : "Upload"}
             </button>
           </div>
         </form>

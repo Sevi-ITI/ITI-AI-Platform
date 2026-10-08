@@ -749,3 +749,112 @@
 .turnMetaUser {
   align-self: flex-end;
 }
+
+/* The small red button in a table row (ConfirmAction): opens its confirmation dialog */
+.dangerSmall {
+  min-height: 1.75rem;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--error);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--error);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.dangerSmall:hover {
+  background: var(--error-soft);
+}
+
+/* Documents: file names wrap, but never to one word per line */
+.fileCell {
+  min-width: 14rem;
+}
+
+/* Apps & keys */
+.cardHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+}
+
+.cardHead h2 {
+  font-size: var(--text-lg);
+}
+
+.dimmed {
+  opacity: 0.6; /* revoked / expired keys: still listed, with their state in words */
+}
+
+.rowActions {
+  display: flex;
+  flex-wrap: nowrap; /* one line: the table scrolls in its card instead of growing tall rows */
+  gap: var(--space-1);
+}
+
+.smallButton {
+  min-height: 1.75rem;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--text);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.smallButton:hover {
+  border-color: var(--accent);
+  background: var(--hover);
+}
+
+.checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.checks legend {
+  margin-bottom: var(--space-1);
+  padding: 0;
+}
+
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.inline input[type="number"] {
+  width: 6rem;
+}
+
+.field textarea {
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background-color: var(--surface-sunken);
+  color: var(--text);
+  font-size: 1rem;
+  resize: vertical;
+}

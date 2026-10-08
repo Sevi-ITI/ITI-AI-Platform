@@ -30,6 +30,8 @@ const stampFormat = new Intl.DateTimeFormat(LOCALE, {
   hourCycle: "h23",
 });
 
+const dayFormat = new Intl.DateTimeFormat(LOCALE, { timeZone: MANILA, year: "numeric", month: "short", day: "numeric" });
+
 const countFormat = new Intl.NumberFormat(LOCALE);
 
 export function formatTime(value: string | Date): string {
@@ -38,6 +40,11 @@ export function formatTime(value: string | Date): string {
 
 export function formatDateTime(value: string | Date): string {
   return dateTimeFormat.format(new Date(value));
+}
+
+/** Dates far from today (key expiry): "Oct 7, 2027". */
+export function formatDay(value: string | Date): string {
+  return dayFormat.format(new Date(value));
 }
 
 /** Log timestamps, to the second: "Oct 8, 14:01:02". */
@@ -65,6 +72,12 @@ export function formatPercent(part: number, whole: number): string {
 /** 3072 → "3.0 GB", 600 → "600 MB". */
 export function formatMb(mb: number): string {
   return mb < 1024 ? `${Math.round(mb)} MB` : `${(mb / 1024).toFixed(1)} GB`;
+}
+
+/** File sizes: 312000 → "305 KB", 4500000 → "4.3 MB". */
+export function formatBytes(bytes: number): string {
+  const kb = bytes / 1024;
+  return kb < 1024 ? `${Math.max(1, Math.round(kb))} KB` : `${(kb / 1024).toFixed(1)} MB`;
 }
 
 /** Uptime: 4000 → "1 h 6 min", 200000 → "2 d 7 h". */
