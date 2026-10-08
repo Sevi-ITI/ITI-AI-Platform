@@ -1,4 +1,4 @@
-"""collection_infos(): each configured collection with its uploads and searchable chunk count."""
+"""collection_infos(): each collection with its uploads and searchable chunk count."""
 
 from sqlalchemy.orm import Session
 

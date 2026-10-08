@@ -204,6 +204,108 @@ textarea {
   color: inherit;
 }
 
+/* Dropdowns: one look everywhere (box, chevron, hover, disabled). Pages only change size and shape. */
+select {
+  min-height: 2.25rem;
+  padding: var(--space-1) 2rem var(--space-1) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  appearance: none;
+  background-color: var(--surface-sunken); /* explicit: Windows draws native selects white otherwise */
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--text-muted) 50%),
+    linear-gradient(135deg, var(--text-muted) 50%, transparent 50%);
+  background-position:
+    calc(100% - 1.05rem) 50%,
+    calc(100% - 0.75rem) 50%;
+  background-size: 0.3rem 0.3rem;
+  background-repeat: no-repeat;
+  color: var(--text);
+  font-size: 1rem; /* 16px: phones don't zoom in */
+  cursor: pointer;
+}
+
+select:hover {
+  border-color: var(--accent);
+}
+
+select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+option {
+  background-color: var(--surface-raised);
+  color: var(--text);
+}
+
+/* Browsers that can style the open list too (Chrome / Edge 135+): a floating panel like the rest of the UI. */
+@supports (appearance: base-select) {
+  select,
+  ::picker(select) {
+    appearance: base-select;
+  }
+
+  select {
+    align-items: center;
+    gap: var(--space-2);
+    padding-inline-end: var(--space-3);
+    background-image: none;
+  }
+
+  select::picker-icon {
+    content: "";
+    width: 0.4rem;
+    height: 0.4rem;
+    margin-top: -0.2rem;
+    border-right: 1.5px solid var(--text-muted);
+    border-bottom: 1.5px solid var(--text-muted);
+    rotate: 45deg;
+  }
+
+  select:open::picker-icon {
+    margin-top: 0.2rem;
+    rotate: 225deg;
+  }
+
+  ::picker(select) {
+    margin-block: var(--space-1);
+    padding: var(--space-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface-raised);
+    color: var(--text);
+    box-shadow: var(--elevation-2);
+  }
+
+  option {
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border-radius: calc(var(--radius-sm) - var(--space-1));
+    background-color: transparent;
+    font-size: var(--text-sm);
+    cursor: pointer;
+  }
+
+  option:hover,
+  option:focus-visible {
+    background-color: var(--hover);
+  }
+
+  option:focus-visible {
+    outline-offset: -2px;
+  }
+
+  option:checked {
+    background-color: var(--accent-soft);
+    font-weight: 700;
+  }
+
+  option::checkmark {
+    color: var(--accent); /* the chosen item also gets a check, not only a color */
+  }
+}
+
 code,
 kbd,
 samp,

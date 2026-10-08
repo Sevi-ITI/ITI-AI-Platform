@@ -34,3 +34,6 @@ export const SunIcon = () => (
 );
 export const MoonIcon = () => <Icon d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z" />;
 export const LogOutIcon = () => <Icon d="M15 4h4v16h-4 M10 8l-4 4 4 4 M6 12h10" />;
+export const PlusIcon = () => <Icon d="M12 5v14 M5 12h14" />;
+export const SendIcon = () => <Icon d="M21 3L10 14 M21 3l-7 18-4-7-7-4z" />;
+export const StopIcon = () => <Icon d="M7 7h10v10H7z" />;

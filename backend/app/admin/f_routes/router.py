@@ -34,6 +34,7 @@ from app.admin.f_routes.patch_account import patch_account
 from app.admin.f_routes.patch_key import patch_key
 from app.admin.f_routes.post_account import post_account
 from app.admin.f_routes.post_account_password import post_account_password
+from app.admin.f_routes.post_collection import post_collection
 from app.admin.f_routes.post_key import post_key
 from app.admin.f_routes.put_app import put_app
 from app.console.a_schemas.account_info import AccountInfo
@@ -61,6 +62,7 @@ add("/v1/admin/health", get_health_report, methods=["GET"], response_model=Healt
 add("/v1/admin/documents", get_documents, methods=["GET"], response_model=list[DocumentRow])
 add("/v1/admin/documents", delete_document, methods=["DELETE"], status_code=204)
 add("/v1/admin/collections", get_collections, methods=["GET"], response_model=list[CollectionInfo])
+add("/v1/admin/collections", post_collection, methods=["POST"], status_code=201, response_model=CollectionInfo)
 add("/v1/admin/apps", get_apps, methods=["GET"], response_model=list[AppOverview])
 add("/v1/admin/apps/{app_id}", put_app, methods=["PUT"], response_model=AppOverview)
 add("/v1/admin/accounts", get_accounts, methods=["GET"], response_model=list[AccountInfo])

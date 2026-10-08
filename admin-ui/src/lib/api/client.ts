@@ -14,7 +14,7 @@ export type ApiClient = Client<paths>;
 
 export type ApiResult<T> = { ok: true; data: T } | { ok: false; error: ApiError };
 
-function apiUrl(): string {
+export function apiUrl(): string {
   const url = process.env.ITI_API_URL;
   if (!url) {
     throw new Error("ITI_API_URL is not set (see admin-ui/.env.example).");

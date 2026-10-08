@@ -401,7 +401,10 @@
   font-size: var(--text-sm);
 }
 
-.filters select,
+.filters select {
+  min-width: 12rem; /* the box, chevron and list come from globals.css */
+}
+
 .filters input:not([type="checkbox"]) {
   min-height: 2.25rem;
   min-width: 12rem;

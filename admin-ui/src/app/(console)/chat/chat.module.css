@@ -1,0 +1,475 @@
+/* Chat: thread and question box (middle) + conversation list (right). Tokens only. */
+
+.chat {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 14rem; /* same width as the navigation */
+  gap: var(--space-3);
+  align-items: start;
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+/* Conversation list */
+.side {
+  /* Same card as the navigation sidebar (console.module.css .sidebar): same width, full height, same edges,
+     whatever the list holds. The negative margins undo .content's padding so both cards line up. */
+  position: sticky;
+  top: var(--float-gap);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  justify-self: end;
+  width: 14rem;
+  height: calc(100svh - 2 * var(--float-gap));
+  margin-block: calc(-1 * var(--space-3));
+  margin-inline-end: calc(-1 * var(--space-2));
+  overflow-y: auto;
+  padding: var(--space-5) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-float);
+  background: var(--surface-raised);
+  box-shadow: var(--elevation-2);
+  font-size: var(--text-sm);
+}
+
+.newChat {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-pill);
+  background: var(--button-primary-bg);
+  color: var(--button-primary-text);
+  font-weight: 700;
+  text-align: center;
+  text-decoration: none;
+}
+
+.list {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.list a {
+  display: grid;
+  gap: 2px;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  text-decoration: none;
+}
+
+.list a:hover {
+  background: var(--hover);
+}
+
+.list a[aria-current="page"] {
+  background: var(--accent-soft);
+  box-shadow: inset -3px 0 0 var(--accent);
+}
+
+.listTitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.listMeta {
+  color: var(--text-subtle);
+  font-size: var(--text-xs);
+}
+
+/* Thread */
+.main {
+  min-width: 0;
+}
+
+.thread {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  width: min(100%, 48rem);
+  min-height: calc(100svh - 2 * var(--float-gap) - 2 * var(--space-3)); /* the box sits at the bottom */
+  margin-inline: auto;
+}
+
+.threadMeta {
+  color: var(--text-subtle);
+  font-size: var(--text-xs);
+}
+
+.question {
+  align-self: flex-end;
+  max-width: min(36rem, 85%);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md) var(--radius-md) var(--space-1) var(--radius-md);
+  background: var(--accent-soft);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.answer {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--space-1) var(--radius-md) var(--radius-md) var(--radius-md);
+  background: var(--surface);
+  overflow-wrap: anywhere;
+}
+
+/* Markdown inside an answer */
+.markdown > :first-child {
+  margin-top: 0;
+}
+
+.markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.markdown p,
+.markdown ul,
+.markdown ol {
+  margin: 0 0 var(--space-3);
+}
+
+.markdown ul,
+.markdown ol {
+  padding-left: var(--space-5);
+}
+
+.markdown li + li {
+  margin-top: var(--space-1);
+}
+
+.markdown strong {
+  font-weight: 700;
+}
+
+.markdown code {
+  padding: 0 var(--space-1);
+  border-radius: 0.3rem;
+  background: var(--surface-sunken);
+}
+
+.markdown table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  margin: 0 0 var(--space-3);
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.markdown th,
+.markdown td {
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--border-subtle);
+  text-align: left;
+  vertical-align: top;
+}
+
+/* Citations */
+.sources {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-subtle);
+  font-size: var(--text-xs);
+}
+
+.source summary {
+  padding: 2px var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  list-style: none;
+}
+
+.source summary::-webkit-details-marker {
+  display: none;
+}
+
+.source summary:hover,
+.source[open] summary {
+  background: var(--hover);
+  border-color: var(--accent);
+}
+
+.source p {
+  max-width: 40rem;
+  margin: var(--space-2) 0 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+/* Question box: a rounded bar at the bottom of the middle column, stays there while the thread scrolls */
+.composer {
+  position: sticky;
+  bottom: var(--float-gap);
+  display: grid;
+  gap: var(--space-1);
+  margin-top: auto;
+  padding: var(--space-3) var(--space-3) var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-float);
+  background: var(--surface-raised);
+  /* the last shadow is a page-colored copy pushed down: it hides the thread scrolling in the gap below */
+  box-shadow:
+    var(--elevation-2),
+    0 calc(var(--float-gap) + var(--radius-float)) 0 0 var(--bg);
+}
+
+.composer:focus-within {
+  border-color: var(--accent); /* the focus cue for the text box (its own outline is off) */
+}
+
+.box {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.ask {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.box textarea {
+  flex: 1;
+  min-width: 0;
+  max-height: 12rem;
+  padding: var(--space-2) var(--space-1);
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 1rem; /* 16px: phones don't zoom in */
+  line-height: 1.5;
+  resize: none;
+  field-sizing: content; /* grows with the text where supported */
+}
+
+.box textarea::placeholder {
+  color: var(--text-subtle);
+}
+
+.round,
+.roundGhost {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.round {
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+.round:hover {
+  background: color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+.roundGhost {
+  width: 2.25rem;
+  height: 2.25rem;
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.roundGhost:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  padding-inline: var(--space-2);
+}
+
+.chip {
+  /* a small pill version of the shared dropdown (globals.css) */
+  max-width: 14rem;
+  min-height: 1.75rem;
+  padding-block: 0;
+  padding-left: var(--space-3);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-xs);
+}
+
+.send,
+.secondary {
+  min-height: 2.5rem;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.send {
+  border: 0;
+  background: var(--button-primary-bg);
+  color: var(--button-primary-text);
+}
+
+.send:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.secondary {
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--text);
+}
+
+.secondary:hover {
+  background: var(--hover);
+}
+
+.hint {
+  margin: 0;
+  color: var(--text-subtle);
+  font-size: var(--text-xs);
+}
+
+.thinking {
+  color: var(--text-muted);
+  animation: thinking 1.4s ease-in-out infinite;
+}
+
+@keyframes thinking {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.note {
+  color: var(--warn);
+  font-size: var(--text-sm);
+}
+
+.failed {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  background: var(--error-soft);
+  color: var(--error);
+  font-size: var(--text-sm);
+}
+
+/* New chat */
+.empty {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-3);
+  max-width: 36rem;
+  margin-inline: auto;
+  padding-top: var(--space-6);
+  text-align: center;
+  text-wrap: balance;
+}
+
+.empty h1 {
+  font-size: var(--text-xl);
+}
+
+/* Add a document (dialog) */
+.dialog {
+  width: min(28rem, calc(100vw - 2 * var(--float-gap)));
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  color: var(--text);
+  box-shadow: var(--elevation-3);
+  overscroll-behavior: contain;
+}
+
+.dialog::backdrop {
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.dialogForm {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-5);
+}
+
+.dialogForm h2 {
+  font-size: var(--text-lg);
+}
+
+.field {
+  display: grid;
+  gap: var(--space-1);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.field input {
+  min-height: 2.25rem;
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background-color: var(--surface-sunken);
+  color: var(--text);
+  font-size: 1rem;
+}
+
+.field small {
+  font-size: var(--text-xs);
+}
+
+.ready {
+  color: var(--ok);
+  font-size: var(--text-sm);
+}
+
+.dialogActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+@media (max-width: 56rem) {
+  .chat {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .side {
+    position: static;
+    order: -1; /* the list above the thread on narrow screens */
+    width: auto;
+    height: auto;
+    max-height: 16rem;
+    margin: 0;
+  }
+
+  .thread {
+    min-height: 0;
+  }
+
+  .chip {
+    font-size: 1rem;
+  }
+}
