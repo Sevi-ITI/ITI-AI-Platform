@@ -16,7 +16,8 @@ from app.ops.f_routes.router import router as ops_router
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="ITI AI API", version="1.0.0", lifespan=lifespan)
+    app = FastAPI(title="ITI AI API", version="1.0.0", lifespan=lifespan,
+                  swagger_ui_parameters={"syntaxHighlight.theme": "obsidian"})
     register_error_handlers(app)
     app.middleware("http")(request_id_and_timing)
     for router in (ops_router, chat_router, documents_router, admin_router, console_router):
