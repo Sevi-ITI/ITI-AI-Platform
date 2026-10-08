@@ -1,9 +1,11 @@
-"""lifespan(): runs once at startup (before the first request) and once at shutdown."""
+"""lifespan(): runs once at startup (before the first request) and once at shutdown.
+At startup: logging, stores, unfinished jobs marked failed, old request logs and expired console sessions deleted."""
 
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from app.auth.c_repository.prune_console_sessions import prune_console_sessions
 from app.core.a_config.get_settings import get_settings
 from app.core.b_logging.setup_logging import setup_logging
 from app.core.c_database.get_sessionmaker import get_sessionmaker
@@ -19,4 +21,5 @@ async def lifespan(app: FastAPI):
     with get_sessionmaker()() as db:
         fail_unfinished_jobs(db)
         prune_request_logs(db, get_settings().log_retention_days)
+        prune_console_sessions(db)
     yield

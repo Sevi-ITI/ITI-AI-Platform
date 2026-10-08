@@ -23,14 +23,15 @@ def test_unknown_url_uses_the_one_error_shape(client):
     assert body["request_id"] == r.headers["ITI-Request-Id"]
 
 
-def test_contract_lists_all_20_endpoints_and_the_key_header(client):
+def test_contract_lists_all_23_endpoints_and_both_auth_headers(client):
     spec = client.get("/openapi.json").json()
-    assert sum(len(methods) for methods in spec["paths"].values()) == 20
+    assert sum(len(methods) for methods in spec["paths"].values()) == 23
     assert spec["components"]["securitySchemes"]["APIKeyHeader"] == {
         "type": "apiKey",
         "in": "header",
         "name": "ITI-Api-Key",
     }
+    assert spec["components"]["securitySchemes"]["ConsoleSession"]["name"] == "ITI-Console-Session"
 
 
 def test_startup_fails_jobs_cut_off_by_a_restart(db_engine, fake_rag):
