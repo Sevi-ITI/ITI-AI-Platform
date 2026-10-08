@@ -18,4 +18,5 @@ class Document(Base):
     sha256: Mapped[str] = mapped_column(String(64))
     size_bytes: Mapped[int] = mapped_column(Integer)
     uploaded_by: Mapped[str] = mapped_column(String(64))  # app_id
+    uploaded_by_user: Mapped[str | None] = mapped_column(String(100))  # the console username; None for app keys
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

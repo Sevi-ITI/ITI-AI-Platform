@@ -55,6 +55,7 @@ def save_upload(
         sha256=sha.hexdigest(),
         size_bytes=size,
         uploaded_by=principal.app_id,
+        uploaded_by_user=principal.console_user,
     )
     job = create_document_and_job(db, doc)
     return UploadAccepted(job_id=job.id, document_id=doc.id, status="queued"), staged

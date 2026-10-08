@@ -14,6 +14,7 @@ def document_rows(db: Session, collection: str | None, limit: int, offset: int) 
             filename=doc.filename,
             size_bytes=doc.size_bytes,
             uploaded_by=doc.uploaded_by,
+            uploaded_by_user=doc.uploaded_by_user,
             created_at=doc.created_at,
             job_id=job.id,
             job_status=job.status,

@@ -11,6 +11,7 @@ class DocumentRow(BaseModel):
     filename: str
     size_bytes: int
     uploaded_by: str
+    uploaded_by_user: str | None
     created_at: UtcDateTime
     job_id: str
     job_status: str
