@@ -1,0 +1,270 @@
+/*
+ * ITI AI Console: design tokens and base styles (the iti-design-system skill).
+ * Components use these tokens only, never raw hex. Dark is the default; light comes from
+ * data-theme="light" on <html>. Light values follow Vince's portfolio (sevi-11/Portfolio styles.css).
+ */
+
+/* ---------- Shared tokens (both themes) ---------- */
+:root {
+  /* Palette anchors: referenced only inside this file */
+  --navy: #0a1128;
+  --cream: #f4f1ea;
+  --paper: #fffdf8;
+  --indigo: #6e76f0;
+  --gold: #9a6b12;
+
+  /* Type */
+  --font-sans: var(--font-comfortaa), var(--font-comfortaa-ext), system-ui, sans-serif;
+  --font-mono: ui-monospace, Consolas, monospace; /* ids, keys, request ids: l 1 I stay distinct */
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-md: 1rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.75rem;
+  --text-2xl: clamp(2rem, 3.5vw, 2.75rem);
+
+  /* Space */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+  --float-gap: 1rem; /* floating UI keeps this margin from every viewport edge */
+
+  /* Radius: floating UI is rounder than static cards */
+  --radius-sm: 0.9rem;
+  --radius-md: 1.4rem;
+  --radius-lg: clamp(1.5rem, 3vw, 2.5rem);
+  --radius-float: 1.75rem;
+  --radius-pill: 999px;
+
+  /* Motion */
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --fast: 180ms;
+  --medium: 420ms;
+  --lift: translateY(-2px);
+}
+
+/* ---------- Dark theme (default) ---------- */
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: var(--navy);
+  --surface: #111a34; /* cards and panels */
+  --surface-raised: #17213f; /* floating navigation, popovers */
+  --surface-sunken: #070c1d; /* inputs */
+
+  --text: #eef0f6;
+  --text-muted: #b5bbc7;
+  --text-subtle: #8f98ab;
+
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border: rgba(255, 255, 255, 0.13);
+  --border-strong: rgba(255, 255, 255, 0.28);
+
+  --accent: var(--indigo); /* sparing: focus, active nav item, small highlights */
+  --accent-soft: rgba(110, 118, 240, 0.16);
+  --hover: rgba(110, 118, 240, 0.1);
+  --focus-ring: var(--indigo);
+
+  /* Primary button: paper on navy */
+  --button-primary-bg: var(--cream);
+  --button-primary-text: var(--navy);
+
+  /* Depth: black-based shadows + top-edge highlight */
+  --highlight: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 8px 20px rgba(0, 0, 0, 0.35), 0 2px 6px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.42), 0 4px 12px rgba(0, 0, 0, 0.3);
+  --shadow-xl: 0 28px 70px rgba(0, 0, 0, 0.5), 0 8px 20px rgba(0, 0, 0, 0.32);
+  --elevation-1: var(--highlight), var(--shadow-sm); /* cards */
+  --elevation-2: var(--highlight), var(--shadow-md); /* floating panels, navigation */
+  --elevation-3: var(--highlight), var(--shadow-lg); /* raised on hover, dialogs */
+
+  /* Status: always paired with a word or icon, never color alone */
+  --ok: #5cc98f;
+  --ok-soft: rgba(92, 201, 143, 0.14);
+  --warn: #e9b25c;
+  --warn-soft: rgba(233, 178, 92, 0.14);
+  --error: #f07c7c;
+  --error-soft: rgba(240, 124, 124, 0.14);
+
+  --scrollbar-thumb: #2a3557;
+  --grid-line: transparent;
+}
+
+/* ---------- Light theme ---------- */
+[data-theme="light"] {
+  color-scheme: light;
+
+  --bg: var(--cream);
+  --surface: var(--paper);
+  --surface-raised: var(--paper);
+  --surface-sunken: #faf8f2;
+
+  --text: var(--navy);
+  --text-muted: #4a5568;
+  --text-subtle: #5f6878;
+
+  --border-subtle: rgba(10, 17, 40, 0.08);
+  --border: rgba(10, 17, 40, 0.15);
+  --border-strong: var(--border); /* light mode has two tiers only */
+
+  --accent: var(--gold);
+  --accent-soft: rgba(154, 107, 18, 0.12);
+  --hover: rgba(10, 17, 40, 0.05);
+  --focus-ring: var(--gold);
+
+  /* Primary button: navy on paper */
+  --button-primary-bg: var(--navy);
+  --button-primary-text: var(--paper);
+
+  --highlight: inset 0 1px 0 rgba(255, 255, 255, 0.9); /* the paper highlight */
+  --shadow-xs: 0 1px 2px rgba(10, 17, 40, 0.06);
+  --shadow-sm: 0 1rem 3rem rgba(10, 17, 40, 0.08);
+  --shadow-md: 0 1.4rem 4rem rgba(10, 17, 40, 0.11);
+  --shadow-lg: 0 1.8rem 5rem rgba(10, 17, 40, 0.14);
+  --shadow-xl: 0 2.4rem 6rem rgba(10, 17, 40, 0.18);
+  --elevation-1: var(--highlight), var(--shadow-xs), var(--shadow-sm);
+  --elevation-2: var(--highlight), var(--shadow-xs), var(--shadow-md);
+  --elevation-3: var(--highlight), var(--shadow-xs), var(--shadow-lg);
+
+  --ok: #39734f;
+  --ok-soft: rgba(57, 115, 79, 0.1);
+  --warn: #8a5a00;
+  --warn-soft: rgba(138, 90, 0, 0.1);
+  --error: #b3261e;
+  --error-soft: rgba(179, 38, 30, 0.08);
+
+  --scrollbar-thumb: rgba(10, 17, 40, 0.28);
+  --grid-line: rgba(10, 17, 40, 0.027); /* faint grid on cream */
+}
+
+/* ---------- Base ---------- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100svh;
+  background-color: var(--bg);
+  background-image:
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: 2rem 2rem;
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: var(--text-md);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  line-height: 1.2;
+  font-weight: 700;
+  text-wrap: balance;
+}
+
+a,
+button,
+input,
+select,
+textarea {
+  touch-action: manipulation;
+}
+
+p {
+  margin: 0;
+}
+
+a {
+  color: inherit;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+code,
+kbd,
+samp,
+.mono {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+}
+
+::selection {
+  background: var(--accent-soft);
+}
+
+/* Focus: always visible for keyboard users */
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* Minimal scrollbar: thumb only, no visible track */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: var(--radius-pill);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
