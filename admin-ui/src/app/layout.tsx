@@ -15,7 +15,13 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   const theme = themeFrom((await cookies()).get(THEME_COOKIE)?.value);
 
   return (
-    <html lang="en" data-theme={theme} className={`${comfortaa.variable} ${comfortaaExt.variable}`}>
+    // data-scroll-behavior: Next.js turns smooth scrolling off while it switches pages (no slow scroll-to-top)
+    <html
+      lang="en"
+      data-theme={theme}
+      data-scroll-behavior="smooth"
+      className={`${comfortaa.variable} ${comfortaaExt.variable}`}
+    >
       <body>{children}</body>
     </html>
   );

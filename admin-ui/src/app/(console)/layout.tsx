@@ -9,6 +9,7 @@ import { THEME_COOKIE, themeFrom } from "@/lib/theme";
 import { toggleTheme } from "@/lib/theme-actions";
 
 import styles from "./console.module.css";
+import { LogOutIcon, MoonIcon, SunIcon } from "./icons";
 import NavLinks from "./nav-links";
 
 export default async function ConsoleLayout({ children }: { children: React.ReactNode }) {
@@ -47,18 +48,26 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
           <NavLinks showAccounts={account.role === "super_admin"} />
         </nav>
         <div className={styles.account}>
-          <p className={styles.name}>{account.display_name ?? account.username}</p>
-          <span className={styles.role} translate="no">
-            {account.role}
-          </span>
+          <div className={styles.who}>
+            <p className={styles.name}>{account.display_name ?? account.username}</p>
+            <span className={styles.role} translate="no">
+              {account.role}
+            </span>
+          </div>
           <form action={toggleTheme}>
-            <button type="submit" className={styles.quiet}>
-              {theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+            {/* title = hover hint for mouse users; aria-label = the name screen readers announce */}
+            <button
+              type="submit"
+              className={styles.iconButton}
+              aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+              title={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+            >
+              {theme === "dark" ? <SunIcon /> : <MoonIcon />}
             </button>
           </form>
           <form action={logOut}>
-            <button type="submit" className={styles.quiet}>
-              Log out
+            <button type="submit" className={styles.iconButton} aria-label="Log out" title="Log out">
+              <LogOutIcon />
             </button>
           </form>
         </div>

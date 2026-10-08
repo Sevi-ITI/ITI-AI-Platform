@@ -60,7 +60,7 @@
   border-radius: var(--radius-sm);
   background: var(--surface-sunken);
   color: var(--text);
-  font-size: var(--text-md); /* 16px: no iOS zoom on focus */
+  font-size: 1rem; /* 16px, not a token: phones zoom in on inputs smaller than this */
 }
 
 .error {

@@ -1,5 +1,6 @@
 import "server-only";
 
+import { redirect } from "next/navigation";
 import createClient, { type Client } from "openapi-fetch";
 
 import { type ApiError, toApiError, unreachableError } from "@/lib/api/api-error";
@@ -47,4 +48,11 @@ export async function callApi<T>(
     return { ok: false, error: toApiError(result.response, result.error) };
   }
   return { ok: true, data: result.data as T };
+}
+
+/** In a page: any 401 means the session is over → clear the cookie and go to the login page. */
+export function endSessionOn401(...results: ApiResult<unknown>[]): void {
+  if (results.some((r) => !r.ok && r.error.status === 401)) {
+    redirect("/session-ended");
+  }
 }

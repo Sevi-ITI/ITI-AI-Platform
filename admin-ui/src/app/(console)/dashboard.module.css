@@ -1,0 +1,542 @@
+/* Overview and Performance: compact dashboard (KPI row, wide + narrow columns, cards). Tokens only. */
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-5);
+}
+
+.header h1 {
+  font-size: var(--text-xl);
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+.ok {
+  color: var(--ok);
+}
+
+.warn {
+  color: var(--warn);
+}
+
+.error {
+  color: var(--error);
+}
+
+/* Cards */
+.card {
+  display: grid;
+  gap: var(--space-3);
+  align-content: start;
+  min-width: 0;
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--elevation-1);
+}
+
+.card > h2 {
+  font-size: var(--text-md);
+}
+
+/* Row 1: four small number cards */
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.kpi {
+  composes: card;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+}
+
+.kpiLabel {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.kpiValue {
+  font-size: var(--text-xl);
+  font-weight: 700;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+
+.kpiNote {
+  color: var(--text-subtle);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Below: wide column + narrow column, one column on small screens */
+.columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: start;
+}
+
+.column {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+/* Status tiles: a colored underline carries the status (with a word, never color alone) */
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 7rem), 1fr));
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+}
+
+.tile {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2) var(--space-3);
+  border-bottom: 3px solid var(--border);
+}
+
+.tile_ok {
+  border-bottom-color: var(--ok);
+}
+
+.tile_warn {
+  border-bottom-color: var(--warn);
+}
+
+.tile_error {
+  border-bottom-color: var(--error);
+}
+
+.tileValue {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* GPU gauge */
+.gauge {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-1);
+  margin: 0;
+}
+
+.gauge svg {
+  width: min(100%, 11rem);
+}
+
+.gaugeTrack,
+.gaugeArc {
+  fill: none;
+  stroke-width: 10;
+  stroke-linecap: round;
+}
+
+.gaugeTrack {
+  stroke: var(--border-subtle);
+}
+
+.gaugeArc {
+  stroke: var(--accent);
+}
+
+.gauge figcaption {
+  display: grid;
+  justify-items: center;
+  margin-top: -2.2rem;
+  text-align: center;
+}
+
+.gaugeValue {
+  font-size: var(--text-xl);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Collections: one row each (name + count, then a thin bar); the biggest bar in the accent color */
+.bars {
+  display: grid;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bars li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+}
+
+.barLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-sm);
+}
+
+.barValue {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.barTrack {
+  grid-column: 1 / -1;
+  display: flex;
+  height: 0.5rem;
+  border-radius: var(--radius-pill);
+  background: var(--border-subtle);
+  overflow: hidden;
+}
+
+.barFill,
+.barTop {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--text-subtle);
+}
+
+.barTop {
+  background: var(--accent);
+}
+
+/* Label / value list */
+.list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.list div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.list dt {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--text-muted);
+}
+
+.list dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Tables scroll sideways on narrow screens instead of breaking the page */
+.tableWrap {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.table th,
+.table td {
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.table th {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+
+.table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.table .number {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+/* Performance: window switch (1 h / 24 h / 7 d) */
+.switch {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+}
+
+.switch a {
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  text-decoration: none;
+  transition:
+    background var(--fast),
+    color var(--fast);
+}
+
+.switch a:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+/* Pending dot: space always reserved (no layout shift), appears only if loading takes over 100 ms */
+.pendingDot {
+  display: inline-block;
+  width: 0.4rem;
+  height: 0.4rem;
+  margin-left: var(--space-1);
+  border-radius: 50%;
+  background: currentColor;
+  vertical-align: middle;
+  opacity: 0;
+}
+
+.isPending {
+  animation:
+    pending-in 200ms ease 100ms forwards,
+    pending-pulse 1s ease-in-out 300ms infinite;
+}
+
+@keyframes pending-in {
+  to {
+    opacity: 0.8;
+  }
+}
+
+@keyframes pending-pulse {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+.switch a[aria-current="page"] {
+  background: var(--accent-soft);
+  color: var(--text);
+  font-weight: 700;
+}
+
+/* Answer outcomes: one stacked bar, then a legend with counts (color is never the only cue) */
+.stack {
+  display: flex;
+  gap: 2px;
+  height: 0.6rem;
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+
+.dot {
+  display: inline-block;
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  vertical-align: baseline;
+}
+
+.outcomeAnswered {
+  background: var(--ok);
+}
+
+.outcomeRefused {
+  background: var(--text-subtle);
+}
+
+.outcomeBusy {
+  background: var(--warn);
+}
+
+.outcomeFailed {
+  background: var(--error);
+}
+
+/* "Show all" fold under a table (native <details>, no JavaScript) */
+.more summary {
+  width: fit-content;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.more summary:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+/* Two equal cards side by side */
+.pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  align-items: start;
+}
+
+/* Charts */
+.chart {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+/* Plot: value labels (left) | chart, then time labels under the chart only */
+.plot {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: var(--space-2);
+  row-gap: var(--space-1);
+}
+
+.plot > svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.yAxis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-width: 2.2rem;
+  color: var(--text-subtle);
+  font-size: var(--text-xs);
+  line-height: 1;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.plot > .axis {
+  grid-column: 2;
+}
+
+.axis {
+  display: flex;
+  justify-content: space-between;
+  color: var(--text-subtle);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.gridLine {
+  stroke: var(--border-subtle);
+  stroke-dasharray: 4 4;
+}
+
+.barRequests {
+  fill: var(--accent);
+  opacity: 0.55;
+}
+
+.barErrors {
+  fill: var(--error);
+}
+
+.swatchRequests,
+.swatchErrors {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 2px;
+  background: var(--accent);
+  opacity: 0.55;
+}
+
+.swatchErrors {
+  background: var(--error);
+  opacity: 1;
+}
+
+/* Lines differ by dash pattern as well as color (never color alone) */
+.lineP50,
+.lineP95,
+.lineQueue {
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.lineP50 {
+  stroke: var(--accent);
+}
+
+.lineP95 {
+  stroke: var(--text-muted);
+  stroke-dasharray: 6 4;
+}
+
+.lineQueue {
+  stroke: var(--warn);
+  stroke-dasharray: 2 4;
+}
+
+.lineP50 circle {
+  fill: var(--accent);
+}
+
+.lineP95 circle {
+  fill: var(--text-muted);
+}
+
+.lineQueue circle {
+  fill: var(--warn);
+}
+
+.lineP50 circle,
+.lineP95 circle,
+.lineQueue circle {
+  stroke: none;
+}
+
+@media (max-width: 56rem) {
+  .pair {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 56rem) {
+  .columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 40rem) {
+  .kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
