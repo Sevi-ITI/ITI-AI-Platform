@@ -61,6 +61,21 @@ def test_users_and_chat_histories_across_users(client, admin, make_key):
     missing = client.get("/v1/admin/conversations/iti_conv_000000000000/messages", headers=admin)
     assert missing.status_code == 404
 
+    # one app's users only (a second app with the same user id stays out)
+    console = make_key("console-app")
+    client.post("/v1/chat", headers=console | {"ITI-User-Id": "1042"}, json=Q)
+    hr_only = client.get("/v1/admin/users?app_id=hr-portal", headers=admin).json()
+    assert sorted(u["user_id"] for u in hr_only) == ["1042", "2210"] and {u["app_id"] for u in hr_only} == {"hr-portal"}
+    assert client.get("/v1/admin/users?app_id=nobody", headers=admin).json() == []
+
+    # one user's conversations in one collection only
+    assert client.post("/v1/admin/collections", headers=admin, json={"name": "finance-docs"}).status_code == 201
+    both = make_key("hr-portal", collections=("iti-docs", "finance-docs"))
+    client.post("/v1/chat", headers=both | {"ITI-User-Id": "1042"}, json=Q | {"collection": "finance-docs"})
+    where = "app_id=hr-portal&user_id=1042"
+    assert len(client.get(f"/v1/admin/conversations?{where}", headers=admin).json()) == 2
+    finance = client.get(f"/v1/admin/conversations?{where}&collection=finance-docs", headers=admin).json()
+    assert [c["collection"] for c in finance] == ["finance-docs"]
 
 def test_request_log_and_metrics_count_real_traffic_but_not_admin_reads(client, admin, make_key):
     hr = make_key("hr-portal") | {"ITI-User-Id": "1042"}

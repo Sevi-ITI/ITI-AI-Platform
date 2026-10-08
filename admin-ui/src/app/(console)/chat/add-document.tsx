@@ -5,6 +5,7 @@ import { useRef, useState } from "react";
 
 import { PlusIcon } from "../icons";
 import { createCollection, jobStatus } from "./actions";
+import dash from "../dashboard.module.css";
 import styles from "./chat.module.css";
 
 // The + button and its dialog: upload a PDF into a collection, or into a new collection made here.
@@ -100,20 +101,20 @@ export default function AddDocument({ collections, initial }: { collections: str
       >
         <PlusIcon />
       </button>
-      <dialog ref={dialog} className={styles.dialog} aria-labelledby="add-document-title">
+      <dialog ref={dialog} className={dash.dialog} aria-labelledby="add-document-title">
         <form
-          className={styles.dialogForm}
+          className={dash.dialogForm}
           onSubmit={(e) => {
             e.preventDefault();
             void upload(e.currentTarget);
           }}
         >
           <h2 id="add-document-title">Add a document</h2>
-          <label className={styles.field}>
+          <label className={dash.field}>
             <span>PDF file</span>
             <input type="file" name="file" accept="application/pdf,.pdf" required disabled={busy} />
           </label>
-          <label className={styles.field}>
+          <label className={dash.field}>
             <span>Collection</span>
             <select value={choice} onChange={(e) => setChoice(e.target.value)} disabled={busy}>
               {options.map((c) => (
@@ -125,7 +126,7 @@ export default function AddDocument({ collections, initial }: { collections: str
             </select>
           </label>
           {choice === NEW && (
-            <label className={styles.field}>
+            <label className={dash.field}>
               <span>New collection name</span>
               <input
                 name="name"
@@ -148,7 +149,7 @@ export default function AddDocument({ collections, initial }: { collections: str
           >
             {state.step === "idle" ? "Only PDFs with a text layer can be read (no scanned images)." : state.label}
           </p>
-          <div className={styles.dialogActions}>
+          <div className={dash.dialogActions}>
             <button type="button" className={styles.secondary} onClick={() => dialog.current?.close()}>
               {state.step === "done" ? "Close" : "Cancel"}
             </button>

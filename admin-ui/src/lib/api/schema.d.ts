@@ -2255,6 +2255,7 @@ export interface operations {
     get_users_v1_admin_users_get: {
         parameters: {
             query?: {
+                app_id?: string | null;
                 limit?: number;
                 offset?: number;
             };
@@ -2361,6 +2362,7 @@ export interface operations {
             query?: {
                 app_id?: string | null;
                 user_id?: string | null;
+                collection?: string | null;
                 limit?: number;
                 offset?: number;
             };

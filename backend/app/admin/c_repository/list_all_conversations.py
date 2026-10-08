@@ -1,4 +1,4 @@
-"""list_all_conversations(): conversations of any user (optionally one app/user), newest first,
+"""list_all_conversations(): conversations of any user (optionally one app / user / collection), newest first,
 with the first question, the message count and the time of the last message."""
 
 from sqlalchemy import func, select
@@ -8,7 +8,9 @@ from app.chat.b_models.conversation import Conversation
 from app.chat.b_models.message import Message
 
 
-def list_all_conversations(db: Session, app_id: str | None, user_id: str | None, limit: int, offset: int) -> list:
+def list_all_conversations(
+    db: Session, app_id: str | None, user_id: str | None, limit: int, offset: int, collection: str | None = None
+) -> list:
     first_question = (
         select(Message.content)
         .where(Message.conversation_id == Conversation.id, Message.role == "user")
@@ -36,4 +38,6 @@ def list_all_conversations(db: Session, app_id: str | None, user_id: str | None,
         stmt = stmt.where(Conversation.app_id == app_id)
     if user_id:
         stmt = stmt.where(Conversation.user_id == user_id)
+    if collection:
+        stmt = stmt.where(Conversation.collection == collection)
     return db.execute(stmt).all()

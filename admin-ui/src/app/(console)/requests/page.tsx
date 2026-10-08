@@ -138,9 +138,13 @@ export default async function RequestLogPage({ searchParams }: PageProps<"/reque
       {rows.ok && (page > 1 || rows.data.length === PAGE_SIZE) && (
         <nav aria-label="Pages" className={styles.pager}>
           {page > 1 ? <Link href={pageHref(page - 1)}>← Previous</Link> : <span />}
-          <span className={styles.muted}>
-            Rows {formatCount((page - 1) * PAGE_SIZE + 1)}–{formatCount((page - 1) * PAGE_SIZE + rows.data.length)}
-          </span>
+          {rows.data.length > 0 ? (
+            <span className={styles.muted}>
+              Rows {formatCount((page - 1) * PAGE_SIZE + 1)}–{formatCount((page - 1) * PAGE_SIZE + rows.data.length)}
+            </span>
+          ) : (
+            <span />
+          )}
           {/* ponytail: the API gives no total, so "Next" shows whenever this page is full */}
           {rows.data.length === PAGE_SIZE ? <Link href={pageHref(page + 1)}>Next →</Link> : <span />}
         </nav>

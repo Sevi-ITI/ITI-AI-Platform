@@ -1,4 +1,4 @@
-"""list_users(): every (app, user) pair that has chatted, with counts and last activity."""
+"""list_users(): every (app, user) pair that has chatted, with counts and last activity; optionally one app's."""
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -7,9 +7,9 @@ from app.chat.b_models.conversation import Conversation
 from app.chat.b_models.message import Message
 
 
-def list_users(db: Session, limit: int, offset: int) -> list:
+def list_users(db: Session, limit: int, offset: int, app_id: str | None = None) -> list:
     last_active = func.max(Message.created_at)
-    return db.execute(
+    query = (
         select(
             Conversation.app_id,
             Conversation.user_id,
@@ -22,4 +22,7 @@ def list_users(db: Session, limit: int, offset: int) -> list:
         .order_by(last_active.desc().nulls_last(), Conversation.user_id)
         .limit(limit)
         .offset(offset)
-    ).all()
+    )
+    if app_id is not None:
+        query = query.where(Conversation.app_id == app_id)
+    return db.execute(query).all()

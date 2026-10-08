@@ -7,7 +7,7 @@ from app.admin.c_repository.list_all_conversations import list_all_conversations
 
 
 def admin_conversations(
-    db: Session, app_id: str | None, user_id: str | None, limit: int, offset: int
+    db: Session, app_id: str | None, user_id: str | None, limit: int, offset: int, collection: str | None = None
 ) -> list[AdminConversation]:
     return [
         AdminConversation(
@@ -20,5 +20,5 @@ def admin_conversations(
             created_at=conv.created_at,
             last_message_at=last,
         )
-        for conv, first, n, last in list_all_conversations(db, app_id, user_id, limit, offset)
+        for conv, first, n, last in list_all_conversations(db, app_id, user_id, limit, offset, collection)
     ]
