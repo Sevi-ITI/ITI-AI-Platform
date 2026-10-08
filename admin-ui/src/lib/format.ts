@@ -20,6 +20,16 @@ const dateTimeFormat = new Intl.DateTimeFormat(LOCALE, {
   hourCycle: "h23",
 });
 
+const stampFormat = new Intl.DateTimeFormat(LOCALE, {
+  timeZone: MANILA,
+  month: "short",
+  day: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hourCycle: "h23",
+});
+
 const countFormat = new Intl.NumberFormat(LOCALE);
 
 export function formatTime(value: string | Date): string {
@@ -28,6 +38,11 @@ export function formatTime(value: string | Date): string {
 
 export function formatDateTime(value: string | Date): string {
   return dateTimeFormat.format(new Date(value));
+}
+
+/** Log timestamps, to the second: "Oct 8, 14:01:02". */
+export function formatStamp(value: string | Date): string {
+  return stampFormat.format(new Date(value));
 }
 
 export function formatCount(value: number): string {
