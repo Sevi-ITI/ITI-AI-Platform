@@ -7,7 +7,7 @@ import type { components } from "@/lib/api/schema";
 
 import dash from "../dashboard.module.css";
 import { toast } from "../toast";
-import { createKey, editKey, rotateKey, saveProfile, type NewKey } from "./actions";
+import { createKey, disconnectApp, editKey, removeApp, rotateKey, saveProfile, type NewKey } from "./actions";
 
 // The super admin's buttons on Apps & keys, each with its own native <dialog>. A new key's secret lives only
 // in this component's state while its dialog is open; closing the dialog drops it.
@@ -492,6 +492,203 @@ export function EditProfileButton({ appId, profile }: { appId: string; profile: 
             </button>
             <button type="submit" className={dash.apply} disabled={busy} aria-busy={busy}>
               {busy ? "Saving…" : "Save profile"}
+            </button>
+          </div>
+        </form>
+      </dialog>
+    </>
+  );
+}
+
+/** Disconnect an app: all keys revoked, profile removed; optionally every chat of its users erased.
+ *  The app id must be typed to confirm, as for deleting one user's chats. */
+export function DisconnectAppButton({
+  appId,
+  users,
+  activeKeys,
+  hasAdminKey,
+}: {
+  appId: string;
+  users: number;
+  activeKeys: number;
+  hasAdminKey: boolean; // an active admin key: scripts using it stop too
+}) {
+  const router = useRouter();
+  const dialog = useRef<HTMLDialogElement>(null);
+  const toMessage = useErrorRedirect();
+  const [typed, setTyped] = useState("");
+  const [erase, setErase] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const matches = typed.trim() === appId;
+
+  async function run() {
+    setBusy(true);
+    setError(null);
+    const r = await disconnectApp(appId, erase);
+    setBusy(false);
+    if (!r.ok) return setError(toMessage(r));
+    const d = r.data;
+    const parts = [`${d.keys_revoked} ${d.keys_revoked === 1 ? "key" : "keys"} revoked`];
+    if (d.profile_removed) parts.push("profile removed");
+    if (erase) parts.push(`${d.conversations} conversations and ${d.messages} messages erased`);
+    toast("ok", `${appId} disconnected: ${parts.join(", ")}`);
+    dialog.current?.close();
+    router.refresh();
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        className={dash.dangerSmall}
+        onClick={() => {
+          setTyped("");
+          setErase(false);
+          setError(null);
+          dialog.current?.showModal();
+        }}
+      >
+        Disconnect app…
+      </button>
+      <dialog ref={dialog} className={dash.dialog} aria-labelledby={`disconnect-${appId}`}>
+        <form
+          className={dash.dialogForm}
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (matches && !busy) void run();
+          }}
+        >
+          <h2 id={`disconnect-${appId}`}>
+            Disconnect <span className="mono">{appId}</span>?
+          </h2>
+          <p>
+            {activeKeys > 0
+              ? `Its ${activeKeys} active ${activeKeys === 1 ? "key stops" : "keys stop"} working at once`
+              : "It has no active keys left"}{" "}
+            and its profile is removed. Its revoked keys, request log and (unless erased below) its users&apos; chats
+            stay as history; it moves to &quot;Disconnected apps&quot;.
+          </p>
+          {hasAdminKey && (
+            <p className={dash.error}>
+              ⚠ This app holds an active <strong>admin</strong> key: every script using it stops working. Make sure
+              another admin key or a super admin account remains.
+            </p>
+          )}
+          <label className={dash.check}>
+            <input type="checkbox" checked={erase} onChange={(e) => setErase(e.target.checked)} disabled={busy} />
+            <span>
+              Also erase all chats of its {users} {users === 1 ? "user" : "users"} (can&apos;t be undone)
+            </span>
+          </label>
+          <label className={dash.field}>
+            <span>
+              Type <span className="mono">{appId}</span> to confirm
+            </span>
+            <input
+              value={typed}
+              onChange={(e) => setTyped(e.target.value)}
+              autoComplete="off"
+              spellCheck={false}
+              disabled={busy}
+            />
+          </label>
+          {error && (
+            <p role="alert" className={dash.error}>
+              {error}
+            </p>
+          )}
+          <div className={dash.dialogActions}>
+            <button type="button" className={dash.secondary} onClick={() => dialog.current?.close()}>
+              Cancel
+            </button>
+            <button type="submit" className={dash.danger} disabled={!matches || busy} aria-busy={busy}>
+              {busy ? "Disconnecting…" : erase ? "Disconnect and erase chats" : "Disconnect app"}
+            </button>
+          </div>
+        </form>
+      </dialog>
+    </>
+  );
+}
+
+/** Remove permanently: for a disconnected app with no chats left. Its revoked key rows (and any profile) are
+ *  deleted, so it leaves the list. The app id must be typed to confirm. */
+export function RemoveAppButton({ appId, keys }: { appId: string; keys: number }) {
+  const router = useRouter();
+  const dialog = useRef<HTMLDialogElement>(null);
+  const toMessage = useErrorRedirect();
+  const [typed, setTyped] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const matches = typed.trim() === appId;
+
+  async function run() {
+    setBusy(true);
+    setError(null);
+    const r = await removeApp(appId);
+    setBusy(false);
+    if (!r.ok) return setError(toMessage(r));
+    toast(
+      "ok",
+      `${appId} removed permanently (${r.data.keys_removed} revoked ${r.data.keys_removed === 1 ? "key" : "keys"})`,
+    );
+    dialog.current?.close();
+    router.refresh();
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        className={dash.dangerSmall}
+        onClick={() => {
+          setTyped("");
+          setError(null);
+          dialog.current?.showModal();
+        }}
+      >
+        Remove permanently…
+      </button>
+      <dialog ref={dialog} className={dash.dialog} aria-labelledby={`remove-${appId}`}>
+        <form
+          className={dash.dialogForm}
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (matches && !busy) void run();
+          }}
+        >
+          <h2 id={`remove-${appId}`}>
+            Remove <span className="mono">{appId}</span> permanently?
+          </h2>
+          <p>
+            Its {keys} revoked {keys === 1 ? "key is" : "keys are"} deleted and the app leaves this list. The record of
+            which keys it had is gone for good; its request-log rows stay until the 90-day clean-up. This can&apos;t be
+            undone.
+          </p>
+          <label className={dash.field}>
+            <span>
+              Type <span className="mono">{appId}</span> to confirm
+            </span>
+            <input
+              value={typed}
+              onChange={(e) => setTyped(e.target.value)}
+              autoComplete="off"
+              spellCheck={false}
+              disabled={busy}
+            />
+          </label>
+          {error && (
+            <p role="alert" className={dash.error}>
+              {error}
+            </p>
+          )}
+          <div className={dash.dialogActions}>
+            <button type="button" className={dash.secondary} onClick={() => dialog.current?.close()}>
+              Cancel
+            </button>
+            <button type="submit" className={dash.danger} disabled={!matches || busy} aria-busy={busy}>
+              {busy ? "Removing…" : "Remove permanently"}
             </button>
           </div>
         </form>

@@ -11,3 +11,10 @@ export async function deleteDocument(collection: string, filename: string): Prom
   const r = await callApi((api) => api.DELETE("/v1/admin/documents", { params: { query: { collection, filename } } }));
   return r.ok ? { ok: true } : { ok: false, message: displayMessage(r.error), status: r.error.status };
 }
+
+// Delete an empty collection (FastAPI refuses one with documents, or one listed in the server settings) and take
+// it off every key. Super admin only.
+export async function deleteCollection(name: string): Promise<ConfirmResult> {
+  const r = await callApi((api) => api.DELETE("/v1/admin/collections/{name}", { params: { path: { name } } }));
+  return r.ok ? { ok: true } : { ok: false, message: displayMessage(r.error), status: r.error.status };
+}

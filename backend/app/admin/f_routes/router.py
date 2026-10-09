@@ -4,8 +4,11 @@ from fastapi import APIRouter
 
 from app.admin.a_schemas.admin_conversation import AdminConversation
 from app.admin.a_schemas.admin_message import AdminMessage
+from app.admin.a_schemas.app_disconnected import AppDisconnected
 from app.admin.a_schemas.app_overview import AppOverview
+from app.admin.a_schemas.app_removed import AppRemoved
 from app.admin.a_schemas.chats_deleted import ChatsDeleted
+from app.admin.a_schemas.collection_deleted import CollectionDeleted
 from app.admin.a_schemas.collection_info import CollectionInfo
 from app.admin.a_schemas.document_row import DocumentRow
 from app.admin.a_schemas.health_report import HealthReport
@@ -16,6 +19,8 @@ from app.admin.a_schemas.request_log_out import RequestLogOut
 from app.admin.a_schemas.timeseries_point import TimeseriesPoint
 from app.admin.a_schemas.user_summary import UserSummary
 from app.admin.f_routes.delete_admin_conversations import delete_admin_conversations
+from app.admin.f_routes.delete_app import delete_app
+from app.admin.f_routes.delete_collection import delete_collection
 from app.admin.f_routes.delete_document import delete_document
 from app.admin.f_routes.delete_key import delete_key
 from app.admin.f_routes.get_accounts import get_accounts
@@ -34,6 +39,7 @@ from app.admin.f_routes.patch_account import patch_account
 from app.admin.f_routes.patch_key import patch_key
 from app.admin.f_routes.post_account import post_account
 from app.admin.f_routes.post_account_password import post_account_password
+from app.admin.f_routes.post_app_disconnect import post_app_disconnect
 from app.admin.f_routes.post_collection import post_collection
 from app.admin.f_routes.post_key import post_key
 from app.admin.f_routes.put_app import put_app
@@ -63,8 +69,11 @@ add("/v1/admin/documents", get_documents, methods=["GET"], response_model=list[D
 add("/v1/admin/documents", delete_document, methods=["DELETE"], status_code=204)
 add("/v1/admin/collections", get_collections, methods=["GET"], response_model=list[CollectionInfo])
 add("/v1/admin/collections", post_collection, methods=["POST"], status_code=201, response_model=CollectionInfo)
+add("/v1/admin/collections/{name}", delete_collection, methods=["DELETE"], response_model=CollectionDeleted)
 add("/v1/admin/apps", get_apps, methods=["GET"], response_model=list[AppOverview])
 add("/v1/admin/apps/{app_id}", put_app, methods=["PUT"], response_model=AppOverview)
+add("/v1/admin/apps/{app_id}", delete_app, methods=["DELETE"], response_model=AppRemoved)
+add("/v1/admin/apps/{app_id}/disconnect", post_app_disconnect, methods=["POST"], response_model=AppDisconnected)
 add("/v1/admin/accounts", get_accounts, methods=["GET"], response_model=list[AccountInfo])
 add("/v1/admin/accounts", post_account, methods=["POST"], status_code=201, response_model=AccountInfo)
 add("/v1/admin/accounts/{username}", patch_account, methods=["PATCH"], response_model=AccountInfo)

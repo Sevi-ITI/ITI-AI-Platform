@@ -1048,3 +1048,62 @@
     animation: none;
   }
 }
+
+/* Documents: the collections, each with its counts and (super admin) Delete or why it stays */
+.collections {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.collection {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  font-size: var(--text-sm);
+}
+
+.collection > span:last-child.muted {
+  padding-right: var(--space-2);
+  font-size: var(--text-xs);
+}
+
+/* Apps & keys: search box, and the folded "Disconnected apps" group */
+.search input {
+  width: 100%;
+  min-height: 2.5rem;
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background-color: var(--surface-sunken);
+  color: var(--text);
+  font-size: 1rem;
+  transition: border-color var(--fast) var(--ease);
+}
+
+.search input:focus-visible {
+  border-color: var(--accent);
+}
+
+.disconnected {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.disconnected > summary {
+  padding: var(--space-2) var(--space-1);
+  color: var(--text-muted);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.disconnectedList {
+  display: grid;
+  gap: var(--space-5);
+  opacity: 0.75; /* history: still readable, visibly not in use */
+}

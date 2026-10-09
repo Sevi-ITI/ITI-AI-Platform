@@ -19,7 +19,7 @@ def log_in(client, username, role):
 def test_a_supervisor_creates_a_collection_then_uploads_and_chats_in_it(client):
     boss = log_in(client, "boss", "supervisor")
     r = client.post("/v1/admin/collections", headers=boss, json={"name": "finance-docs"})
-    assert r.status_code == 201 and r.json() == {"name": "finance-docs", "documents": 0, "chunks": 0}
+    assert r.status_code == 201 and r.json() == {"name": "finance-docs", "documents": 0, "chunks": 0, "in_settings": False}
     names = [c["name"] for c in client.get("/v1/admin/collections", headers=boss).json()]
     assert names == ["iti-docs", "finance-docs"]
 

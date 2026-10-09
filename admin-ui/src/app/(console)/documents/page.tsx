@@ -11,13 +11,14 @@ import ConfirmAction from "../confirm-action";
 import Pager from "../pager";
 import styles from "../dashboard.module.css";
 import { Problem } from "../widgets";
-import { deleteDocument } from "./actions";
+import { deleteCollection, deleteDocument } from "./actions";
 
 export const metadata = { title: "Documents" };
 
 const PAGE_SIZE = 100;
 
 type Row = components["schemas"]["DocumentRow"];
+type Collection = components["schemas"]["CollectionInfo"];
 
 // Every uploaded file version and its indexing job, newest first, optionally one collection (?collection=).
 // Everyone may upload new files; the super admin may also replace (in the upload dialog) and delete.
@@ -62,11 +63,11 @@ export default async function DocumentsPage({ searchParams }: PageProps<"/docume
       </header>
 
       {collections.ok && collections.data.length > 0 && (
-        <p className={styles.muted}>
-          {collections.data
-            .map((c) => `${c.name}: ${formatCount(c.documents)} files, ${formatCount(c.chunks)} passages`)
-            .join(" · ")}
-        </p>
+        <section aria-label="Collections" className={styles.collections}>
+          {collections.data.map((c) => (
+            <CollectionChip key={c.name} c={c} canDelete={isSuperAdmin} />
+          ))}
+        </section>
       )}
 
       {/* A plain GET form: the filter lands in the URL (shareable, Back works), no JavaScript */}
@@ -93,9 +94,7 @@ export default async function DocumentsPage({ searchParams }: PageProps<"/docume
         )}
       </form>
 
-      {rows.ok && (
-        <Pager page={page} count={rows.data.length} pageSize={PAGE_SIZE} noun="Files" href={pageHref} />
-      )}
+      {rows.ok && <Pager page={page} count={rows.data.length} pageSize={PAGE_SIZE} noun="Files" href={pageHref} />}
 
       <section className={styles.card} aria-label="Documents">
         {!rows.ok ? (
@@ -138,7 +137,6 @@ export default async function DocumentsPage({ searchParams }: PageProps<"/docume
           </div>
         )}
       </section>
-
     </>
   );
 }
@@ -191,5 +189,46 @@ function DocumentRow({ row, canDelete }: { row: Row; canDelete: boolean }) {
         </td>
       )}
     </tr>
+  );
+}
+
+// One collection: its counts, and (super admin) Delete when it can go: empty and not from the server settings.
+// Otherwise the reason it stays, in words. FastAPI checks both again.
+function CollectionChip({ c, canDelete }: { c: Collection; canDelete: boolean }) {
+  const empty = c.documents === 0 && c.chunks === 0;
+  return (
+    <div className={styles.collection}>
+      <span>
+        <span className="mono" translate="no">
+          {c.name}
+        </span>{" "}
+        <span className={styles.muted}>
+          {formatCount(c.documents)} {c.documents === 1 ? "file" : "files"}, {formatCount(c.chunks)} passages
+        </span>
+      </span>
+      {canDelete &&
+        (c.in_settings ? (
+          <span className={styles.muted} title="Listed in ITI_COLLECTIONS: it would come back at the next restart">
+            from server settings
+          </span>
+        ) : !empty ? (
+          <span className={styles.muted} title="Delete its documents first">
+            not empty
+          </span>
+        ) : (
+          <ConfirmAction
+            label="Delete"
+            title={`Delete the collection ${c.name}?`}
+            confirmLabel="Delete collection"
+            action={deleteCollection.bind(null, c.name)}
+            done={`Collection ${c.name} deleted`}
+          >
+            <p>
+              The empty collection <strong className="mono">{c.name}</strong> is removed and taken off every API key
+              that lists it. Old chats in it stay readable in Users &amp; chats but can&apos;t be continued.
+            </p>
+          </ConfirmAction>
+        ))}
+    </div>
   );
 }

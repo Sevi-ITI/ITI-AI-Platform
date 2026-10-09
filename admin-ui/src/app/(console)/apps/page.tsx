@@ -8,15 +8,24 @@ import ConfirmAction from "../confirm-action";
 import styles from "../dashboard.module.css";
 import { Problem } from "../widgets";
 import { revokeKey } from "./actions";
-import { CreateKeyButton, EditKeyButton, EditProfileButton, RotateKeyButton } from "./dialogs";
+import AppList from "./app-list";
+import {
+  CreateKeyButton,
+  DisconnectAppButton,
+  RemoveAppButton,
+  EditKeyButton,
+  EditProfileButton,
+  RotateKeyButton,
+} from "./dialogs";
 
 export const metadata = { title: "Apps & keys" };
 
 type App = components["schemas"]["AppOverview"];
 type Key = components["schemas"]["KeyInfo"];
 
-// Every connected system (from its keys, its chats or a profile): profile, live counts and its keys.
-// Changes (create / rotate / revoke / edit a key, edit a profile) are the super admin's; supervisors read.
+// Every connected system (from its keys, its chats or a profile): profile, live counts and its keys, with a search
+// box. Apps with no active key (except the console) are "Disconnected": kept as history, folded at the bottom.
+// Changes (create / rotate / revoke / edit a key, edit a profile, disconnect) are the super admin's.
 export default async function AppsPage() {
   const [apps, keys, collections, me] = await Promise.all([
     callApi((api) => api.GET("/v1/admin/apps")),
@@ -30,6 +39,31 @@ export default async function AppsPage() {
   const collectionNames = collections.ok ? collections.data.map((c) => c.name) : [];
   const now = new Date().getTime(); // a server component: rendered once per request
 
+  // Each card with the text it can be searched by (lowercase): app id, profile fields, key ids.
+  const items = (apps.ok ? apps.data : []).map((app) => {
+    const appKeys = keys.ok ? keys.data.filter((k) => k.app_id === app.app_id) : [];
+    const text = [app.app_id, app.display_name, app.owner_name, app.owner_email, app.company, app.description]
+      .concat(appKeys.map((k) => k.key_id))
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    return {
+      id: app.app_id,
+      text,
+      disconnected: app.active_keys === 0 && app.app_id !== "iti-console",
+      card: (
+        <AppCard
+          app={app}
+          keys={appKeys}
+          keysError={keys.ok ? null : displayMessage(keys.error)}
+          collections={collectionNames}
+          canEdit={canEdit}
+          now={now}
+        />
+      ),
+    };
+  });
+
   return (
     <>
       <header className={styles.header}>
@@ -42,17 +76,7 @@ export default async function AppsPage() {
       ) : apps.data.length === 0 ? (
         <p className={styles.muted}>No apps yet. Create a key to connect the first one.</p>
       ) : (
-        apps.data.map((app) => (
-          <AppCard
-            key={app.app_id}
-            app={app}
-            keys={keys.ok ? keys.data.filter((k) => k.app_id === app.app_id) : []}
-            keysError={keys.ok ? null : displayMessage(keys.error)}
-            collections={collectionNames}
-            canEdit={canEdit}
-            now={now}
-          />
-        ))
+        <AppList active={items.filter((it) => !it.disconnected)} disconnected={items.filter((it) => it.disconnected)} />
       )}
     </>
   );
@@ -92,7 +116,27 @@ function AppCard({
           {details && <p className={styles.muted}>{details}</p>}
           {app.notes && <p className={styles.muted}>{app.notes}</p>}
         </div>
-        {canEdit && <EditProfileButton appId={app.app_id} profile={app} />}
+        {canEdit && (
+          <div className={styles.rowActions}>
+            <EditProfileButton appId={app.app_id} profile={app} />
+            {/* only when it would change something: an active key, a profile, or users' chats to erase */}
+            {app.app_id !== "iti-console" && (app.active_keys > 0 || app.profile_updated_at || app.users > 0) && (
+              <DisconnectAppButton
+                appId={app.app_id}
+                users={app.users}
+                activeKeys={app.active_keys}
+                hasAdminKey={keys.some(
+                  (k) =>
+                    k.scopes.includes("admin") && !k.revoked_at && (!k.expires_at || Date.parse(k.expires_at) > now),
+                )}
+              />
+            )}
+            {/* a disconnected app with no chats left can go for good */}
+            {app.app_id !== "iti-console" && app.active_keys === 0 && app.users === 0 && (
+              <RemoveAppButton appId={app.app_id} keys={keys.length} />
+            )}
+          </div>
+        )}
       </div>
       <p className={styles.muted}>
         {formatCount(app.users)} {app.users === 1 ? "user" : "users"} · {formatCount(app.active_keys)} active{" "}

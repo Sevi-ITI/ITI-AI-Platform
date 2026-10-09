@@ -72,3 +72,24 @@ export async function saveProfile(
   );
   return r.ok ? { ok: true } : { ok: false, message: displayMessage(r.error), status: r.error.status };
 }
+
+// Disconnect an app: every active key revoked, profile removed; with eraseChats, all its users' chats deleted.
+export async function disconnectApp(appId: string, eraseChats: boolean) {
+  const r = await callApi((api) =>
+    api.POST("/v1/admin/apps/{app_id}/disconnect", {
+      params: { path: { app_id: appId } },
+      body: { erase_chats: eraseChats },
+    }),
+  );
+  return r.ok
+    ? ({ ok: true, data: r.data } as const)
+    : ({ ok: false, message: displayMessage(r.error), status: r.error.status } as const);
+}
+
+// Remove a disconnected app with no chats left, for good: its revoked key rows and profile go, so it leaves the list.
+export async function removeApp(appId: string) {
+  const r = await callApi((api) => api.DELETE("/v1/admin/apps/{app_id}", { params: { path: { app_id: appId } } }));
+  return r.ok
+    ? ({ ok: true, data: r.data } as const)
+    : ({ ok: false, message: displayMessage(r.error), status: r.error.status } as const);
+}
