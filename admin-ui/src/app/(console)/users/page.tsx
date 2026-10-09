@@ -4,6 +4,7 @@ import { displayMessage } from "@/lib/api/api-error";
 import { callApi, endSessionOn401 } from "@/lib/api/client";
 import { formatCount, formatDateTime } from "@/lib/format";
 
+import Pager from "../pager";
 import styles from "../dashboard.module.css";
 import { Problem } from "../widgets";
 
@@ -69,6 +70,10 @@ export default async function UsersPage({ searchParams }: PageProps<"/users">) {
         )}
       </form>
 
+      {users.ok && (
+        <Pager page={page} count={users.data.length} pageSize={PAGE_SIZE} noun="Users" href={pageHref} />
+      )}
+
       <section className={styles.card} aria-label="Users">
         {!users.ok ? (
           <Problem message={displayMessage(users.error)} />
@@ -126,20 +131,6 @@ export default async function UsersPage({ searchParams }: PageProps<"/users">) {
         )}
       </section>
 
-      {users.ok && (page > 1 || users.data.length === PAGE_SIZE) && (
-        <nav aria-label="Pages" className={styles.pager}>
-          {page > 1 ? <Link href={pageHref(page - 1)}>← Previous</Link> : <span />}
-          {users.data.length > 0 ? (
-            <span className={styles.muted}>
-              Users {formatCount((page - 1) * PAGE_SIZE + 1)}–{formatCount((page - 1) * PAGE_SIZE + users.data.length)}
-            </span>
-          ) : (
-            <span />
-          )}
-          {/* ponytail: the API gives no total, so "Next" shows whenever this page is full */}
-          {users.data.length === PAGE_SIZE ? <Link href={pageHref(page + 1)}>Next →</Link> : <span />}
-        </nav>
-      )}
     </>
   );
 }

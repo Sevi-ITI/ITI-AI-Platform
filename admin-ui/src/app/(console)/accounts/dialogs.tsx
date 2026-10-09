@@ -5,6 +5,7 @@ import { useRef, useState } from "react";
 
 import type { ConfirmResult } from "../confirm-action";
 import dash from "../dashboard.module.css";
+import { toast } from "../toast";
 import { addAccount, resetPassword, updateAccount } from "./actions";
 
 // The Accounts page's form dialogs: add an account, edit name / role, reset a password. Passwords are read from
@@ -19,6 +20,7 @@ function FormDialog({
   submitLabel,
   children,
   onSubmit,
+  done,
 }: {
   button: string;
   buttonClass: string;
@@ -26,6 +28,7 @@ function FormDialog({
   submitLabel: string;
   children: React.ReactNode;
   onSubmit: (data: FormData) => Promise<ConfirmResult | string>; // a string = the form's own complaint
+  done: (data: FormData) => string; // the toast after it worked
 }) {
   const router = useRouter();
   const dialog = useRef<HTMLDialogElement>(null);
@@ -35,10 +38,12 @@ function FormDialog({
   async function submit(form: HTMLFormElement) {
     setBusy(true);
     setError(null);
-    const r = await onSubmit(new FormData(form));
+    const data = new FormData(form);
+    const r = await onSubmit(data);
     setBusy(false);
     if (typeof r === "string") return setError(r);
     if (r.ok) {
+      toast("ok", done(data));
       form.reset();
       dialog.current?.close();
       router.refresh();
@@ -130,6 +135,7 @@ export function AddAccountButton() {
       buttonClass={dash.apply}
       title="Add a console account"
       submitLabel="Add account"
+      done={(data) => `Account ${String(data.get("username") ?? "").trim()} added`}
       onSubmit={(data) => {
         const password = passwordOf(data);
         if (password === null) return Promise.resolve("The two passwords don't match.");
@@ -179,6 +185,7 @@ export function EditAccountButton({
       buttonClass={dash.smallButton}
       title={`Edit ${username}`}
       submitLabel="Save"
+      done={() => `${username} saved`}
       onSubmit={(data) =>
         updateAccount(username, {
           display_name: String(data.get("display_name") ?? "").trim() || null,
@@ -203,6 +210,7 @@ export function ResetPasswordButton({ username }: { username: string }) {
       buttonClass={dash.smallButton}
       title={`New password for ${username}`}
       submitLabel="Set password"
+      done={() => `New password set for ${username}; they were logged out`}
       onSubmit={(data) => {
         const password = passwordOf(data);
         return password === null

@@ -463,9 +463,13 @@
 
 /* Previous / Next */
 .pager {
+  /* above the table, at its right: "Rows 101–200  ← Previous  Next →" */
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
+  gap: var(--space-2) var(--space-3);
+  margin-bottom: calc(-1 * var(--space-2)); /* sit close to the table it pages */
   font-size: var(--text-sm);
   font-variant-numeric: tabular-nums;
 }
@@ -651,6 +655,37 @@
 
 .dialog::backdrop {
   background: rgba(0, 0, 0, 0.5);
+}
+
+/* Dialogs ease in and out (rise + fade; the backdrop fades). @starting-style = the state it opens from. */
+.dialog,
+.dialog::backdrop {
+  transition:
+    opacity var(--fast) var(--ease),
+    transform var(--medium) var(--ease),
+    background-color var(--fast) var(--ease),
+    overlay var(--fast) allow-discrete,
+    display var(--fast) allow-discrete;
+}
+
+.dialog:not([open]) {
+  opacity: 0;
+  transform: translateY(0.5rem) scale(0.98);
+}
+
+.dialog:not([open])::backdrop {
+  background-color: transparent;
+}
+
+@starting-style {
+  .dialog[open] {
+    opacity: 0;
+    transform: translateY(0.5rem) scale(0.98);
+  }
+
+  .dialog[open]::backdrop {
+    background-color: transparent;
+  }
 }
 
 .dialogForm {
@@ -857,4 +892,159 @@
   color: var(--text);
   font-size: 1rem;
   resize: vertical;
+}
+
+/* Toasts: bottom right, newest last; rise in on arrival */
+.toasts {
+  position: fixed;
+  right: var(--float-gap);
+  bottom: calc(var(--float-gap) + env(safe-area-inset-bottom, 0px));
+  z-index: 50;
+  display: grid;
+  justify-items: end;
+  gap: var(--space-2);
+  max-width: min(26rem, calc(100vw - 2 * var(--float-gap)));
+  pointer-events: none; /* only the toasts themselves take clicks */
+}
+
+.toastOk,
+.toastError {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  box-shadow: var(--elevation-3);
+  font-size: var(--text-sm);
+  pointer-events: auto;
+  animation: toast-in var(--medium) var(--ease);
+}
+
+.toastOk {
+  border-left: 3px solid var(--ok);
+}
+
+.toastError {
+  border-left: 3px solid var(--error);
+}
+
+.toastOk > span {
+  color: var(--text);
+}
+
+.toastError > span {
+  color: var(--error);
+}
+
+.toastOk button,
+.toastError button {
+  flex: none;
+  min-width: 1.5rem;
+  min-height: 1.5rem;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: none;
+  color: var(--text-muted);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.toastOk button:hover,
+.toastError button:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.75rem);
+  }
+}
+
+/* Progress bar (uploads): a real percentage, or a moving segment while indexing */
+.progress {
+  position: relative;
+  height: 0.4rem;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken);
+}
+
+.progress > span {
+  display: block;
+  height: 100%;
+  width: 0;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width var(--fast) var(--ease);
+}
+
+.progressBusy > span {
+  position: absolute;
+  width: 35%;
+  animation: progress-busy 1.4s var(--ease) infinite;
+}
+
+@keyframes progress-busy {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(300%);
+  }
+}
+
+/* Table rows answer the pointer */
+.table tbody tr {
+  transition: background-color var(--fast) var(--ease);
+}
+
+.table tbody tr:hover {
+  background: var(--hover);
+}
+
+/* Solid buttons lift a little on hover (design system: dark/solid buttons float; outlined ones stay put) */
+.apply {
+  transition:
+    transform var(--fast) var(--ease),
+    box-shadow var(--fast) var(--ease),
+    opacity var(--fast) var(--ease);
+}
+
+.apply:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: var(--elevation-2);
+}
+
+.apply:active:not(:disabled) {
+  transform: none;
+}
+
+.clear,
+.secondary,
+.danger,
+.smallButton,
+.dangerSmall,
+.pager a {
+  transition:
+    background-color var(--fast) var(--ease),
+    border-color var(--fast) var(--ease),
+    color var(--fast) var(--ease);
+}
+
+.pager a:hover {
+  border-color: var(--accent);
+  background: var(--hover);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progressBusy > span {
+    width: 100%;
+    opacity: 0.5;
+    animation: none;
+  }
 }

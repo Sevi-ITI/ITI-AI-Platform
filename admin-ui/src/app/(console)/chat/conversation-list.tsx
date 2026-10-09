@@ -18,7 +18,12 @@ export default function ConversationList({ items }: { items: ConversationItem[] 
     <ul className={styles.list}>
       {items.map((c) => (
         <li key={c.id}>
-          <Link href={`/chat/${c.id}`} aria-current={pathname === `/chat/${c.id}` ? "page" : undefined}>
+          {/* scroll={false}: the conversation scrolls itself to its latest message (composer.tsx) */}
+          <Link
+            href={`/chat/${c.id}`}
+            scroll={false}
+            aria-current={pathname === `/chat/${c.id}` ? "page" : undefined}
+          >
             <span className={styles.listTitle}>{c.title}</span>
             <span className={styles.listMeta}>
               <span className="mono" translate="no">

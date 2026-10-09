@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { type ApiError, displayMessage } from "@/lib/api/api-error";
 import type { components } from "@/lib/api/schema";
@@ -47,6 +47,17 @@ export default function Composer({
   const end = useRef<HTMLDivElement>(null);
 
   const busy = turn?.state === "waiting" || turn?.state === "streaming";
+
+  // Open a conversation at its latest message, and follow the saved copy after each answer.
+  // (on the next tick: when a link opens the page, Next.js first scrolls it to the top, which would undo this)
+  // Runs again for another conversation even with the same message count (this component is reused).
+  useEffect(() => {
+    if (historyCount === 0) return;
+    const timer = setTimeout(() =>
+      window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "instant" }),
+    );
+    return () => clearTimeout(timer);
+  }, [conversationId, historyCount]);
   const showTurn = turn !== null && turn.atCount === historyCount;
 
   async function send(question: string) {

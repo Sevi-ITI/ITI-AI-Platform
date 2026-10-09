@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 
 import dash from "../../../dashboard.module.css";
+import { toast } from "../../../toast";
 import { deleteUserChats } from "../../actions";
 
 // "Delete this user's chats": a dialog that only deletes once the user id is typed exactly.
@@ -31,6 +32,7 @@ export default function DeleteChats({ appId, userId }: { appId: string; userId: 
       step: "done",
       label: `Deleted ${plural(r.data.conversations, "conversation")} and ${plural(r.data.messages, "message")} of ${userId} in ${appId}.`,
     });
+    toast("ok", `Deleted ${plural(r.data.conversations, "conversation")} of ${userId} in ${appId}`);
     router.refresh();
   }
 

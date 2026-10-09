@@ -8,6 +8,7 @@ import { currentAccount } from "@/lib/session/current-account";
 
 import AddDocument from "../chat/add-document";
 import ConfirmAction from "../confirm-action";
+import Pager from "../pager";
 import styles from "../dashboard.module.css";
 import { Problem } from "../widgets";
 import { deleteDocument } from "./actions";
@@ -92,6 +93,10 @@ export default async function DocumentsPage({ searchParams }: PageProps<"/docume
         )}
       </form>
 
+      {rows.ok && (
+        <Pager page={page} count={rows.data.length} pageSize={PAGE_SIZE} noun="Files" href={pageHref} />
+      )}
+
       <section className={styles.card} aria-label="Documents">
         {!rows.ok ? (
           <Problem message={displayMessage(rows.error)} />
@@ -134,20 +139,6 @@ export default async function DocumentsPage({ searchParams }: PageProps<"/docume
         )}
       </section>
 
-      {rows.ok && (page > 1 || rows.data.length === PAGE_SIZE) && (
-        <nav aria-label="Pages" className={styles.pager}>
-          {page > 1 ? <Link href={pageHref(page - 1)}>← Previous</Link> : <span />}
-          {rows.data.length > 0 ? (
-            <span className={styles.muted}>
-              Files {formatCount((page - 1) * PAGE_SIZE + 1)}–{formatCount((page - 1) * PAGE_SIZE + rows.data.length)}
-            </span>
-          ) : (
-            <span />
-          )}
-          {/* ponytail: the API gives no total, so "Next" shows whenever this page is full */}
-          {rows.data.length === PAGE_SIZE ? <Link href={pageHref(page + 1)}>Next →</Link> : <span />}
-        </nav>
-      )}
     </>
   );
 }
@@ -189,6 +180,7 @@ function DocumentRow({ row, canDelete }: { row: Row; canDelete: boolean }) {
             title="Delete this document?"
             confirmLabel="Delete document"
             action={deleteDocument.bind(null, row.collection, row.filename)}
+            done={`${row.filename} deleted from ${row.collection}`}
           >
             <p>
               <strong>{row.filename}</strong> is removed from{" "}

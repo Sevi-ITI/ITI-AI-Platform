@@ -421,3 +421,42 @@
     font-size: 1rem;
   }
 }
+
+/* Motion: new messages rise in; solid buttons lift; a source's passage fades open */
+.question,
+.answer {
+  animation: message-in var(--medium) var(--ease);
+}
+
+@keyframes message-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.4rem);
+  }
+}
+
+.newChat,
+.send,
+.round,
+.roundGhost {
+  transition:
+    transform var(--fast) var(--ease),
+    box-shadow var(--fast) var(--ease),
+    background-color var(--fast) var(--ease),
+    color var(--fast) var(--ease);
+}
+
+.newChat:hover,
+.send:hover:not(:disabled),
+.round:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--elevation-2);
+}
+
+.source[open] p {
+  animation: message-in var(--fast) var(--ease);
+}
+
+.composer {
+  transition: border-color var(--fast) var(--ease);
+}

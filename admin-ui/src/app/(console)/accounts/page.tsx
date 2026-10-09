@@ -86,6 +86,7 @@ export default async function AccountsPage() {
                               title={`Deactivate ${a.username}?`}
                               confirmLabel="Deactivate"
                               action={updateAccount.bind(null, a.username, { active: false })}
+                              done={`${a.username} deactivated`}
                             >
                               <p>
                                 {isMe
@@ -101,6 +102,7 @@ export default async function AccountsPage() {
                               title={`Reactivate ${a.username}?`}
                               confirmLabel="Reactivate"
                               action={updateAccount.bind(null, a.username, { active: true })}
+                              done={`${a.username} reactivated`}
                             >
                               <p>{a.username} can log in again with their current password.</p>
                             </ConfirmAction>

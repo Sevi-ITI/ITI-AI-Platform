@@ -6,6 +6,7 @@ import { useRef, useState } from "react";
 import { PlusIcon } from "../icons";
 import { createCollection, jobStatus } from "./actions";
 import dash from "../dashboard.module.css";
+import { toast } from "../toast";
 import styles from "./chat.module.css";
 
 // The + button (or a text button, with `label`) and its dialog: upload a PDF into a collection, or into a new
@@ -14,9 +15,29 @@ import styles from "./chat.module.css";
 // again with replace=true (FastAPI refuses supervisors anyway).
 
 const NEW = "__new__";
+
+// POST the form to /api/documents with upload progress (fetch can't report it; XMLHttpRequest can).
+type UploadReply = { job_id?: string; error?: { code?: string; message?: string } } | null;
+
+function send(body: FormData, onProgress: (part: number) => void): Promise<{ status: number; json: UploadReply }> {
+  return new Promise((resolve) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", "/api/documents");
+    xhr.upload.onprogress = (e) => e.lengthComputable && onProgress(e.loaded / e.total);
+    xhr.onload = () => {
+      let json: UploadReply = null;
+      try {
+        json = JSON.parse(xhr.responseText);
+      } catch {}
+      resolve({ status: xhr.status, json });
+    };
+    xhr.onerror = () => resolve({ status: 0, json: null });
+    xhr.send(body);
+  });
+}
 type State =
   | { step: "idle" }
-  | { step: "working"; label: string }
+  | { step: "working"; label: string; progress: number | null } // 0–1 while uploading; null = indexing
   | { step: "done"; label: string }
   | { step: "error"; label: string }
   | { step: "exists"; label: string };
@@ -55,55 +76,55 @@ export default function AddDocument({
 
     let collection = choice;
     if (choice === NEW) {
-      setState({ step: "working", label: "Creating the collection…" });
+      setState({ step: "working", label: "Creating the collection…", progress: null });
       const made = await createCollection(String(data.get("name") ?? "").trim());
       if (!made.ok) return setState({ step: "error", label: made.message });
       collection = made.data.name;
+      toast("ok", `Collection ${collection} created`);
       setCreated((c) => [...c, collection]);
       setChoice(collection); // a retry uploads into it instead of creating it again
       router.refresh();
     }
 
-    setState({ step: "working", label: `Uploading ${file.name}…` });
+    const fail = (label: string) => {
+      setState({ step: "error", label });
+      toast("error", `Upload of ${file.name} failed: ${label}`);
+    };
+    setState({ step: "working", label: `Uploading ${file.name}…`, progress: 0 });
     const body = new FormData();
     body.set("collection", collection);
     body.set("file", file);
     if (replace) body.set("replace", "true");
-    const res = await fetch("/api/documents", { method: "POST", body }).catch(() => null);
-    if (res?.status === 401) return router.push("/login");
-    const json = await res?.json().catch(() => null);
-    if (!res?.ok) {
+    const res = await send(body, (part) =>
+      setState({ step: "working", label: `Uploading ${file.name}…`, progress: part }),
+    );
+    if (res.status === 401) return router.push("/login");
+    const json = res.json;
+    if (res.status < 200 || res.status >= 300) {
       if (json?.error?.code === "document_exists" && canReplace) {
         return setState({
           step: "exists",
           label: `${file.name} is already in ${collection}. Replace the existing file?`,
         });
       }
-      return setState({
-        step: "error",
-        label: json?.error?.message ?? "The upload failed. Check that FastAPI is running.",
-      });
+      return fail(json?.error?.message ?? "the service is not reachable. Check that FastAPI is running.");
     }
 
     setState({
       step: "working",
       label: `Indexing ${file.name}: reading the pages and building the search index…`,
+      progress: null,
     });
     for (;;) {
       await new Promise((r) => setTimeout(r, 1500));
-      const job = await jobStatus(json.job_id);
-      if (!job.ok) return setState({ step: "error", label: job.message });
-      if (job.data.status === "failed")
-        return setState({
-          step: "error",
-          label: job.data.error ?? "Indexing failed.",
-        });
+      const job = await jobStatus(json?.job_id ?? "");
+      if (!job.ok) return fail(job.message);
+      if (job.data.status === "failed") return fail(job.data.error ?? "indexing failed.");
       if (job.data.status === "done") {
         form.reset();
-        setState({
-          step: "done",
-          label: `${file.name} is ready in ${collection}: ${job.data.chunks ?? 0} passages indexed.`,
-        });
+        const label = `${file.name} is ready in ${collection}: ${job.data.chunks ?? 0} passages indexed.`;
+        setState({ step: "done", label });
+        toast("ok", label);
         router.refresh(); // document counts in the picker
         return;
       }
@@ -185,6 +206,19 @@ export default function AddDocument({
           >
             {state.step === "idle" ? "Only PDFs with a text layer can be read (no scanned images)." : state.label}
           </p>
+          {state.step === "working" && (
+            // a real percentage while the file uploads; a moving bar while it is indexed (no percentage exists)
+            <div
+              className={state.progress === null ? `${dash.progress} ${dash.progressBusy}` : dash.progress}
+              role="progressbar"
+              aria-label={state.label}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={state.progress === null ? undefined : Math.round(state.progress * 100)}
+            >
+              <span style={state.progress === null ? undefined : { width: `${Math.round(state.progress * 100)}%` }} />
+            </div>
+          )}
           <div className={dash.dialogActions}>
             <button type="button" className={styles.secondary} onClick={() => dialog.current?.close()}>
               {state.step === "done" ? "Close" : "Cancel"}

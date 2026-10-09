@@ -3,8 +3,9 @@ import Link from "next/link";
 import { displayMessage } from "@/lib/api/api-error";
 import { callApi, endSessionOn401 } from "@/lib/api/client";
 import type { components } from "@/lib/api/schema";
-import { formatCount, formatMs, formatStamp } from "@/lib/format";
+import { formatMs, formatStamp } from "@/lib/format";
 
+import Pager from "../pager";
 import styles from "../dashboard.module.css";
 import { Problem } from "../widgets";
 
@@ -97,6 +98,10 @@ export default async function RequestLogPage({ searchParams }: PageProps<"/reque
         )}
       </form>
 
+      {rows.ok && (
+        <Pager page={page} count={rows.data.length} pageSize={PAGE_SIZE} noun="Rows" href={pageHref} />
+      )}
+
       <section className={styles.card} aria-label="Requests">
         {!rows.ok ? (
           <Problem message={displayMessage(rows.error)} />
@@ -135,20 +140,6 @@ export default async function RequestLogPage({ searchParams }: PageProps<"/reque
         )}
       </section>
 
-      {rows.ok && (page > 1 || rows.data.length === PAGE_SIZE) && (
-        <nav aria-label="Pages" className={styles.pager}>
-          {page > 1 ? <Link href={pageHref(page - 1)}>← Previous</Link> : <span />}
-          {rows.data.length > 0 ? (
-            <span className={styles.muted}>
-              Rows {formatCount((page - 1) * PAGE_SIZE + 1)}–{formatCount((page - 1) * PAGE_SIZE + rows.data.length)}
-            </span>
-          ) : (
-            <span />
-          )}
-          {/* ponytail: the API gives no total, so "Next" shows whenever this page is full */}
-          {rows.data.length === PAGE_SIZE ? <Link href={pageHref(page + 1)}>Next →</Link> : <span />}
-        </nav>
-      )}
     </>
   );
 }

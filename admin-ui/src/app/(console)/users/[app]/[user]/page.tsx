@@ -5,6 +5,7 @@ import { callApi, endSessionOn401 } from "@/lib/api/client";
 import { formatCount, formatDateTime } from "@/lib/format";
 import { currentAccount } from "@/lib/session/current-account";
 
+import Pager from "../../../pager";
 import styles from "../../../dashboard.module.css";
 import { Problem } from "../../../widgets";
 import DeleteChats from "./delete-chats";
@@ -114,6 +115,10 @@ export default async function UserChatsPage({
         )}
       </form>
 
+      {conversations.ok && (
+        <Pager page={page} count={conversations.data.length} pageSize={PAGE_SIZE} noun="Conversations" href={pageHref} />
+      )}
+
       <section className={styles.card} aria-label="Conversations">
         {!conversations.ok ? (
           <Problem message={displayMessage(conversations.error)} />
@@ -161,21 +166,6 @@ export default async function UserChatsPage({
         )}
       </section>
 
-      {conversations.ok && (page > 1 || conversations.data.length === PAGE_SIZE) && (
-        <nav aria-label="Pages" className={styles.pager}>
-          {page > 1 ? <Link href={pageHref(page - 1)}>← Previous</Link> : <span />}
-          {conversations.data.length > 0 ? (
-            <span className={styles.muted}>
-              Conversations {formatCount((page - 1) * PAGE_SIZE + 1)}–
-              {formatCount((page - 1) * PAGE_SIZE + conversations.data.length)}
-            </span>
-          ) : (
-            <span />
-          )}
-          {/* ponytail: the API gives no total, so "Next" shows whenever this page is full */}
-          {conversations.data.length === PAGE_SIZE ? <Link href={pageHref(page + 1)}>Next →</Link> : <span />}
-        </nav>
-      )}
     </>
   );
 }

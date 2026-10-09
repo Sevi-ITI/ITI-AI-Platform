@@ -269,6 +269,11 @@ option {
   }
 
   ::picker(select) {
+    transition:
+      opacity var(--fast) var(--ease),
+      transform var(--fast) var(--ease),
+      overlay var(--fast) allow-discrete,
+      display var(--fast) allow-discrete;
     margin-block: var(--space-1);
     padding: var(--space-1);
     border: 1px solid var(--border);
@@ -299,6 +304,28 @@ option {
   option:checked {
     background-color: var(--accent-soft);
     font-weight: 700;
+  }
+
+  /* the list fades and drops in when it opens (closed = faded up; @starting-style = where opening starts) */
+  ::picker(select) {
+    opacity: 0;
+    transform: translateY(-0.25rem);
+  }
+
+  select:open::picker(select) {
+    opacity: 1;
+    transform: none;
+  }
+
+  @starting-style {
+    select:open::picker(select) {
+      opacity: 0;
+      transform: translateY(-0.25rem);
+    }
+  }
+
+  select::picker-icon {
+    transition: rotate var(--fast) var(--ease), margin-top var(--fast) var(--ease);
   }
 
   option::checkmark {

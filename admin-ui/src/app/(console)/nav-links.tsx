@@ -37,9 +37,10 @@ export default function NavLinks({ showAccounts }: { showAccounts: boolean }) {
         const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
         return (
           <li key={href}>
-            <Link href={href} aria-current={active ? "page" : undefined}>
+            {/* title: the name on hover when the sidebar is collapsed to icons (narrow windows) */}
+            <Link href={href} aria-current={active ? "page" : undefined} title={label}>
               <Icon />
-              {label}
+              <span className={styles.label}>{label}</span>
             </Link>
           </li>
         );

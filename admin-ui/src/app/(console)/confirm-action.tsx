@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 
 import dash from "./dashboard.module.css";
+import { toast } from "./toast";
 
 // A red button that asks before it acts: delete a document, revoke a key, deactivate an account.
 // `quiet` makes both buttons neutral, for an undoable change (reactivate an account).
@@ -19,6 +20,7 @@ export default function ConfirmAction({
   confirmLabel,
   action,
   quiet = false,
+  done,
 }: {
   label: string;
   title: string;
@@ -26,6 +28,7 @@ export default function ConfirmAction({
   confirmLabel: string;
   action: () => Promise<ConfirmResult>;
   quiet?: boolean;
+  done: string; // the toast after it worked, e.g. "Key 3f2a… revoked"
 }) {
   const router = useRouter();
   const dialog = useRef<HTMLDialogElement>(null);
@@ -38,6 +41,7 @@ export default function ConfirmAction({
     setBusy(false);
     if (r.ok) {
       dialog.current?.close();
+      toast("ok", done);
       router.refresh();
     } else if (r.status === 401) {
       router.push("/login");

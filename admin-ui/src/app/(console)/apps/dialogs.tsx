@@ -6,6 +6,7 @@ import { useRef, useState } from "react";
 import type { components } from "@/lib/api/schema";
 
 import dash from "../dashboard.module.css";
+import { toast } from "../toast";
 import { createKey, editKey, rotateKey, saveProfile, type NewKey } from "./actions";
 
 // The super admin's buttons on Apps & keys, each with its own native <dialog>. A new key's secret lives only
@@ -104,6 +105,7 @@ export function CreateKeyButton({ apps, collections }: { apps: string[]; collect
     setBusy(false);
     if (r.ok) {
       setMade(r);
+      toast("ok", `Key ${r.keyId} created: copy it now`);
       router.refresh();
     } else {
       setError(toMessage(r));
@@ -232,8 +234,11 @@ export function RotateKeyButton({ keyId, appId }: { keyId: string; appId: string
     const r = await rotateKey(keyId);
     setBusy(false);
     if (r.ok) {
+      // No refresh yet: the old key is now revoked, so a refresh would remove this row's buttons, this
+      // dialog with them, and the new key before it can be copied. The page refreshes when the dialog closes.
       setMade(r);
-      router.refresh();
+      if (r.warning) toast("error", r.warning);
+      else toast("ok", `Key rotated: ${keyId} revoked, ${r.keyId} created`);
     } else {
       setError(toMessage(r));
     }
@@ -252,7 +257,15 @@ export function RotateKeyButton({ keyId, appId }: { keyId: string; appId: string
       >
         Rotate
       </button>
-      <dialog ref={dialog} className={dash.dialog} aria-label="Rotate key" onClose={() => setMade(null)}>
+      <dialog
+        ref={dialog}
+        className={dash.dialog}
+        aria-label="Rotate key"
+        onClose={() => {
+          if (made) router.refresh(); // show the revoked key and the new one
+          setMade(null);
+        }}
+      >
         <form
           className={dash.dialogForm}
           onSubmit={(e) => {
@@ -323,6 +336,7 @@ export function EditKeyButton({
     setBusy(false);
     if (r.ok) {
       dialog.current?.close();
+      toast("ok", `Key ${keyId} updated`);
       router.refresh();
     } else {
       setError(toMessage(r));
@@ -416,6 +430,7 @@ export function EditProfileButton({ appId, profile }: { appId: string; profile: 
     setBusy(false);
     if (r.ok) {
       dialog.current?.close();
+      toast("ok", `Profile of ${appId} saved`);
       router.refresh();
     } else {
       setError(toMessage(r));

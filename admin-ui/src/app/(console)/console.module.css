@@ -194,13 +194,52 @@
   }
 }
 
-@media (max-width: 52rem) {
+/* Collapsed sidebar: shown only in narrow windows */
+.brandShort {
+  display: none;
+}
+
+/* Narrow windows (under ~960 px, half a full-HD screen): the sidebar collapses to an icon rail. Labels stay
+   in the page for screen readers (visually hidden) and show on hover through each link's title. */
+@media (max-width: 60rem) {
   .shell {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: 3.75rem minmax(0, 1fr);
   }
 
   .sidebar {
-    position: static;
-    height: auto;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-1);
+    scrollbar-width: none; /* still scrolls on very short screens, without a bar squeezed into the rail */
+  }
+
+  .brand {
+    padding-inline: 0;
+  }
+
+  .brandShort {
+    display: inline;
+  }
+
+  .label,
+  .who {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+
+  .nav a {
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    padding: 0;
+  }
+
+  .account {
+    flex-direction: column;
+    padding: var(--space-3) 0 0;
   }
 }

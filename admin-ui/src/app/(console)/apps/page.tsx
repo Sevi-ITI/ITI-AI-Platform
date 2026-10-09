@@ -182,6 +182,7 @@ function KeyRow({ k, collections, canEdit, now }: { k: Key; collections: string[
                 title="Revoke this key?"
                 confirmLabel="Revoke key"
                 action={revokeKey.bind(null, k.key_id)}
+                done={`Key ${k.key_id} revoked`}
               >
                 <p>
                   <span className="mono">{k.key_id}</span> ({k.app_id}) stops working at once: every request with it

@@ -11,6 +11,7 @@ import { toggleTheme } from "@/lib/theme-actions";
 import styles from "./console.module.css";
 import { LogOutIcon, MoonIcon, SunIcon } from "./icons";
 import NavLinks from "./nav-links";
+import Toaster from "./toast";
 
 export default async function ConsoleLayout({ children }: { children: React.ReactNode }) {
   const me = await currentAccount();
@@ -43,7 +44,12 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
         Skip to content
       </a>
       <aside className={styles.sidebar}>
-        <p className={styles.brand}>ITI AI Console</p>
+        <p className={styles.brand}>
+          <span className={styles.brandShort} aria-hidden="true">
+            ITI
+          </span>
+          <span className={styles.label}>ITI AI Console</span>
+        </p>
         <nav aria-label="Console">
           <NavLinks showAccounts={account.role === "super_admin"} />
         </nav>
@@ -75,6 +81,7 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
       <main id="content" className={styles.content}>
         {children}
       </main>
+      <Toaster />
     </div>
   );
 }
