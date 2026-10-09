@@ -129,8 +129,8 @@ export default async function DocumentsPage({ searchParams }: PageProps<"/docume
                 </tr>
               </thead>
               <tbody>
-                {rows.data.map((r) => (
-                  <DocumentRow key={r.document_id} row={r} canDelete={isSuperAdmin} />
+                {markReplaced(rows.data).map(({ row, replaced }) => (
+                  <DocumentRow key={row.document_id} row={row} replaced={replaced} canDelete={isSuperAdmin} />
                 ))}
               </tbody>
             </table>
@@ -141,18 +141,35 @@ export default async function DocumentsPage({ searchParams }: PageProps<"/docume
   );
 }
 
-function DocumentRow({ row, canDelete }: { row: Row; canDelete: boolean }) {
-  const status =
-    row.job_status === "done" ? (
-      <span className={styles.ok}>● Indexed</span>
-    ) : row.job_status === "failed" ? (
-      <span className={styles.error}>✕ Failed</span>
-    ) : (
-      <span className={styles.warn}>◌ Indexing…</span>
-    );
+// The table is an upload history (newest first). An older indexed version of a file is "replaced" once a newer
+// version of the same name in the same collection is indexed: its passages were swapped out at that moment.
+// (A newer upload that failed replaced nothing: the old version stays live.)
+// ponytail: decided within this page of 100; a replaced version whose newer copy is on an earlier page shows as live.
+function markReplaced(rows: Row[]): { row: Row; replaced: boolean }[] {
+  const live = new Set<string>();
+  return rows.map((row) => {
+    const key = `${row.collection}/${row.filename}`;
+    const replaced = row.job_status === "done" && live.has(key);
+    if (row.job_status === "done") live.add(key);
+    return { row, replaced };
+  });
+}
+
+function DocumentRow({ row, replaced, canDelete }: { row: Row; replaced: boolean; canDelete: boolean }) {
+  const status = replaced ? (
+    <span className={styles.muted} title="A newer upload of this file replaced it; its passages are no longer searched">
+      ○ Replaced
+    </span>
+  ) : row.job_status === "done" ? (
+    <span className={styles.ok}>● Indexed</span>
+  ) : row.job_status === "failed" ? (
+    <span className={styles.error}>✕ Failed</span>
+  ) : (
+    <span className={styles.warn}>◌ Indexing…</span>
+  );
 
   return (
-    <tr>
+    <tr className={replaced ? styles.dimmed : undefined}>
       <td className={styles.fileCell}>
         {row.filename}
         {row.error && <div className={styles.error}>{row.error}</div>}
@@ -162,7 +179,7 @@ function DocumentRow({ row, canDelete }: { row: Row; canDelete: boolean }) {
       </td>
       <td className={styles.number}>{formatBytes(row.size_bytes)}</td>
       <td className={styles.nowrap}>{status}</td>
-      <td className={styles.number}>{row.chunks == null ? "–" : formatCount(row.chunks)}</td>
+      <td className={styles.number}>{replaced || row.chunks == null ? "–" : formatCount(row.chunks)}</td>
       <td className={styles.nowrap}>
         {row.uploaded_by_user ?? (
           <span className="mono" translate="no">
@@ -173,19 +190,22 @@ function DocumentRow({ row, canDelete }: { row: Row; canDelete: boolean }) {
       <td className={styles.nowrap}>{formatDateTime(row.finished_at ?? row.created_at)}</td>
       {canDelete && (
         <td>
-          <ConfirmAction
-            label="Delete"
-            title="Delete this document?"
-            confirmLabel="Delete document"
-            action={deleteDocument.bind(null, row.collection, row.filename)}
-            done={`${row.filename} deleted from ${row.collection}`}
-          >
-            <p>
-              <strong>{row.filename}</strong> is removed from{" "}
-              <span className={`mono ${styles.nowrap}`}>{row.collection}</span> completely: every version of it and its
-              passages. Answers stop citing it at once. This can&apos;t be undone.
-            </p>
-          </ConfirmAction>
+          {/* one Delete per file (it removes every version), on its newest row */}
+          {!replaced && (
+            <ConfirmAction
+              label="Delete"
+              title="Delete this document?"
+              confirmLabel="Delete document"
+              action={deleteDocument.bind(null, row.collection, row.filename)}
+              done={`${row.filename} deleted from ${row.collection}`}
+            >
+              <p>
+                <strong>{row.filename}</strong> is removed from{" "}
+                <span className={`mono ${styles.nowrap}`}>{row.collection}</span> completely: every version of it and
+                its passages. Answers stop citing it at once. This can&apos;t be undone.
+              </p>
+            </ConfirmAction>
+          )}
         </td>
       )}
     </tr>
