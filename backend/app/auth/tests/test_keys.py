@@ -60,7 +60,8 @@ def test_expired_key_gets_401(client, make_key, db_engine):
     assert r.status_code == 401
 
 
-def test_a_key_without_the_scope_or_the_collection_gets_403(client, make_key):
+def test_a_key_without_the_scope_or_the_collection_gets_403(client, make_key, make_collection):
+    make_collection("finance")
     docs_only = make_key("uploader", scopes=["documents:write"])
     finance = make_key("finance-app", collections=["finance"])
     r = client.post("/v1/chat", headers=docs_only | {"ITI-User-Id": "1042"}, json=CHAT)

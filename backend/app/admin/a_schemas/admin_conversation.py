@@ -8,6 +8,7 @@ from app.core.f_types.utc_datetime import UtcDateTime
 class AdminConversation(BaseModel):
     conversation_id: str
     app_id: str
+    company_id: str
     user_id: str
     collection: str
     first_question: str

@@ -9,3 +9,4 @@ class CollectionInfo(BaseModel):
     documents: int
     chunks: int
     in_settings: bool = False
+    company_id: str | None = None  # None = Global

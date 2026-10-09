@@ -19,16 +19,18 @@ export default async function RequestLogPage({ searchParams }: PageProps<"/reque
   const params = await searchParams;
   const one = (v: string | string[] | undefined) => (typeof v === "string" ? v.trim() : "");
   const app = one(params.app);
+  const company = one(params.company);
   const user = one(params.user);
   const errorsOnly = one(params.errors) === "1";
   const page = Math.max(1, Number.parseInt(one(params.page), 10) || 1);
 
-  const [rows, apps] = await Promise.all([
+  const [rows, apps, companies] = await Promise.all([
     callApi((api) =>
       api.GET("/v1/admin/requests", {
         params: {
           query: {
             app_id: app || undefined,
+            company_id: company || undefined,
             user_id: user || undefined,
             errors_only: errorsOnly,
             limit: PAGE_SIZE,
@@ -38,20 +40,23 @@ export default async function RequestLogPage({ searchParams }: PageProps<"/reque
       }),
     ),
     callApi((api) => api.GET("/v1/admin/apps")),
+    callApi((api) => api.GET("/v1/admin/companies")),
   ]);
-  endSessionOn401(rows, apps);
+  endSessionOn401(rows, apps, companies);
+  const companyNames = new Map((companies.ok ? companies.data : []).map((c) => [c.company_id, c.name]));
 
   // Same filters, another page (Previous / Next keep the filters)
   const pageHref = (p: number) => {
     const q = new URLSearchParams();
     if (app) q.set("app", app);
+    if (company) q.set("company", company);
     if (user) q.set("user", user);
     if (errorsOnly) q.set("errors", "1");
     if (p > 1) q.set("page", String(p));
     const s = q.toString();
     return s ? `/requests?${s}` : "/requests";
   };
-  const filtered = Boolean(app || user || errorsOnly);
+  const filtered = Boolean(app || company || user || errorsOnly);
 
   return (
     <>
@@ -60,49 +65,53 @@ export default async function RequestLogPage({ searchParams }: PageProps<"/reque
         <p className={styles.muted}>Newest first, {PAGE_SIZE} per page</p>
       </header>
 
-      {/* A plain GET form: the filters land in the URL (shareable, Back works), no JavaScript */}
-      <form action="/requests" className={styles.filters}>
-        <label>
-          <span>App</span>
-          <select name="app" defaultValue={app}>
-            <option value="">All apps</option>
-            {apps.ok &&
-              apps.data.map((a) => (
-                <option key={a.app_id} value={a.app_id}>
-                  {a.display_name ? `${a.display_name} (${a.app_id})` : a.app_id}
-                </option>
-              ))}
-          </select>
-        </label>
-        <label>
-          <span>User id</span>
-          <input
-            name="user"
-            defaultValue={user}
-            placeholder="e.g. 1042…"
-            autoComplete="off"
-            spellCheck={false}
-          />
-        </label>
-        <label className={styles.check}>
-          <input type="checkbox" name="errors" value="1" defaultChecked={errorsOnly} />
-          <span>Errors only</span>
-        </label>
-        <button type="submit" className={styles.apply}>
-          Apply filters
-        </button>
-        {filtered && (
-          <Link href="/requests" className={styles.clear}>
-            Clear filters
-          </Link>
-        )}
-      </form>
-
-      {rows.ok && (
-        <Pager page={page} count={rows.data.length} pageSize={PAGE_SIZE} noun="Rows" href={pageHref} />
-      )}
-
       <section className={styles.card} aria-label="Requests">
+        <div className={styles.toolbar}>
+          {/* Filters (a plain GET form: the filters land in the URL (shareable, Back works), no JavaScript), then the pager */}
+          <form action="/requests" className={styles.filters}>
+            <label>
+              <span>App</span>
+              <select name="app" defaultValue={app}>
+                <option value="">All apps</option>
+                {apps.ok &&
+                  apps.data.map((a) => (
+                    <option key={a.app_id} value={a.app_id}>
+                      {a.display_name ? `${a.display_name} (${a.app_id})` : a.app_id}
+                    </option>
+                  ))}
+              </select>
+            </label>
+            <label>
+              <span>Company</span>
+              <select name="company" defaultValue={company}>
+                <option value="">All companies</option>
+                {companies.ok &&
+                  companies.data.map((c) => (
+                    <option key={c.company_id} value={c.company_id}>
+                      {c.name} ({c.company_id})
+                    </option>
+                  ))}
+              </select>
+            </label>
+            <label>
+              <span>User id</span>
+              <input name="user" defaultValue={user} placeholder="e.g. 1042…" autoComplete="off" spellCheck={false} />
+            </label>
+            <label className={styles.check}>
+              <input type="checkbox" name="errors" value="1" defaultChecked={errorsOnly} />
+              <span>Errors only</span>
+            </label>
+            <button type="submit" className={styles.apply}>
+              Apply filters
+            </button>
+            {filtered && (
+              <Link href="/requests" className={styles.clear}>
+                Clear filters
+              </Link>
+            )}
+          </form>
+          {rows.ok && <Pager page={page} count={rows.data.length} pageSize={PAGE_SIZE} noun="Rows" href={pageHref} />}
+        </div>
         {!rows.ok ? (
           <Problem message={displayMessage(rows.error)} />
         ) : rows.data.length === 0 ? (
@@ -117,7 +126,7 @@ export default async function RequestLogPage({ searchParams }: PageProps<"/reque
                   <th scope="col">Time</th>
                   <th scope="col">Request</th>
                   <th scope="col">Result</th>
-                  <th scope="col">App / user</th>
+                  <th scope="col">App · company / user</th>
                   <th scope="col" className={styles.number}>
                     Total
                   </th>
@@ -132,24 +141,23 @@ export default async function RequestLogPage({ searchParams }: PageProps<"/reque
               </thead>
               <tbody>
                 {rows.data.map((r) => (
-                  <RequestRow key={r.request_id} row={r} />
+                  <RequestRow key={r.request_id} row={r} companyNames={companyNames} />
                 ))}
               </tbody>
             </table>
           </div>
         )}
       </section>
-
     </>
   );
 }
 
-function RequestRow({ row }: { row: Row }) {
+function RequestRow({ row, companyNames }: { row: Row; companyNames: Map<string, string> }) {
   const failed = row.status >= 400 || row.error_code !== null;
   // A chat request links to its conversation (the thread page arrives in 6B.3 sub-step 3)
   const thread =
     row.conversation_id && row.app_id && row.user_id
-      ? `/users/${encodeURIComponent(row.app_id)}/${encodeURIComponent(row.user_id)}/${encodeURIComponent(row.conversation_id)}`
+      ? `/users/${encodeURIComponent(row.app_id)}/${encodeURIComponent(row.user_id)}/${encodeURIComponent(row.conversation_id)}?company=${encodeURIComponent(row.company_id ?? "iti")}`
       : null;
 
   return (
@@ -169,6 +177,12 @@ function RequestRow({ row }: { row: Row }) {
         <span className="mono" translate="no">
           {row.app_id ?? "–"}
         </span>
+        {row.company_id && (
+          <span className={styles.muted} title={companyNames.get(row.company_id) ?? row.company_id}>
+            {" "}
+            · {row.company_id}
+          </span>
+        )}
         {row.user_id && (
           <span className={styles.muted}>
             {" "}

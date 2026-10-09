@@ -5,7 +5,8 @@ from datetime import UTC, datetime, timedelta
 Q = {"question": "How many vacation days?", "collection": "finance-docs"}
 
 
-def test_edit_collections_and_expiry(client, make_key):
+def test_edit_collections_and_expiry(client, make_key, make_collection):
+    make_collection("finance-docs")
     admin = make_key("iti-admin", scopes=["admin"], collections=[])
     hr = make_key("hr-portal") | {"ITI-User-Id": "1042"}
     key_id = next(k["key_id"] for k in client.get("/v1/admin/keys", headers=admin).json() if k["app_id"] == "hr-portal")
@@ -14,8 +15,8 @@ def test_edit_collections_and_expiry(client, make_key):
     edited = client.patch(f"/v1/admin/keys/{key_id}", headers=admin, json={"allowed_collections": ["iti-docs", "finance-docs"]})
     assert edited.status_code == 200 and edited.json()["allowed_collections"] == ["iti-docs", "finance-docs"]
     assert edited.json()["scopes"] == ["chat:invoke"]  # unchanged
-    # takes effect at once: the key may now ask about finance-docs (which this test setup has no store for)
-    assert client.post("/v1/chat", headers=hr, json=Q).json()["error"]["code"] == "collection_not_found"
+    # takes effect at once: the key may now ask about finance-docs
+    assert client.post("/v1/chat", headers=hr, json=Q).status_code == 200
 
     days = client.patch(f"/v1/admin/keys/{key_id}", headers=admin, json={"valid_days": 30}).json()["expires_at"]
     left = datetime.fromisoformat(days.replace("Z", "+00:00")) - datetime.now(UTC)

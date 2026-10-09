@@ -16,7 +16,7 @@
   /* Type */
   --font-sans: var(--font-comfortaa), var(--font-comfortaa-ext), system-ui, sans-serif;
   --font-mono: ui-monospace, Consolas, monospace; /* ids, keys, request ids: l 1 I stay distinct */
-  --text-xs: 0.6875rem; /* 11px */
+  --text-xs: 0.75rem; /* 12px: the smallest size; Comfortaa's thin strokes blur below it */
   --text-sm: 0.8125rem; /* 13px */
   --text-md: 0.9375rem; /* 15px: body */
   --text-lg: 1.125rem;
@@ -56,6 +56,7 @@
   --surface: #111a34; /* cards and panels */
   --surface-raised: #17213f; /* floating navigation, popovers */
   --surface-sunken: #070c1d; /* inputs */
+  --surface-nested: rgba(255, 255, 255, 0.035); /* groups inside a panel (layer 2) */
 
   --text: #eef0f6;
   --text-muted: #b5bbc7;
@@ -105,6 +106,7 @@
   --surface: var(--paper);
   --surface-raised: var(--paper);
   --surface-sunken: #faf8f2;
+  --surface-nested: rgba(10, 17, 40, 0.05); /* paper needs a little more to show the layer */
 
   --text: var(--navy);
   --text-muted: #4a5568;

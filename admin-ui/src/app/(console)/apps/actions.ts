@@ -38,6 +38,7 @@ export async function rotateKey(keyId: string): Promise<NewKey> {
     : null;
   const created = await createKey({
     app_id: old.app_id,
+    company_id: old.company_id, // the same client company (6C.1)
     scopes: old.scopes as KeyCreate["scopes"],
     allowed_collections: old.allowed_collections,
     valid_days: days,

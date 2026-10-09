@@ -1,4 +1,5 @@
-"""GET /v1/admin/users: every end user who has chatted, per app; `app_id` keeps one app's users."""
+"""GET /v1/admin/users: every end user who has chatted, per app and company; `app_id` / `company_id` keep one
+app's / one company's users."""
 
 from typing import Annotated
 
@@ -14,9 +15,10 @@ from app.core.c_database.get_db import get_db
 
 def get_users(
     app_id: Annotated[str | None, Query(min_length=1, max_length=64)] = None,
+    company_id: Annotated[str | None, Query(min_length=1, max_length=64)] = None,
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
     offset: Annotated[int, Query(ge=0)] = 0,
     _: AppPrincipal = Depends(require_admin),
     db: Session = Depends(get_db),
 ) -> list[UserSummary]:
-    return user_summaries(db, limit, offset, app_id)
+    return user_summaries(db, limit, offset, app_id, company_id)

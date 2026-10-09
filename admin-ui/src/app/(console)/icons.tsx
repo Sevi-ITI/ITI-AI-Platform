@@ -37,3 +37,6 @@ export const LogOutIcon = () => <Icon d="M15 4h4v16h-4 M10 8l-4 4 4 4 M6 12h10" 
 export const PlusIcon = () => <Icon d="M12 5v14 M5 12h14" />;
 export const SendIcon = () => <Icon d="M21 3L10 14 M21 3l-7 18-4-7-7-4z" />;
 export const StopIcon = () => <Icon d="M7 7h10v10H7z" />;
+export const CompaniesIcon = () => (
+  <Icon d="M4 21V6l8-3 8 3v15 M2 21h20 M10 21v-4h4v4 M8 9h.01 M12 9h.01 M16 9h.01 M8 13h.01 M12 13h.01 M16 13h.01" />
+);

@@ -26,10 +26,13 @@ const OUTCOMES: Record<string, { label: string; ok: boolean }> = {
 // request id for review. Read-only. Params typed by hand: route types are generated at build time.
 export default async function ThreadPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ app: string; user: string; conversation: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const { app, user, conversation } = await params;
+  const [{ app, user, conversation }, query] = await Promise.all([params, searchParams]);
+  const companyId = (typeof query.company === "string" && query.company.trim()) || "iti";
   const appId = decodeURIComponent(app);
   const userId = decodeURIComponent(user);
   const conversationId = decodeURIComponent(conversation);
@@ -43,14 +46,16 @@ export default async function ThreadPage({
     // ponytail: the collection and start time come from this user's 200 newest conversations; an older
     // one still shows its messages, just without that line.
     callApi((api) =>
-      api.GET("/v1/admin/conversations", { params: { query: { app_id: appId, user_id: userId, limit: 200 } } }),
+      api.GET("/v1/admin/conversations", {
+        params: { query: { app_id: appId, company_id: companyId, user_id: userId, limit: 200 } },
+      }),
     ),
   ]);
   endSessionOn401(messages, summaries);
 
   const summary = summaries.ok ? summaries.data.find((c) => c.conversation_id === conversationId) : undefined;
-  const userPage = `/users/${encodeURIComponent(appId)}/${encodeURIComponent(userId)}`;
-  const requestLog = `/requests?app=${encodeURIComponent(appId)}&user=${encodeURIComponent(userId)}`;
+  const userPage = `/users/${encodeURIComponent(appId)}/${encodeURIComponent(userId)}?company=${encodeURIComponent(companyId)}`;
+  const requestLog = `/requests?app=${encodeURIComponent(appId)}&company=${encodeURIComponent(companyId)}&user=${encodeURIComponent(userId)}`;
 
   return (
     <>

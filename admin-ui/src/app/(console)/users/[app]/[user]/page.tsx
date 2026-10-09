@@ -18,8 +18,8 @@ export async function generateMetadata({ params }: { params: Promise<{ app: stri
 
 const PAGE_SIZE = 50;
 
-// One user's conversations in one app, newest first, optionally in one collection (?collection=, in the URL);
-// each opens its thread. Super admins can erase all of this user's chats in this app (whatever the filter).
+// One person's conversations: one app, one company (?company=, default ITI), newest first, optionally in one
+// collection (?collection=). Each opens its thread. Super admins can erase this person's chats (whatever the filter).
 // Params typed by hand: route types are generated at build time (same as chat/[id]).
 export default async function UserChatsPage({
   params,
@@ -33,14 +33,16 @@ export default async function UserChatsPage({
   const userId = decodeURIComponent(user);
   const one = (v: string | string[] | undefined) => (typeof v === "string" ? v.trim() : "");
   const collection = one(query.collection);
+  const companyId = one(query.company) || "iti";
   const page = Math.max(1, Number.parseInt(one(query.page), 10) || 1);
 
-  const [conversations, collections, me] = await Promise.all([
+  const [conversations, collections, companies, me] = await Promise.all([
     callApi((api) =>
       api.GET("/v1/admin/conversations", {
         params: {
           query: {
             app_id: appId,
+            company_id: companyId,
             user_id: userId,
             collection: collection || undefined,
             limit: PAGE_SIZE,
@@ -50,14 +52,16 @@ export default async function UserChatsPage({
       }),
     ),
     callApi((api) => api.GET("/v1/admin/collections")),
+    callApi((api) => api.GET("/v1/admin/companies")),
     currentAccount(),
   ]);
-  endSessionOn401(conversations, collections, me);
+  endSessionOn401(conversations, collections, companies, me);
+  const companyName = (companies.ok && companies.data.find((c) => c.company_id === companyId)?.name) || companyId;
 
   const base = `/users/${encodeURIComponent(appId)}/${encodeURIComponent(userId)}`;
   // Same filter, another page
   const pageHref = (p: number) => {
-    const q = new URLSearchParams();
+    const q = new URLSearchParams({ company: companyId });
     if (collection) q.set("collection", collection);
     if (p > 1) q.set("page", String(p));
     const s = q.toString();
@@ -70,8 +74,11 @@ export default async function UserChatsPage({
   return (
     <>
       <nav aria-label="Breadcrumb">
-        <Link href={`/users?app=${encodeURIComponent(appId)}`} className={styles.muted}>
-          ← Users of {appId}
+        <Link
+          href={`/users?app=${encodeURIComponent(appId)}&company=${encodeURIComponent(companyId)}`}
+          className={styles.muted}
+        >
+          ← Users of {appId} at {companyName}
         </Link>
       </nav>
       <header className={styles.header}>
@@ -84,42 +91,50 @@ export default async function UserChatsPage({
             in{" "}
             <span className="mono" translate="no">
               {appId}
-            </span>
+            </span>{" "}
+            at {companyName}
           </span>
         </h1>
         {/* Hidden for supervisors only as a courtesy: FastAPI refuses them anyway */}
-        {isSuperAdmin && hasChats && <DeleteChats appId={appId} userId={userId} />}
+        {isSuperAdmin && hasChats && <DeleteChats appId={appId} companyId={companyId} userId={userId} />}
       </header>
 
-      {/* A plain GET form: the filter lands in the URL (shareable, Back works), no JavaScript */}
-      <form action={base} className={styles.filters}>
-        <label>
-          <span>Collection</span>
-          <select name="collection" defaultValue={collection}>
-            <option value="">All collections</option>
-            {collections.ok &&
-              collections.data.map((c) => (
-                <option key={c.name} value={c.name}>
-                  {c.name}
-                </option>
-              ))}
-          </select>
-        </label>
-        <button type="submit" className={styles.apply}>
-          Apply filter
-        </button>
-        {collection && (
-          <Link href={base} className={styles.clear}>
-            Clear filter
-          </Link>
-        )}
-      </form>
-
-      {conversations.ok && (
-        <Pager page={page} count={conversations.data.length} pageSize={PAGE_SIZE} noun="Conversations" href={pageHref} />
-      )}
-
       <section className={styles.card} aria-label="Conversations">
+        <div className={styles.toolbar}>
+          {/* Filters (a plain GET form: the filter lands in the URL (shareable, Back works), no JavaScript), then the pager */}
+          <form action={base} className={styles.filters}>
+            <input type="hidden" name="company" value={companyId} />
+            <label>
+              <span>Collection</span>
+              <select name="collection" defaultValue={collection}>
+                <option value="">All collections</option>
+                {collections.ok &&
+                  collections.data.map((c) => (
+                    <option key={c.name} value={c.name}>
+                      {c.name}
+                    </option>
+                  ))}
+              </select>
+            </label>
+            <button type="submit" className={styles.apply}>
+              Apply filter
+            </button>
+            {collection && (
+              <Link href={`${base}?company=${encodeURIComponent(companyId)}`} className={styles.clear}>
+                Clear filter
+              </Link>
+            )}
+          </form>
+          {conversations.ok && (
+            <Pager
+              page={page}
+              count={conversations.data.length}
+              pageSize={PAGE_SIZE}
+              noun="Conversations"
+              href={pageHref}
+            />
+          )}
+        </div>
         {!conversations.ok ? (
           <Problem message={displayMessage(conversations.error)} />
         ) : conversations.data.length === 0 ? (
@@ -150,7 +165,11 @@ export default async function UserChatsPage({
                 {conversations.data.map((c) => (
                   <tr key={c.conversation_id}>
                     <td>
-                      <Link href={`${base}/${encodeURIComponent(c.conversation_id)}`}>{c.first_question}</Link>
+                      <Link
+                        href={`${base}/${encodeURIComponent(c.conversation_id)}?company=${encodeURIComponent(companyId)}`}
+                      >
+                        {c.first_question}
+                      </Link>
                     </td>
                     <td className={`mono ${styles.nowrap}`} translate="no">
                       {c.collection}
@@ -165,7 +184,6 @@ export default async function UserChatsPage({
           </div>
         )}
       </section>
-
     </>
   );
 }

@@ -18,3 +18,12 @@ export async function deleteCollection(name: string): Promise<ConfirmResult> {
   const r = await callApi((api) => api.DELETE("/v1/admin/collections/{name}", { params: { path: { name } } }));
   return r.ok ? { ok: true } : { ok: false, message: displayMessage(r.error), status: r.error.status };
 }
+
+// Give a collection to another company, or make it Global (companyId null). FastAPI refuses while an active key of
+// a different company uses it.
+export async function moveCollection(name: string, companyId: string | null): Promise<ConfirmResult> {
+  const r = await callApi((api) =>
+    api.PATCH("/v1/admin/collections/{name}", { params: { path: { name } }, body: { company_id: companyId } }),
+  );
+  return r.ok ? { ok: true } : { ok: false, message: displayMessage(r.error), status: r.error.status };
+}

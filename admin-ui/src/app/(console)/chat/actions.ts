@@ -8,8 +8,12 @@ import { callApi } from "@/lib/api/client";
 
 export type ActionResult<T> = { ok: true; data: T } | { ok: false; message: string; status: number };
 
-export async function createCollection(name: string): Promise<ActionResult<{ name: string }>> {
-  const r = await callApi((api) => api.POST("/v1/admin/collections", { body: { name } }));
+// companyId null = Global (any company's key may be given it)
+export async function createCollection(
+  name: string,
+  companyId: string | null,
+): Promise<ActionResult<{ name: string }>> {
+  const r = await callApi((api) => api.POST("/v1/admin/collections", { body: { name, company_id: companyId } }));
   return r.ok
     ? { ok: true, data: { name: r.data.name } }
     : { ok: false, message: displayMessage(r.error), status: r.error.status };

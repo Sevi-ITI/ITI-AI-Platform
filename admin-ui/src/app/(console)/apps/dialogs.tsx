@@ -7,6 +7,7 @@ import type { components } from "@/lib/api/schema";
 
 import dash from "../dashboard.module.css";
 import { toast } from "../toast";
+import { type CollectionOption, type CompanyOption, usableBy } from "./collection-options";
 import { createKey, disconnectApp, editKey, removeApp, rotateKey, saveProfile, type NewKey } from "./actions";
 
 // The super admin's buttons on Apps & keys, each with its own native <dialog>. A new key's secret lives only
@@ -66,31 +67,43 @@ function NewKeyPanel({ result }: { result: Extract<NewKey, { ok: true }> }) {
   );
 }
 
-function CollectionChecks({ collections, checked }: { collections: string[]; checked: string[] }) {
+function CollectionChecks({ collections, checked }: { collections: CollectionOption[]; checked: string[] }) {
   return (
     <fieldset className={dash.checks}>
-      <legend>Collections it may use</legend>
+      <legend>Collections it may use (its company&apos;s and Global ones)</legend>
+      {collections.length === 0 && <span className={dash.muted}>This company has no collections yet.</span>}
       {collections.map((c) => (
-        <label key={c} className={dash.check}>
-          <input type="checkbox" name="collections" value={c} defaultChecked={checked.includes(c)} />
-          <span className="mono">{c}</span>
+        <label key={c.name} className={dash.check}>
+          <input type="checkbox" name="collections" value={c.name} defaultChecked={checked.includes(c.name)} />
+          <span className="mono">{c.name}</span>
+          {c.company_id === null && <span className={dash.muted}>(Global)</span>}
         </label>
       ))}
     </fieldset>
   );
 }
 
-export function CreateKeyButton({ apps, collections }: { apps: string[]; collections: string[] }) {
+export function CreateKeyButton({
+  apps,
+  companies,
+  collections,
+}: {
+  apps: string[];
+  companies: CompanyOption[];
+  collections: CollectionOption[];
+}) {
   const router = useRouter();
   const dialog = useRef<HTMLDialogElement>(null);
   const toMessage = useErrorRedirect();
   const [preset, setPreset] = useState(PRESETS[0].id);
   const [never, setNever] = useState(false);
+  const [company, setCompany] = useState("iti");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [made, setMade] = useState<Extract<NewKey, { ok: true }> | null>(null);
   const scopes = PRESETS.find((p) => p.id === preset)!.scopes;
   const isAdmin = scopes.includes("admin");
+  const usable = usableBy(collections, company);
 
   async function submit(form: HTMLFormElement) {
     const data = new FormData(form);
@@ -98,6 +111,7 @@ export function CreateKeyButton({ apps, collections }: { apps: string[]; collect
     setError(null);
     const r = await createKey({
       app_id: String(data.get("app_id") ?? "").trim(),
+      company_id: company,
       scopes,
       allowed_collections: isAdmin ? [] : data.getAll("collections").map(String),
       valid_days: never ? null : Number(data.get("days")),
@@ -120,7 +134,8 @@ export function CreateKeyButton({ apps, collections }: { apps: string[]; collect
         onClick={() => {
           setMade(null);
           setError(null);
-          setPreset(PRESETS[0].id); // a fresh dialog: the safest preset, 365 days
+          setPreset(PRESETS[0].id); // a fresh dialog: the safest preset, ITI, 365 days
+          setCompany("iti");
           setNever(false);
           dialog.current?.querySelector("form")?.reset();
           dialog.current?.showModal();
@@ -176,7 +191,27 @@ export function CreateKeyButton({ apps, collections }: { apps: string[]; collect
                   ))}
                 </datalist>
               </label>
-              {!isAdmin && <CollectionChecks collections={collections} checked={collections.slice(0, 1)} />}
+              <label className={dash.field}>
+                <span>For company (the client whose people use it)</span>
+                <select value={company} onChange={(e) => setCompany(e.target.value)}>
+                  {companies.map((c) => (
+                    <option key={c.company_id} value={c.company_id}>
+                      {c.name} ({c.company_id})
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {!isAdmin && (
+                // keyed by company: switching company starts the ticks again
+                <CollectionChecks
+                  key={company}
+                  collections={usable}
+                  checked={usable
+                    .filter((c) => c.company_id === company)
+                    .slice(0, 1)
+                    .map((c) => c.name)}
+                />
+              )}
               <div className={dash.field}>
                 <span>Valid for</span>
                 <div className={dash.inline}>
@@ -311,7 +346,7 @@ export function EditKeyButton({
   expiresLabel,
 }: {
   keyId: string;
-  collections: string[];
+  collections: CollectionOption[]; // already limited to the key's company + Global
   current: string[];
   expiresLabel: string;
 }) {

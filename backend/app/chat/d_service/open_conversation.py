@@ -13,8 +13,12 @@ def open_conversation(
     db: Session, principal: AppPrincipal, user_id: str, conversation_id: str | None, collection: str
 ) -> str:
     if conversation_id is None:
-        return create_conversation(db, principal.app_id, user_id, collection).id
+        return create_conversation(db, principal.app_id, principal.company_id, user_id, collection).id
     conv = get_conversation(db, conversation_id)
-    if conv is None or (conv.app_id, conv.user_id) != (principal.app_id, user_id):
+    if conv is None or (conv.app_id, conv.company_id, conv.user_id) != (
+        principal.app_id,
+        principal.company_id,
+        user_id,
+    ):
         raise AppError(404, "conversation_not_found", "No such conversation for this user.")
     return conv.id

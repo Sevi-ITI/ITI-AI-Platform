@@ -121,14 +121,16 @@ def test_clean_filename_drops_folders():
     assert clean_filename("C:/Users/x/Leave Policy.pdf") == NAME
 
 
-def test_upload_needs_the_scope_and_the_collection(client, make_key):
+def test_upload_needs_the_scope_and_the_collection(client, make_key, make_collection):
+    make_collection("finance")
     chat_only = make_key("kiosk")
     assert upload(client, chat_only, b"x").json()["error"]["code"] == "scope_forbidden"
     finance = make_key("finance-app", scopes=["documents:write"], collections=["finance"])
     assert upload(client, finance, b"x", collection="iti-docs").json()["error"]["code"] == "collection_forbidden"
 
 
-def test_another_apps_job_looks_missing(client, hr, make_key):
+def test_another_apps_job_looks_missing(client, hr, make_key, make_collection):
+    make_collection("finance")
     r = upload(client, hr, b"x")
     finance = make_key("finance-app", scopes=["documents:write"], collections=["finance"])
     got = client.get(f"/v1/documents/jobs/{r.json()['job_id']}", headers=finance)

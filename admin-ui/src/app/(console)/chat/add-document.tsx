@@ -15,6 +15,7 @@ import styles from "./chat.module.css";
 // again with replace=true (FastAPI refuses supervisors anyway).
 
 const NEW = "__new__";
+const GLOBAL = "__global__";
 
 // POST the form to /api/documents with upload progress (fetch can't report it; XMLHttpRequest can).
 type UploadReply = { job_id?: string; error?: { code?: string; message?: string } } | null;
@@ -47,11 +48,13 @@ export default function AddDocument({
   initial,
   label,
   canReplace = false,
+  companies,
 }: {
   collections: string[];
   initial?: string;
   label?: string;
   canReplace?: boolean;
+  companies?: { company_id: string; name: string }[]; // given: a new collection asks whose it is (else ITI's)
 }) {
   const router = useRouter();
   const dialog = useRef<HTMLDialogElement>(null);
@@ -77,7 +80,8 @@ export default function AddDocument({
     let collection = choice;
     if (choice === NEW) {
       setState({ step: "working", label: "Creating the collection…", progress: null });
-      const made = await createCollection(String(data.get("name") ?? "").trim());
+      const owner = String(data.get("company") ?? "iti");
+      const made = await createCollection(String(data.get("name") ?? "").trim(), owner === GLOBAL ? null : owner);
       if (!made.ok) return setState({ step: "error", label: made.message });
       collection = made.data.name;
       toast("ok", `Collection ${collection} created`);
@@ -189,6 +193,22 @@ export default function AddDocument({
               />
               <small className={styles.muted}>
                 Lowercase letters, digits and hyphens. API keys get it only when you add it to them.
+              </small>
+            </label>
+          )}
+          {choice === NEW && companies && (
+            <label className={dash.field}>
+              <span>For company</span>
+              <select name="company" defaultValue="iti" disabled={busy}>
+                {companies.map((c) => (
+                  <option key={c.company_id} value={c.company_id}>
+                    {c.name} ({c.company_id})
+                  </option>
+                ))}
+                <option value={GLOBAL}>Global: every company may be given it</option>
+              </select>
+              <small className={styles.muted}>
+                Only that company&apos;s keys can be given it (Global: any company&apos;s).
               </small>
             </label>
           )}

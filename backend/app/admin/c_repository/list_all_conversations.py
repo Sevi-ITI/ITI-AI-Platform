@@ -9,7 +9,13 @@ from app.chat.b_models.message import Message
 
 
 def list_all_conversations(
-    db: Session, app_id: str | None, user_id: str | None, limit: int, offset: int, collection: str | None = None
+    db: Session,
+    app_id: str | None,
+    user_id: str | None,
+    limit: int,
+    offset: int,
+    collection: str | None = None,
+    company_id: str | None = None,
 ) -> list:
     first_question = (
         select(Message.content)
@@ -38,6 +44,8 @@ def list_all_conversations(
         stmt = stmt.where(Conversation.app_id == app_id)
     if user_id:
         stmt = stmt.where(Conversation.user_id == user_id)
+    if company_id:
+        stmt = stmt.where(Conversation.company_id == company_id)
     if collection:
         stmt = stmt.where(Conversation.collection == collection)
     return db.execute(stmt).all()

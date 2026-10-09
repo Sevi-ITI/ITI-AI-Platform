@@ -6,7 +6,8 @@ FILES = {"file": ("Old Policy.pdf", b"page one|page two", "application/pdf")}
 WHERE = {"collection": "iti-docs", "filename": "Old Policy.pdf"}
 
 
-def test_an_app_deletes_its_document(client, make_key):
+def test_an_app_deletes_its_document(client, make_key, make_collection):
+    make_collection("finance-docs")
     from app.core.a_config.get_settings import get_settings
 
     hr = make_key("hr-portal", scopes=["documents:write"])

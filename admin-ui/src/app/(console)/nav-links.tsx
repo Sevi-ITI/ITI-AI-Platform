@@ -7,6 +7,7 @@ import styles from "./console.module.css";
 import {
   AccountsIcon,
   ChatIcon,
+  CompaniesIcon,
   DocumentsIcon,
   KeysIcon,
   OverviewIcon,
@@ -21,6 +22,7 @@ const LINKS = [
   { href: "/requests", label: "Request log", Icon: RequestLogIcon },
   { href: "/users", label: "Users & chats", Icon: UsersIcon },
   { href: "/documents", label: "Documents", Icon: DocumentsIcon },
+  { href: "/companies", label: "Companies", Icon: CompaniesIcon },
   { href: "/apps", label: "Apps & keys", Icon: KeysIcon },
   { href: "/chat", label: "Chat", Icon: ChatIcon },
 ];

@@ -1,0 +1,13 @@
+"""DELETE /v1/admin/companies/{company_id}: delete a company that owns nothing (204). Super admin or admin key."""
+
+from fastapi import Depends
+from sqlalchemy.orm import Session
+
+from app.admin.d_service.remove_company import remove_company
+from app.admin.e_dependencies.require_admin import require_admin
+from app.auth.a_schemas.app_principal import AppPrincipal
+from app.core.c_database.get_db import get_db
+
+
+def delete_company(company_id: str, _: AppPrincipal = Depends(require_admin), db: Session = Depends(get_db)) -> None:
+    remove_company(db, company_id)

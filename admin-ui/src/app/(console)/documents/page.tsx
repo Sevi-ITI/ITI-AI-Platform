@@ -12,6 +12,7 @@ import Pager from "../pager";
 import styles from "../dashboard.module.css";
 import { Problem } from "../widgets";
 import { deleteCollection, deleteDocument } from "./actions";
+import MoveCollectionButton from "./move-collection";
 
 export const metadata = { title: "Documents" };
 
@@ -28,16 +29,18 @@ export default async function DocumentsPage({ searchParams }: PageProps<"/docume
   const collection = one(params.collection);
   const page = Math.max(1, Number.parseInt(one(params.page), 10) || 1);
 
-  const [rows, collections, me] = await Promise.all([
+  const [rows, collections, companies, me] = await Promise.all([
     callApi((api) =>
       api.GET("/v1/admin/documents", {
         params: { query: { collection: collection || undefined, limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE } },
       }),
     ),
     callApi((api) => api.GET("/v1/admin/collections")),
+    callApi((api) => api.GET("/v1/admin/companies")),
     currentAccount(),
   ]);
-  endSessionOn401(rows, collections, me);
+  endSessionOn401(rows, collections, companies, me);
+  const companyList = companies.ok ? companies.data.map((c) => ({ company_id: c.company_id, name: c.name })) : [];
 
   const isSuperAdmin = me.ok && me.data.role === "super_admin";
   const pageHref = (p: number) => {
@@ -58,45 +61,70 @@ export default async function DocumentsPage({ searchParams }: PageProps<"/docume
             initial={collection || undefined}
             label="Upload document"
             canReplace={isSuperAdmin}
+            companies={companyList}
           />
         )}
       </header>
 
       {collections.ok && collections.data.length > 0 && (
-        <section aria-label="Collections" className={styles.collections}>
-          {collections.data.map((c) => (
-            <CollectionChip key={c.name} c={c} canDelete={isSuperAdmin} />
-          ))}
+        // grouped by owner: each company (alphabetical), then Global
+        <section aria-labelledby="collections-title" className={styles.card}>
+          <h2 id="collections-title" className={styles.panelTitle}>
+            Collections
+          </h2>
+          <div className={styles.collectionGroups}>
+            {[...companyList, { company_id: null, name: "Global" }]
+              .map((owner) => ({
+                owner,
+                own: collections.data.filter((c) => (c.company_id ?? null) === owner.company_id),
+              }))
+              .filter(({ own }) => own.length > 0)
+              .map(({ owner, own }) => (
+                <div key={owner.company_id ?? "global"} className={styles.collectionGroup}>
+                  <span className={styles.groupLabel}>
+                    {owner.name}
+                    {owner.company_id === null && (
+                      <span className={styles.muted}> (any company&apos;s key may be given these)</span>
+                    )}
+                  </span>
+                  <div className={styles.collections}>
+                    {own.map((c) => (
+                      <CollectionChip key={c.name} c={c} canDelete={isSuperAdmin} companies={companyList} />
+                    ))}
+                  </div>
+                </div>
+              ))}
+          </div>
         </section>
       )}
 
-      {/* A plain GET form: the filter lands in the URL (shareable, Back works), no JavaScript */}
-      <form action="/documents" className={styles.filters}>
-        <label>
-          <span>Collection</span>
-          <select name="collection" defaultValue={collection}>
-            <option value="">All collections</option>
-            {collections.ok &&
-              collections.data.map((c) => (
-                <option key={c.name} value={c.name}>
-                  {c.name}
-                </option>
-              ))}
-          </select>
-        </label>
-        <button type="submit" className={styles.apply}>
-          Apply filter
-        </button>
-        {collection && (
-          <Link href="/documents" className={styles.clear}>
-            Clear filter
-          </Link>
-        )}
-      </form>
-
-      {rows.ok && <Pager page={page} count={rows.data.length} pageSize={PAGE_SIZE} noun="Files" href={pageHref} />}
-
       <section className={styles.card} aria-label="Documents">
+        <div className={styles.toolbar}>
+          {/* Filters (a plain GET form: the filter lands in the URL (shareable, Back works), no JavaScript), then the pager */}
+          <form action="/documents" className={styles.filters}>
+            <label>
+              <span>Collection</span>
+              <select name="collection" defaultValue={collection}>
+                <option value="">All collections</option>
+                {collections.ok &&
+                  collections.data.map((c) => (
+                    <option key={c.name} value={c.name}>
+                      {c.name}
+                    </option>
+                  ))}
+              </select>
+            </label>
+            <button type="submit" className={styles.apply}>
+              Apply filter
+            </button>
+            {collection && (
+              <Link href="/documents" className={styles.clear}>
+                Clear filter
+              </Link>
+            )}
+          </form>
+          {rows.ok && <Pager page={page} count={rows.data.length} pageSize={PAGE_SIZE} noun="Files" href={pageHref} />}
+        </div>
         {!rows.ok ? (
           <Problem message={displayMessage(rows.error)} />
         ) : rows.data.length === 0 ? (
@@ -214,7 +242,15 @@ function DocumentRow({ row, replaced, canDelete }: { row: Row; replaced: boolean
 
 // One collection: its counts, and (super admin) Delete when it can go: empty and not from the server settings.
 // Otherwise the reason it stays, in words. FastAPI checks both again.
-function CollectionChip({ c, canDelete }: { c: Collection; canDelete: boolean }) {
+function CollectionChip({
+  c,
+  canDelete,
+  companies,
+}: {
+  c: Collection;
+  canDelete: boolean;
+  companies: { company_id: string; name: string }[];
+}) {
   const empty = c.documents === 0 && c.chunks === 0;
   return (
     <div className={styles.collection}>
@@ -226,6 +262,7 @@ function CollectionChip({ c, canDelete }: { c: Collection; canDelete: boolean })
           {formatCount(c.documents)} {c.documents === 1 ? "file" : "files"}, {formatCount(c.chunks)} passages
         </span>
       </span>
+      {canDelete && <MoveCollectionButton name={c.name} current={c.company_id ?? null} companies={companies} />}
       {canDelete &&
         (c.in_settings ? (
           <span className={styles.muted} title="Listed in ITI_COLLECTIONS: it would come back at the next restart">

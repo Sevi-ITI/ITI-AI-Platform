@@ -9,6 +9,7 @@ import styles from "../dashboard.module.css";
 import { Problem } from "../widgets";
 import { revokeKey } from "./actions";
 import AppList from "./app-list";
+import { type CollectionOption, usableBy } from "./collection-options";
 import {
   CreateKeyButton,
   DisconnectAppButton,
@@ -23,27 +24,31 @@ export const metadata = { title: "Apps & keys" };
 type App = components["schemas"]["AppOverview"];
 type Key = components["schemas"]["KeyInfo"];
 
-// Every connected system (from its keys, its chats or a profile): profile, live counts and its keys, with a search
-// box. Apps with no active key (except the console) are "Disconnected": kept as history, folded at the bottom.
+// Every connected system (from its keys, its chats or a profile): profile, live counts and its keys grouped by the
+// client company each key serves (App -> Company -> Keys), with a search box. Apps with no active key (except the console) are "Disconnected": kept as history, folded at the bottom.
 // Changes (create / rotate / revoke / edit a key, edit a profile, disconnect) are the super admin's.
 export default async function AppsPage() {
-  const [apps, keys, collections, me] = await Promise.all([
+  const [apps, keys, collections, companies, me] = await Promise.all([
     callApi((api) => api.GET("/v1/admin/apps")),
     callApi((api) => api.GET("/v1/admin/keys")),
     callApi((api) => api.GET("/v1/admin/collections")),
+    callApi((api) => api.GET("/v1/admin/companies")),
     currentAccount(),
   ]);
-  endSessionOn401(apps, keys, collections, me);
+  endSessionOn401(apps, keys, collections, companies, me);
 
   const canEdit = me.ok && me.data.role === "super_admin";
-  const collectionNames = collections.ok ? collections.data.map((c) => c.name) : [];
+  const collectionOptions: CollectionOption[] = collections.ok
+    ? collections.data.map((c) => ({ name: c.name, company_id: c.company_id ?? null }))
+    : [];
+  const companyNames = new Map((companies.ok ? companies.data : []).map((c) => [c.company_id, c.name]));
   const now = new Date().getTime(); // a server component: rendered once per request
 
   // Each card with the text it can be searched by (lowercase): app id, profile fields, key ids.
   const items = (apps.ok ? apps.data : []).map((app) => {
     const appKeys = keys.ok ? keys.data.filter((k) => k.app_id === app.app_id) : [];
     const text = [app.app_id, app.display_name, app.owner_name, app.owner_email, app.company, app.description]
-      .concat(appKeys.map((k) => k.key_id))
+      .concat(appKeys.flatMap((k) => [k.key_id, k.company_id, companyNames.get(k.company_id)]))
       .filter(Boolean)
       .join(" ")
       .toLowerCase();
@@ -56,7 +61,8 @@ export default async function AppsPage() {
           app={app}
           keys={appKeys}
           keysError={keys.ok ? null : displayMessage(keys.error)}
-          collections={collectionNames}
+          collections={collectionOptions}
+          companyNames={companyNames}
           canEdit={canEdit}
           now={now}
         />
@@ -68,7 +74,13 @@ export default async function AppsPage() {
     <>
       <header className={styles.header}>
         <h1>Apps &amp; keys</h1>
-        {canEdit && apps.ok && <CreateKeyButton apps={apps.data.map((a) => a.app_id)} collections={collectionNames} />}
+        {canEdit && apps.ok && (
+          <CreateKeyButton
+            apps={apps.data.map((a) => a.app_id)}
+            companies={companies.ok ? companies.data.map((c) => ({ company_id: c.company_id, name: c.name })) : []}
+            collections={collectionOptions}
+          />
+        )}
       </header>
 
       {!apps.ok ? (
@@ -87,13 +99,15 @@ function AppCard({
   keys,
   keysError,
   collections,
+  companyNames,
   canEdit,
   now,
 }: {
   app: App;
   keys: Key[];
   keysError: string | null;
-  collections: string[];
+  collections: CollectionOption[];
+  companyNames: Map<string, string>;
   canEdit: boolean;
   now: number;
 }) {
@@ -153,36 +167,78 @@ function AppCard({
             : "No keys (this app only appears because of its chats or profile)."}
         </p>
       ) : (
-        <div className={styles.tableWrap}>
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th scope="col">Key</th>
-                <th scope="col">Permissions</th>
-                <th scope="col">Collections</th>
-                <th scope="col">State</th>
-                <th scope="col" className={styles.nowrap}>
-                  Last used
-                </th>
-                <th scope="col" className={styles.number}>
-                  24 h
-                </th>
-                {canEdit && <th scope="col">{/* actions */}</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {keys.map((k) => (
-                <KeyRow key={k.key_id} k={k} collections={collections} canEdit={canEdit} now={now} />
-              ))}
-            </tbody>
-          </table>
-        </div>
+        // one small table per client company, alphabetical by company name
+        [...new Set(keys.map((k) => k.company_id))]
+          .sort((a, b) => (companyNames.get(a) ?? a).localeCompare(companyNames.get(b) ?? b))
+          .map((companyId) => {
+            const companyKeys = keys.filter((k) => k.company_id === companyId);
+            const live = companyKeys.filter((k) => isLive(k, now));
+            const mayUse = [...new Set(live.flatMap((k) => k.allowed_collections))].sort();
+            return (
+              <div key={companyId} className={styles.companyGroup}>
+                <h3>
+                  {companyNames.get(companyId) ?? companyId}{" "}
+                  <span className={`mono ${styles.muted}`} translate="no">
+                    {companyId}
+                  </span>
+                </h3>
+                <p className={styles.muted}>
+                  May use:{" "}
+                  {mayUse.length ? <span className="mono">{mayUse.join(", ")}</span> : "nothing (no active key)"}
+                </p>
+                <div className={styles.tableWrap}>
+                  <table className={styles.table}>
+                    <thead>
+                      <tr>
+                        <th scope="col">Key</th>
+                        <th scope="col">Permissions</th>
+                        <th scope="col">Collections</th>
+                        <th scope="col">State</th>
+                        <th scope="col" className={styles.nowrap}>
+                          Last used
+                        </th>
+                        <th scope="col" className={styles.number}>
+                          24 h
+                        </th>
+                        {canEdit && <th scope="col">{/* actions */}</th>}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {companyKeys.map((k) => (
+                        <KeyRow
+                          key={k.key_id}
+                          k={k}
+                          collections={usableBy(collections, k.company_id)}
+                          canEdit={canEdit}
+                          now={now}
+                        />
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })
       )}
     </section>
   );
 }
 
-function KeyRow({ k, collections, canEdit, now }: { k: Key; collections: string[]; canEdit: boolean; now: number }) {
+function isLive(k: Key, now: number) {
+  return !k.revoked_at && (k.expires_at === null || Date.parse(k.expires_at) > now);
+}
+
+function KeyRow({
+  k,
+  collections,
+  canEdit,
+  now,
+}: {
+  k: Key;
+  collections: CollectionOption[];
+  canEdit: boolean;
+  now: number;
+}) {
   const expired = k.expires_at !== null && Date.parse(k.expires_at) <= now;
   const active = !k.revoked_at && !expired;
   const expiresLabel = k.expires_at ? `expires ${formatDay(k.expires_at)}` : "never expires";

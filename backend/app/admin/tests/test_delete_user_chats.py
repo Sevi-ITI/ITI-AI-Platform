@@ -12,7 +12,7 @@ def test_erase_one_users_chats_in_one_app(client, make_key):
 
     r = client.delete("/v1/admin/conversations", headers=admin, params={"app_id": "hr-portal", "user_id": "1042"})
     assert r.status_code == 200
-    assert r.json() == {"app_id": "hr-portal", "user_id": "1042", "conversations": 2, "messages": 4}
+    assert r.json() == {"app_id": "hr-portal", "company_id": "iti", "user_id": "1042", "conversations": 2, "messages": 4}
     left = [(c["app_id"], c["user_id"]) for c in client.get("/v1/admin/conversations", headers=admin).json()]
     assert sorted(left) == [("finance-app", "1042"), ("hr-portal", "2210")]
     assert client.get("/v1/conversations", headers=hr | {"ITI-User-Id": "1042"}).json() == []

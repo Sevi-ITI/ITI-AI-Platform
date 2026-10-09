@@ -86,10 +86,15 @@ def test_missing_user_id_header_is_a_422(client, make_key):
     assert r.status_code == 422 and r.json()["error"]["code"] == "invalid_request"
 
 
-def test_unknown_collection_is_404_before_any_answer(client, make_key):
-    headers = make_key("hr-portal", collections=["hr-archive"]) | {"ITI-User-Id": "1042"}
+def test_a_key_cannot_name_an_unknown_collection_and_asking_one_is_refused(client, make_key):
+    # since 6C.1 a key may list only collections that exist, so an unknown one is refused before any answer
+    admin = make_key("iti-admin", scopes=["admin"], collections=[])
+    body = {"app_id": "hr-portal", "allowed_collections": ["hr-archive"]}
+    made = client.post("/v1/admin/keys", headers=admin, json=body)
+    assert made.status_code == 422 and made.json()["error"]["code"] == "unknown_collection"
+    headers = make_key("hr-portal") | {"ITI-User-Id": "1042"}
     r = client.post("/v1/chat", headers=headers, json=Q | {"collection": "hr-archive"})
-    assert r.status_code == 404 and r.json()["error"]["code"] == "collection_not_found"
+    assert r.status_code == 403 and r.json()["error"]["code"] == "collection_forbidden"
 
 
 def test_ollama_down_is_503_llm_unavailable(client, hr, monkeypatch):

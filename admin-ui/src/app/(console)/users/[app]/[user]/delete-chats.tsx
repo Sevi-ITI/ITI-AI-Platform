@@ -12,7 +12,15 @@ import { deleteUserChats } from "../../actions";
 
 type State = { step: "idle" | "working" } | { step: "done" | "error"; label: string };
 
-export default function DeleteChats({ appId, userId }: { appId: string; userId: string }) {
+export default function DeleteChats({
+  appId,
+  companyId,
+  userId,
+}: {
+  appId: string;
+  companyId: string;
+  userId: string;
+}) {
   const router = useRouter();
   const dialog = useRef<HTMLDialogElement>(null);
   const [typed, setTyped] = useState("");
@@ -22,7 +30,7 @@ export default function DeleteChats({ appId, userId }: { appId: string; userId: 
 
   async function erase() {
     setState({ step: "working" });
-    const r = await deleteUserChats(appId, userId);
+    const r = await deleteUserChats(appId, companyId, userId);
     if (!r.ok) {
       if (r.status === 401) return router.push("/login");
       return setState({ step: "error", label: r.message });

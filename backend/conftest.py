@@ -25,15 +25,22 @@ os.environ["ITI_MAX_UPLOAD_MB"] = "1"
 @pytest.fixture
 def db_engine():
     """An empty database for every test: all tables dropped and created again."""
+    from sqlalchemy.orm import Session
+
     import app.main  # noqa: F401  registers every table class
     from app.core.c_database.base import Base
     from app.core.c_database.get_engine import get_engine
+    from app.core.h_stores.company_row import CompanyRow
+    from app.core.h_stores.iti_company import ITI_COMPANY_ID, ITI_COMPANY_NAME
     from app.rag.d_vectorstore.rag_base import RagBase
 
     engine = get_engine()
     for metadata in (RagBase.metadata, Base.metadata):
         metadata.drop_all(engine)
         metadata.create_all(engine)
+    with Session(engine) as db:  # the company "iti" exists before any key is made (startup also creates it)
+        db.add(CompanyRow(company_id=ITI_COMPANY_ID, name=ITI_COMPANY_NAME))
+        db.commit()
     return engine
 
 
@@ -84,6 +91,23 @@ def fake_rag(monkeypatch):
     monkeypatch.setattr(run_ingest, "load_pdf", load_pdf)
     monkeypatch.setattr(run_ingest, "embed", lambda texts: [[0.0] * 1024 for _ in texts])
     return seen
+
+
+@pytest.fixture
+def make_collection(db_engine):
+    """make_collection("finance", company="iti") creates a collection (company None = Global), ready to use."""
+    from app.admin.a_schemas.collection_create import CollectionCreate
+    from app.admin.d_service.create_collection import create_collection
+    from app.auth.a_schemas.app_principal import AppPrincipal
+    from app.core.c_database.get_sessionmaker import get_sessionmaker
+
+    tester = AppPrincipal(key_id=None, app_id="tests", scopes=["admin"], allowed_collections=[])
+
+    def make(name, company="iti"):
+        with get_sessionmaker()() as db:
+            create_collection(db, CollectionCreate(name=name, company_id=company), tester)
+
+    return make
 
 
 @pytest.fixture

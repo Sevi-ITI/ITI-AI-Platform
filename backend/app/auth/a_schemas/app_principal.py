@@ -4,11 +4,13 @@ logged in to the console (worked out from their session pass; then key_id is Non
 from pydantic import BaseModel
 
 from app.auth.a_schemas.console_role import ConsoleRole
+from app.core.h_stores.iti_company import ITI_COMPANY_ID
 
 
 class AppPrincipal(BaseModel):
     key_id: str | None  # None for a console session
     app_id: str
+    company_id: str = ITI_COMPANY_ID  # the client company the key serves (console: ITI)
     scopes: list[str]
     allowed_collections: list[str]
     console_user: str | None = None  # the logged-in person's username (console sessions only)

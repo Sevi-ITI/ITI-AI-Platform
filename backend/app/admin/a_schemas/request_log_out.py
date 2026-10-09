@@ -15,6 +15,7 @@ class RequestLogOut(BaseModel):
     error_code: str | None
     duration_ms: int
     app_id: str | None
+    company_id: str | None
     user_id: str | None
     user_role: str | None
     collection: str | None

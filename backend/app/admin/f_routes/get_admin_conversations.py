@@ -1,4 +1,4 @@
-"""GET /v1/admin/conversations: conversations of every user; filter by ?app_id=, ?user_id= and ?collection=."""
+"""GET /v1/admin/conversations: conversations of every user; filter by ?app_id=, ?company_id=, ?user_id= and ?collection=."""
 
 from typing import Annotated
 
@@ -16,9 +16,10 @@ def get_admin_conversations(
     app_id: str | None = None,
     user_id: str | None = None,
     collection: str | None = None,
+    company_id: str | None = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
     _: AppPrincipal = Depends(require_admin),
     db: Session = Depends(get_db),
 ) -> list[AdminConversation]:
-    return admin_conversations(db, app_id, user_id, limit, offset, collection)
+    return admin_conversations(db, app_id, user_id, limit, offset, collection, company_id)

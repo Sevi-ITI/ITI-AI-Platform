@@ -8,6 +8,7 @@ from app.core.f_types.utc_datetime import UtcDateTime
 class KeyInfo(BaseModel):
     key_id: str
     app_id: str
+    company_id: str
     scopes: list[str]
     allowed_collections: list[str]
     created_at: UtcDateTime

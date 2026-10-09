@@ -17,5 +17,5 @@ def conversation_summaries(db: Session, principal: AppPrincipal, user_id: str, l
             first_question=(question or "")[:200],
             created_at=conv.created_at,
         )
-        for conv, question in list_conversations(db, principal.app_id, user_id, limit)
+        for conv, question in list_conversations(db, principal.app_id, principal.company_id, user_id, limit)
     ]

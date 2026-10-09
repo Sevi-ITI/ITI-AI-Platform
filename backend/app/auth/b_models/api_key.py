@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import JSON, DateTime, String
+from sqlalchemy import JSON, DateTime, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.c_database.base import Base
@@ -14,6 +14,8 @@ class ApiKey(Base):
 
     key_id: Mapped[str] = mapped_column(String(16), primary_key=True)  # the 12 hex in iti_sk_<key_id>_<secret>
     app_id: Mapped[str] = mapped_column(String(64), index=True)  # e.g. "hr-portal"
+    # the client company this key serves: it may use only that company's collections and Global ones
+    company_id: Mapped[str] = mapped_column(String(64), ForeignKey("companies.company_id"), index=True)
     secret_hash: Mapped[str] = mapped_column(String(64))  # sha256 hex of the secret
     scopes: Mapped[list[str]] = mapped_column(JSON, default=list)  # ["chat:invoke", "documents:write"]
     allowed_collections: Mapped[list[str]] = mapped_column(JSON, default=list)

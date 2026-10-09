@@ -23,6 +23,7 @@ class RequestLog(Base):
     error_code: Mapped[str | None] = mapped_column(String(40))
     duration_ms: Mapped[int] = mapped_column(Integer)
     app_id: Mapped[str | None] = mapped_column(String(64), index=True)
+    company_id: Mapped[str | None] = mapped_column(String(64), index=True)  # the caller's client company
     key_id: Mapped[str | None] = mapped_column(String(16), index=True)
     user_id: Mapped[str | None] = mapped_column(String(100), index=True)
     user_role: Mapped[str | None] = mapped_column(String(50))  # ITI-User-Role label from the app, lowercased

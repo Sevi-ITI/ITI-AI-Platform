@@ -22,7 +22,11 @@ def principal_from_key(raw: str | None, db: Session) -> AppPrincipal:
         or not secret_matches(parts[1], row.secret_hash)
     ):
         raise AppError(401, "invalid_api_key", "Missing, invalid, expired or revoked API key.")
-    record_metric(app_id=row.app_id, key_id=row.key_id)  # who called, for the request log
+    record_metric(app_id=row.app_id, key_id=row.key_id, company_id=row.company_id)  # who called, for the log
     return AppPrincipal(
-        key_id=row.key_id, app_id=row.app_id, scopes=row.scopes, allowed_collections=row.allowed_collections
+        key_id=row.key_id,
+        app_id=row.app_id,
+        company_id=row.company_id,
+        scopes=row.scopes,
+        allowed_collections=row.allowed_collections,
     )

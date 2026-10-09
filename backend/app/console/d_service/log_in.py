@@ -20,6 +20,7 @@ from app.console.d_service.record_failed_login import LOCK_MINUTES, MAX_FAILED_L
 from app.core.c_database.utcnow import utcnow
 from app.core.d_metrics.record_metric import record_metric
 from app.core.e_errors.app_error import AppError
+from app.core.h_stores.iti_company import ITI_COMPANY_ID
 
 # The hash of a throwaway password that is never used: only there so unknown names cost one scrypt check too.
 DUMMY_HASH = "scrypt$16384$8$5$rge6BG7ldAE6fkubdUG6lA==$iaU0lvG4kkC1qFiZ96gdseh26dOrL7/A+KqOrsR3hKk="
@@ -32,7 +33,7 @@ def log_in(db: Session, body: LoginRequest) -> LoginResult:
     if user is None or not user.active:
         password_matches(password, DUMMY_HASH)
         raise AppError(401, "invalid_login", WRONG)
-    record_metric(app_id=CONSOLE_APP_ID, user_id=user.username)
+    record_metric(app_id=CONSOLE_APP_ID, company_id=ITI_COMPANY_ID, user_id=user.username)
     if is_future(user.locked_until):
         raise AppError(
             401,

@@ -7,11 +7,19 @@ from app.core.d_metrics.request_log import RequestLog
 
 
 def list_request_logs(
-    db: Session, app_id: str | None, user_id: str | None, errors_only: bool, limit: int, offset: int
+    db: Session,
+    app_id: str | None,
+    user_id: str | None,
+    errors_only: bool,
+    limit: int,
+    offset: int,
+    company_id: str | None = None,
 ) -> list[RequestLog]:
     stmt = select(RequestLog).order_by(RequestLog.id.desc()).limit(limit).offset(offset)
     if app_id:
         stmt = stmt.where(RequestLog.app_id == app_id)
+    if company_id:
+        stmt = stmt.where(RequestLog.company_id == company_id)
     if user_id:
         stmt = stmt.where(RequestLog.user_id == user_id)
     if errors_only:

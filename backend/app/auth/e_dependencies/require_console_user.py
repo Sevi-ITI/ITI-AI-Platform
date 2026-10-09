@@ -15,6 +15,7 @@ from app.auth.d_keys.is_future import is_future
 from app.core.c_database.get_db import get_db
 from app.core.d_metrics.record_metric import record_metric
 from app.core.e_errors.app_error import AppError
+from app.core.h_stores.iti_company import ITI_COMPANY_ID
 
 # scheme_name: a second APIKeyHeader would otherwise take the name "APIKeyHeader" in /docs
 SESSION_HEADER = APIKeyHeader(name="ITI-Console-Session", scheme_name="ConsoleSession", auto_error=False)
@@ -27,5 +28,5 @@ def require_console_user(
     user = get_console_user(db, row.username) if row is not None else None
     if row is None or not is_future(row.expires_at) or user is None or not user.active:
         raise AppError(401, "invalid_session", "Missing, invalid or expired console session. Log in again.")
-    record_metric(app_id=CONSOLE_APP_ID, user_id=user.username)  # who did it, for the request log
+    record_metric(app_id=CONSOLE_APP_ID, company_id=ITI_COMPANY_ID, user_id=user.username)  # for the request log
     return ConsolePrincipal(username=user.username, role=user.role, token_hash=row.token_hash)

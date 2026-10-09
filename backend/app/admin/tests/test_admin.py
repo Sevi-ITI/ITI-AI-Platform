@@ -143,7 +143,7 @@ def test_documents_and_collections(client, admin, make_key):
         ("Admin Test.pdf", "done", 3),
     ]
     assert client.get("/v1/admin/collections", headers=admin).json() == [
-        {"name": "iti-docs", "documents": 2, "chunks": 3, "in_settings": True}
+        {"name": "iti-docs", "documents": 2, "chunks": 3, "in_settings": True, "company_id": "iti"}
     ]
 
 

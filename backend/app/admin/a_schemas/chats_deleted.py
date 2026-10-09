@@ -5,6 +5,7 @@ from pydantic import BaseModel
 
 class ChatsDeleted(BaseModel):
     app_id: str
+    company_id: str
     user_id: str
     conversations: int
     messages: int

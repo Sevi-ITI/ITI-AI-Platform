@@ -15,10 +15,11 @@ from app.core.c_database.get_db import get_db
 def get_requests(
     app_id: str | None = None,
     user_id: str | None = None,
+    company_id: str | None = None,
     errors_only: bool = False,
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
     offset: Annotated[int, Query(ge=0)] = 0,
     _: AppPrincipal = Depends(require_admin),
     db: Session = Depends(get_db),
 ) -> list[RequestLogOut]:
-    return request_log_page(db, app_id, user_id, errors_only, limit, offset)
+    return request_log_page(db, app_id, user_id, errors_only, limit, offset, company_id)
