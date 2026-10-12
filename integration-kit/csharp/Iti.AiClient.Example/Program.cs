@@ -1,4 +1,4 @@
-using /Iti.AiClient;
+using Iti.AiClient;
 
 var builder = WebApplication.CreateBuilder(args);
 
