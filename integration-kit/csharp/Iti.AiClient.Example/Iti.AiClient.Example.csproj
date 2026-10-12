@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+    <!-- Example only: how a .NET 8 web app wires Iti.AiClient. Copy the parts you need; don't deploy this project. -->
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Iti.AiClient\Iti.AiClient.csproj" />
+    </ItemGroup>
+
+</Project>
