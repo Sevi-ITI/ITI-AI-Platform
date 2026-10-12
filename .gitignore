@@ -17,4 +17,8 @@ PostGreQuery.sql
 Claude Summary.md
 .claude
 CLAUDE.md
+# .NET build output (integration-kit)
+bin/
+obj/
+
 
