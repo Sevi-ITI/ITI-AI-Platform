@@ -12,7 +12,7 @@ from pathlib import Path
 
 APP = Path(__file__).resolve().parents[1]
 LAYER = re.compile(r"^[a-g]_")
-SHARED = {"core", "auth", "rag"}
+SHARED = {"core", "auth", "rag", "tools"} # tools: chat uses it (Phase 8, R-7)
 
 
 def source_files():

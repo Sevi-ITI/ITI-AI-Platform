@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 from app.core.h_stores.iti_company import ITI_COMPANY_ID
 
-Scope = Literal["chat:invoke", "documents:write", "admin"]  # a typo is a 422, not a key that can do nothing
+Scope = Literal["chat:invoke", "documents:write", "records:read", "admin"]  # a typo is a 422, not a key that can do nothing
 
 
 class KeyCreate(BaseModel):

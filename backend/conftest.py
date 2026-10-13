@@ -2,7 +2,7 @@
 
 1. Settings: tests always run on the default settings, never on a developer's .env or ITI_ variables
    (e.g. a bigger chat model being tried), and never on the real Postgres or data/uploads: each run gets
-   a throwaway SQLite file and upload folder. ITI_TEST_PG_URL is kept: it switches on the pgvector tests.
+      a throwaway SQLite file and upload folder. ITI_TEST_PG_URL and ITI_TEST_RECORDS_URL are kept: they switch on the pgvector and records DB tests.
 2. Fixtures for the service tests: a fresh database per test, a fake rag/ (no Ollama), keys, the app.
 """
 
@@ -13,7 +13,7 @@ from types import SimpleNamespace
 
 import pytest
 
-for name in [n for n in os.environ if n.startswith("ITI_") and n != "ITI_TEST_PG_URL"]:
+for name in [n for n in os.environ if n.startswith("ITI_") and n not in ("ITI_TEST_PG_URL", "ITI_TEST_RECORDS_URL")]:
     del os.environ[name]
 os.environ["ITI_IGNORE_ENV_FILE"] = "1"
 TMP = Path(tempfile.mkdtemp(prefix="iti-tests-"))
