@@ -1,8 +1,9 @@
 """run_tool(): runs one tool call from the model for the asking employee.
-- employee_id comes from the caller (ITI-User-Id), never from the model: the arguments can't hold it
-  (extra fields are refused), so one employee can never reach another's rows.
-- Refusals use the one error shape: tool_unknown, scope_forbidden, tool_bad_arguments, records_unavailable.
-  Messages never contain record values."""
+- employee_id comes from the caller (ITI-User-Id), never from the model: built-in tools refuse it as an
+  argument (extra fields are refused); MCP tools get it overwritten with the caller's (call_mcp_tool).
+- Built-in records tools run fixed queries; "<server>__<tool>" names go to that MCP server (mcp_tools).
+- Refusals use the one error shape: tool_unknown, scope_forbidden, tool_bad_arguments, records_unavailable,
+  tool_failed, tool_unavailable. Messages never contain record values."""
 
 from pydantic import ValidationError
 from sqlalchemy.exc import DBAPIError
@@ -11,16 +12,23 @@ from app.auth.a_schemas.app_principal import AppPrincipal
 from app.core.a_config.get_settings import get_settings
 from app.core.e_errors.app_error import AppError
 from app.tools.a_schemas.records_of import RECORDS_OF
+from app.tools.c_repository.call_mcp_tool import call_mcp_tool
 from app.tools.c_repository.get_records_engine import get_records_engine
+from app.tools.d_service.mcp_tools import mcp_tools
 from app.tools.d_service.tool_registry import TOOL_REGISTRY
 
 
 def run_tool(principal: AppPrincipal, employee_id: str, name: str, arguments: dict | None) -> dict:
     tool = TOOL_REGISTRY.get(name)
-    if tool is None:
+    remote = None if tool else mcp_tools().get(name)
+    if tool is None and remote is None:
         raise AppError(400, "tool_unknown", f"There is no tool called '{name}'.")
-    if tool.spec.scope not in principal.scopes:
-        raise AppError(403, "scope_forbidden", f"This key may not use '{tool.spec.scope}'.")
+    scope = tool.spec.scope if tool else remote.spec.scope
+    if scope not in principal.scopes:
+        raise AppError(403, "scope_forbidden", f"This key may not use '{scope}'.")
+    if remote:
+        result = call_mcp_tool(remote, employee_id, arguments if isinstance(arguments, dict) else None)
+        return {"records_of": RECORDS_OF, **result} if remote.per_employee else result
     if not get_settings().records_db_url:
         raise AppError(503, "records_unavailable", "The records database is not configured.")
     try:

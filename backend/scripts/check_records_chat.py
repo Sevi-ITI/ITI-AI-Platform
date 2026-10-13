@@ -58,7 +58,7 @@ def grade(expected: str | None, token: str | None, body: dict) -> tuple[bool, st
             return True, "documents"
         refused = any(word in body["answer"].lower() for word in REFUSAL_WORDS)
         return not body["found"] or refused, f"records {records} found={body['found']} refused={refused}"
-    if expected not in records:
+    if not any(r == expected or r.endswith(f"__{expected}") for r in records):  # built-in or via MCP
         return False, f"expected {expected}, got {records or 'documents'}"
     if not any(t in body["answer"] for t in token.split("|")):
         return False, f"answer misses {token!r}"
