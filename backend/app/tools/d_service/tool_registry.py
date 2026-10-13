@@ -15,7 +15,8 @@ RECORDS_READ = "records:read"
 LEAVE_CREDITS = Tool(
     spec=ToolSpec(
         name="get_my_leave_credits",
-        description="Get the CURRENT USER's own leave credits (entitled, used, remaining) per leave type for a year.",
+        description="Get the CURRENT USER's own leave credits per leave type for a year: days entitled, days USED and "
+        "days remaining. Use it for any question about leave totals or balances, also for past years.",
         parameters={
             "type": "object",
             "properties": {"year": {"type": "integer", "description": "Calendar year, e.g. 2026. Leave out for this year"}},
@@ -29,7 +30,8 @@ LEAVE_CREDITS = Tool(
 ABSENCES = Tool(
     spec=ToolSpec(
         name="get_my_absences",
-        description="List the CURRENT USER's own absences, late arrivals, undertime and leave days between two dates.",
+        description="List the CURRENT USER's own attendance exceptions day by day between two dates: absences, late "
+        "arrivals, undertime and the dates of leave days. Not for leave totals or balances.",
         parameters={
             "type": "object",
             "properties": {

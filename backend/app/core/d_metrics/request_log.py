@@ -35,3 +35,5 @@ class RequestLog(Base):
     rag_ms: Mapped[int | None] = mapped_column(Integer)  # retrieval + generation inside rag/
     ttft_ms: Mapped[int | None] = mapped_column(Integer)  # streaming: time to the first token
     tokens: Mapped[int | None] = mapped_column(Integer)
+    tools: Mapped[str | None] = mapped_column(String(120))  # records tools the model ran, e.g. "get_my_absences"
+    tools_ms: Mapped[int | None] = mapped_column(Integer)  # time spent running them (never their values)

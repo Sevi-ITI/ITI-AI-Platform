@@ -3,7 +3,9 @@ meta -> token, token, ... -> done   (or ... -> error).
 
 rag.f_chains.ask_stream yields ("token", text) pieces, then exactly one ("done", Answer). The done Answer's
 text can differ from the joined tokens (renumbered [n], or a refusal after the answer check), so the done
-event carries the final `answer` and clients replace what they showed with it."""
+event carries the final `answer` and clients replace what they showed with it.
+Records answers (keys with "records:read", answer_with_tools) are not streamed: the whole answer arrives as
+one token, then done (decision R-8). Same events, so callers need no change."""
 
 import logging
 import time
@@ -13,10 +15,12 @@ import requests
 from fastapi.sse import ServerSentEvent
 from sqlalchemy.orm import Session
 
+from app.auth.a_schemas.app_principal import AppPrincipal
 from app.chat.a_schemas.chat_request import ChatRequest
 from app.chat.c_repository.recent_questions import recent_questions
 from app.chat.c_repository.save_turn import save_turn
 from app.chat.d_service.error_event import error_event
+from app.chat.d_service.records_citations import records_citations
 from app.chat.d_service.to_citations import to_citations
 from app.core.b_logging.request_id_var import REQUEST_ID
 from app.core.d_metrics.record_metric import record_metric
@@ -24,11 +28,14 @@ from app.core.e_errors.app_error import AppError
 from app.core.g_llm_slots.llm_slot import llm_slot
 from app.core.h_stores.get_store import get_store
 from app.rag import f_chains
+from app.tools.d_service.answer_with_tools import answer_with_tools
 
 log = logging.getLogger(__name__)
 
 
-def stream_answer(db: Session, conversation_id: str, req: ChatRequest) -> Iterator[ServerSentEvent]:
+def stream_answer(
+    db: Session, principal: AppPrincipal, user_id: str, conversation_id: str, req: ChatRequest
+) -> Iterator[ServerSentEvent]:
     request_id = REQUEST_ID.get()
     yield ServerSentEvent(event="meta", data={"conversation_id": conversation_id, "request_id": request_id})
     history = recent_questions(db, conversation_id)  # before save_turn: the new question is not its own history
@@ -36,6 +43,17 @@ def stream_answer(db: Session, conversation_id: str, req: ChatRequest) -> Iterat
     try:
         with llm_slot():
             start = time.perf_counter()
+            records = answer_with_tools(principal, user_id, req.question, history)
+            if records:
+                found = records.found
+                reason = "records_answered" if found else "records_empty"
+                record_metric(ttft_ms=int((time.perf_counter() - start) * 1000))
+                record_metric(rag_ms=int((time.perf_counter() - start) * 1000), tokens=1, found=found, reason=reason)
+                citations = [c.model_dump() for c in records_citations(records)]
+                save_turn(db, conversation_id, req.question, records.answer, reason, request_id, citations)
+                yield ServerSentEvent(event="token", data={"text": records.answer})
+                yield ServerSentEvent(event="done", data={"answer": records.answer, "found": found, "citations": citations})
+                return
             for kind, value in f_chains.ask_stream(req.question, get_store(req.collection), history=history):
                 if kind == "token":
                     if tokens == 0:

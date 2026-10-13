@@ -1,5 +1,7 @@
-"""answer_question(): loads the follow-up history, waits for a free LLM slot, asks rag/, saves the turn,
-builds the ChatResponse. Blocking calls are fine: the route is a plain `def` (FastAPI runs it in a thread)."""
+"""answer_question(): loads the follow-up history, waits for a free LLM slot, answers, saves the turn,
+builds the ChatResponse. Blocking calls are fine: the route is a plain `def` (FastAPI runs it in a thread).
+Keys with "records:read" first try the records tools (answer_with_tools); a documents question, and every
+other key, gets rag/'s answer exactly as before."""
 
 import logging
 import time
@@ -7,10 +9,12 @@ import time
 import requests
 from sqlalchemy.orm import Session
 
+from app.auth.a_schemas.app_principal import AppPrincipal
 from app.chat.a_schemas.chat_request import ChatRequest
 from app.chat.a_schemas.chat_response import ChatResponse
 from app.chat.c_repository.recent_questions import recent_questions
 from app.chat.c_repository.save_turn import save_turn
+from app.chat.d_service.records_citations import records_citations
 from app.chat.d_service.to_citations import to_citations
 from app.core.b_logging.request_id_var import REQUEST_ID
 from app.core.d_metrics.record_metric import record_metric
@@ -18,26 +22,33 @@ from app.core.e_errors.app_error import AppError
 from app.core.g_llm_slots.llm_slot import llm_slot
 from app.core.h_stores.get_store import get_store
 from app.rag import f_chains
+from app.tools.d_service.answer_with_tools import answer_with_tools
 
 log = logging.getLogger(__name__)
 
-def answer_question(db: Session, conversation_id: str, req: ChatRequest) -> ChatResponse:
+def answer_question(
+    db: Session, principal: AppPrincipal, user_id: str, conversation_id: str, req: ChatRequest
+) -> ChatResponse:
     history = recent_questions(db, conversation_id)  # before save_turn: the new question is not its own history
     with llm_slot():  # waits here if ITI_LLM_PARALLEL answers are already being generated
         start = time.perf_counter()
         try:
-            result = f_chains.ask(req.question, get_store(req.collection), history=history)
+            records = answer_with_tools(principal, user_id, req.question, history)
+            result = None if records else f_chains.ask(req.question, get_store(req.collection), history=history)
         except requests.RequestException as exc:  # Ollama down, refused or timed out; real bugs still give a 500
             log.warning("Ollama unreachable: %s", exc)
             raise AppError(503, "llm_unavailable", "The assistant is unavailable right now. Try again later.") from None
         record_metric(rag_ms=int((time.perf_counter() - start) * 1000))
-    found = result.reason == "answered"
-    record_metric(found=found, reason=result.reason)
+    if records:
+        text, found, citations = records.answer, records.found, records_citations(records)
+        reason = "records_answered" if found else "records_empty"
+    else:
+        text, found, citations, reason = result.text, result.reason == "answered", to_citations(result), result.reason
+    record_metric(found=found, reason=reason)
     request_id = REQUEST_ID.get()
-    citations = to_citations(result)
-    save_turn(db, conversation_id, req.question, result.text, result.reason, request_id, [c.model_dump() for c in citations])
+    save_turn(db, conversation_id, req.question, text, reason, request_id, [c.model_dump() for c in citations])
     return ChatResponse(
-        answer=result.text,
+        answer=text,
         found=found,
         citations=citations,
         conversation_id=conversation_id,
