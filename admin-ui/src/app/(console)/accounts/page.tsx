@@ -59,7 +59,7 @@ export default async function AccountsPage() {
                   const isMe = a.username === me.data.username;
                   return (
                     <tr key={a.username} className={a.active ? undefined : styles.dimmed}>
-                      <td>
+                      <td className={styles.nowrap}>
                         {a.display_name ?? "–"}
                         {isMe && <span className={styles.muted}> (you)</span>}
                       </td>

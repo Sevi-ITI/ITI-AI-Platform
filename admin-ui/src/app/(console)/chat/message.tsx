@@ -43,10 +43,15 @@ function Sources({ citations }: { citations: Citation[] }) {
             {i + 1}. {c.title.replace(/\.pdf$/i, "")}
             {c.page != null && <>, p.&nbsp;{c.page}</>}
           </summary>
-          <p>
-            <span className={styles.muted}>From p.&nbsp;{c.page ?? "?"}: </span>
-            {c.snippet}…
-          </p>
+          {/* Records sources (Phase 8) have no page and a whole-sentence snippet: no "From p." and no "…" */}
+          {c.page != null ? (
+            <p>
+              <span className={styles.muted}>From p.&nbsp;{c.page}: </span>
+              {c.snippet}…
+            </p>
+          ) : (
+            <p>{c.snippet}</p>
+          )}
         </details>
       ))}
     </div>

@@ -6,7 +6,7 @@ from pypdf import PdfWriter
 
 from app.rag.a_loader import load_pdf
 
-FIXTURES = Path(__file__).parent / "fixtures"
+FIXTURES = Path(__file__).parents[1] / "rag" / "fixtures"
 FIXTURE = FIXTURES / "sample.pdf"
 # Optional: any non-sensitive PDF exported from Google Docs (File > Download > PDF).
 GDOCS_FIXTURE = FIXTURES / "sample_gdocs.pdf"

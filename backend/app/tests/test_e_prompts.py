@@ -1,4 +1,4 @@
-"""pytest for e_prompts. Run from backend/:  pytest apps/rag/test_e_prompts.py -v"""
+"""pytest for e_prompts. Run from backend/:  pytest app/tests/test_e_prompts.py -v"""
 import re
 from pathlib import Path
 

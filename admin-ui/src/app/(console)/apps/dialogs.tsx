@@ -23,6 +23,11 @@ const PRESETS: { id: string; label: string; scopes: Scope[] }[] = [
     label: "Chat + documents app (ask, upload, replace, delete)",
     scopes: ["chat:invoke", "documents:write"],
   },
+  {
+    id: "chat-records",
+    label: "Chat + own records (ask, and see the asker's own leave, absences and payslip)",
+    scopes: ["chat:invoke", "records:read"],
+  },
   { id: "uploader", label: "Document uploader (upload, replace, delete)", scopes: ["documents:write"] },
   { id: "admin", label: "Admin (full control of the AI system)", scopes: ["admin"] },
 ];
@@ -67,16 +72,29 @@ function NewKeyPanel({ result }: { result: Extract<NewKey, { ok: true }> }) {
   );
 }
 
-function CollectionChecks({ collections, checked }: { collections: CollectionOption[]; checked: string[] }) {
+// company = the key's company: another company's collection in the list is one shared with it
+function CollectionChecks({
+  collections,
+  checked,
+  company,
+}: {
+  collections: CollectionOption[];
+  checked: string[];
+  company: string;
+}) {
   return (
     <fieldset className={dash.checks}>
-      <legend>Collections it may use (its company&apos;s and Global ones)</legend>
+      <legend>Collections it may use (its company&apos;s, shared with it, and Global ones)</legend>
       {collections.length === 0 && <span className={dash.muted}>This company has no collections yet.</span>}
       {collections.map((c) => (
         <label key={c.name} className={dash.check}>
           <input type="checkbox" name="collections" value={c.name} defaultChecked={checked.includes(c.name)} />
           <span className="mono">{c.name}</span>
-          {c.company_id === null && <span className={dash.muted}>(Global)</span>}
+          {c.company_id === null ? (
+            <span className={dash.muted}>(Global)</span>
+          ) : (
+            c.company_id !== company && <span className={dash.muted}>(shared by {c.company_id})</span>
+          )}
         </label>
       ))}
     </fieldset>
@@ -205,6 +223,7 @@ export function CreateKeyButton({
                 // keyed by company: switching company starts the ticks again
                 <CollectionChecks
                   key={company}
+                  company={company}
                   collections={usable}
                   checked={usable
                     .filter((c) => c.company_id === company)
@@ -341,12 +360,14 @@ export function RotateKeyButton({ keyId, appId }: { keyId: string; appId: string
 
 export function EditKeyButton({
   keyId,
+  company,
   collections,
   current,
   expiresLabel,
 }: {
   keyId: string;
-  collections: CollectionOption[]; // already limited to the key's company + Global
+  company: string; // the key's company
+  collections: CollectionOption[]; // already limited to the key's company + shared with it + Global
   current: string[];
   expiresLabel: string;
 }) {
@@ -402,7 +423,7 @@ export function EditKeyButton({
           <h2>
             Edit key <span className="mono">{keyId}</span>
           </h2>
-          <CollectionChecks collections={collections} checked={current} />
+          <CollectionChecks collections={collections} checked={current} company={company} />
           <label className={dash.field}>
             <span>Expiry</span>
             <select value={expiry} onChange={(e) => setExpiry(e.target.value as typeof expiry)}>

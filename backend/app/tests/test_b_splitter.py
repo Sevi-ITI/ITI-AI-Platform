@@ -6,7 +6,7 @@ import pytest
 from app.rag.a_loader import Page, load_pdf
 from app.rag.b_splitter import CHUNK_SIZE, split_pages
 
-FIXTURE = Path(__file__).parent / "fixtures" / "sample.pdf"
+FIXTURE = Path(__file__).parents[1] / "rag" / "fixtures" / "sample.pdf"
 
 
 def _long_page(page: int = 1) -> Page:

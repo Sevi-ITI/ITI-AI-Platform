@@ -49,6 +49,7 @@ from app.admin.f_routes.post_collection import post_collection
 from app.admin.f_routes.post_company import post_company
 from app.admin.f_routes.post_key import post_key
 from app.admin.f_routes.put_app import put_app
+from app.admin.f_routes.put_collection_shares import put_collection_shares
 from app.console.a_schemas.account_info import AccountInfo
 from app.core.e_errors.error_responses import ERROR_RESPONSES
 
@@ -77,6 +78,7 @@ add("/v1/admin/collections", get_collections, methods=["GET"], response_model=li
 add("/v1/admin/collections", post_collection, methods=["POST"], status_code=201, response_model=CollectionInfo)
 add("/v1/admin/collections/{name}", delete_collection, methods=["DELETE"], response_model=CollectionDeleted)
 add("/v1/admin/collections/{name}", patch_collection, methods=["PATCH"], response_model=CollectionInfo)
+add("/v1/admin/collections/{name}/shares", put_collection_shares, methods=["PUT"], response_model=CollectionInfo)
 add("/v1/admin/companies", get_companies, methods=["GET"], response_model=list[CompanyInfo])
 add("/v1/admin/companies", post_company, methods=["POST"], status_code=201, response_model=CompanyInfo)
 add("/v1/admin/companies/{company_id}", patch_company, methods=["PATCH"], response_model=CompanyInfo)

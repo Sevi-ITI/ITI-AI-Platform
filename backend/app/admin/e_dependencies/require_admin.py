@@ -2,7 +2,7 @@
 - scope "admin" (an admin key, or a super admin's console session): every admin route.
 - scope "admin:read" (a supervisor's console session): GET routes only, i.e. reading. Any change is 403.
 Throughout this API reads are GETs and changes are POST/PUT/PATCH/DELETE, so the method decides.
-app/console/tests/test_roles.py walks every admin route to keep it that way."""
+app/tests/test_roles.py walks every admin route to keep it that way."""
 
 from fastapi import Depends, Request
 

@@ -9,7 +9,7 @@ import { THEME_COOKIE, themeFrom } from "@/lib/theme";
 import { toggleTheme } from "@/lib/theme-actions";
 
 import styles from "./console.module.css";
-import { LogOutIcon, MoonIcon, SunIcon } from "./icons";
+import { LogOutIcon, MenuIcon, MoonIcon, SunIcon } from "./icons";
 import NavLinks from "./nav-links";
 import Toaster from "./toast";
 
@@ -50,7 +50,12 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
           </span>
           <span className={styles.label}>ITI AI Console</span>
         </p>
-        <nav aria-label="Console">
+        {/* Phones: the sidebar is a top bar and the links open from this button (a native popover: Esc and a click
+            outside close it). Wider windows show the links and hide the button. */}
+        <button type="button" className={styles.menuButton} popoverTarget="console-nav" aria-label="Menu">
+          <MenuIcon />
+        </button>
+        <nav id="console-nav" popover="auto" className={styles.navPanel} aria-label="Console">
           <NavLinks showAccounts={account.role === "super_admin"} />
         </nav>
         <div className={styles.account}>

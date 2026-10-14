@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { displayMessage } from "@/lib/api/api-error";
 import { callApi, endSessionOn401 } from "@/lib/api/client";
 import { formatCount, formatDateTime } from "@/lib/format";
@@ -48,6 +50,7 @@ export default async function CompaniesPage() {
                     Active keys
                   </th>
                   <th scope="col">Added</th>
+                  <th scope="col">See its</th>
                   {canEdit && <th scope="col">{/* actions */}</th>}
                 </tr>
               </thead>
@@ -61,9 +64,33 @@ export default async function CompaniesPage() {
                       </span>
                       {c.notes && <div className={styles.muted}>{c.notes}</div>}
                     </td>
-                    <td className="mono">{c.collections.length ? c.collections.join(", ") : "–"}</td>
+                    <td>
+                      <span className="mono">{c.collections.length ? c.collections.join(", ") : "–"}</span>
+                      {c.shared_collections.length > 0 && (
+                        <div className={styles.muted}>
+                          Shared with it: <span className="mono">{c.shared_collections.join(", ")}</span>
+                        </div>
+                      )}
+                    </td>
                     <td className={styles.number}>{formatCount(c.active_keys)}</td>
                     <td className={styles.nowrap}>{formatDateTime(c.created_at)}</td>
+                    <td>
+                      {/* the filters that already exist, opened on this company */}
+                      <div className={styles.rowActions}>
+                        <Link href={`/apps?q=${encodeURIComponent(c.company_id)}`} className={styles.smallButton}>
+                          Keys
+                        </Link>
+                        <Link href={`/users?company=${encodeURIComponent(c.company_id)}`} className={styles.smallButton}>
+                          Users
+                        </Link>
+                        <Link
+                          href={`/requests?company=${encodeURIComponent(c.company_id)}`}
+                          className={styles.smallButton}
+                        >
+                          Requests
+                        </Link>
+                      </div>
+                    </td>
                     {canEdit && (
                       <td>
                         <div className={styles.rowActions}>
@@ -94,11 +121,24 @@ export default async function CompaniesPage() {
         )}
       </section>
 
-      <p className={styles.muted}>
-        Global collections (any company&apos;s key may be given them):{" "}
-        {globals.length ? <span className="mono">{globals.join(", ")}</span> : "none yet"}. Make one Global on the
-        Documents page (Move…).
-      </p>
+      <section className={styles.card} aria-labelledby="global-title">
+        <h2 id="global-title" className={styles.panelTitle}>
+          Global collections
+        </h2>
+        <p>
+          {globals.length ? (
+            <span className="mono" translate="no">
+              {globals.join(", ")}
+            </span>
+          ) : (
+            "None yet."
+          )}
+        </p>
+        <p className={styles.muted}>
+          Any company&apos;s key may be given these (e.g. the labor code). Make a collection Global on the Documents
+          page with Move….
+        </p>
+      </section>
     </>
   );
 }

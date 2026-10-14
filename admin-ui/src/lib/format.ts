@@ -32,6 +32,13 @@ const stampFormat = new Intl.DateTimeFormat(LOCALE, {
 
 const dayFormat = new Intl.DateTimeFormat(LOCALE, { timeZone: MANILA, year: "numeric", month: "short", day: "numeric" });
 
+const dayKeyFormat = new Intl.DateTimeFormat("en-CA", {
+  timeZone: MANILA,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
 const countFormat = new Intl.NumberFormat(LOCALE);
 
 export function formatTime(value: string | Date): string {
@@ -50,6 +57,11 @@ export function formatDay(value: string | Date): string {
 /** Log timestamps, to the second: "Oct 8, 14:01:02". */
 export function formatStamp(value: string | Date): string {
   return stampFormat.format(new Date(value));
+}
+
+/** The Manila calendar day, "2026-10-09": for grouping (Today / Yesterday). */
+export function dayKey(value: string | Date): string {
+  return dayKeyFormat.format(new Date(value));
 }
 
 export function formatCount(value: number): string {

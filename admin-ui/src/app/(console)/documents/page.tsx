@@ -13,6 +13,7 @@ import styles from "../dashboard.module.css";
 import { Problem } from "../widgets";
 import { deleteCollection, deleteDocument } from "./actions";
 import MoveCollectionButton from "./move-collection";
+import ShareCollectionButton from "./share-collection";
 
 export const metadata = { title: "Documents" };
 
@@ -261,8 +262,18 @@ function CollectionChip({
         <span className={styles.muted}>
           {formatCount(c.documents)} {c.documents === 1 ? "file" : "files"}, {formatCount(c.chunks)} passages
         </span>
+        {c.shared_with.length > 0 && (
+          <span className={styles.muted}>
+            {" "}
+            · also{" "}
+            {c.shared_with.map((id) => companies.find((x) => x.company_id === id)?.name ?? id).join(", ")}
+          </span>
+        )}
       </span>
       {canDelete && <MoveCollectionButton name={c.name} current={c.company_id ?? null} companies={companies} />}
+      {canDelete && c.company_id && (
+        <ShareCollectionButton name={c.name} owner={c.company_id} sharedWith={c.shared_with} companies={companies} />
+      )}
       {canDelete &&
         (c.in_settings ? (
           <span className={styles.muted} title="Listed in ITI_COLLECTIONS: it would come back at the next restart">

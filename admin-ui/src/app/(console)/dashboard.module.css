@@ -1163,3 +1163,141 @@
 .panelTitle {
   font-size: var(--text-md);
 }
+
+/* Phones: a panel's filters sit two per row (labels above), so the rows show without scrolling past a form */
+@media (max-width: 40rem) {
+  .toolbar .filters {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: end;
+  }
+
+  .toolbar .filters select,
+  .toolbar .filters input:not([type="checkbox"]) {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .toolbar .filters select {
+    white-space: nowrap; /* "All companies" stays one line; a long choice is cut with … */
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+/* Loading: placeholder blocks shaped like a page (loading.tsx); a slow pulse, still under reduced motion */
+.skeleton {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.skeletonTitle,
+.skeletonBar,
+.skeletonLine {
+  border-radius: var(--radius-pill);
+  background: var(--surface-nested);
+  animation: skeleton-pulse 1.4s var(--ease) infinite alternate;
+}
+
+.skeletonTitle {
+  width: 12rem;
+  height: 2rem;
+  background: var(--surface);
+}
+
+.skeletonBar {
+  width: min(28rem, 100%);
+  height: 2.25rem;
+  margin-bottom: var(--space-2);
+}
+
+.skeletonLine {
+  height: 1.1rem;
+}
+
+.skeletonLine:nth-child(odd) {
+  width: 92%;
+}
+
+@keyframes skeleton-pulse {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeletonTitle,
+  .skeletonBar,
+  .skeletonLine {
+    animation: none;
+  }
+}
+
+/* A page that broke (error.tsx) */
+.pageError {
+  max-width: 36rem;
+}
+
+/* Upload: a drop zone; the real file input covers it, transparent */
+.dropZone {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 4.5rem;
+  padding: var(--space-3) var(--space-4);
+  border: 1.5px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  color: var(--text-muted);
+  transition:
+    border-color var(--fast) var(--ease),
+    background-color var(--fast) var(--ease);
+}
+
+.dropZone > span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.dropZone strong {
+  color: var(--text);
+  font-size: var(--text-sm);
+}
+
+.dropName {
+  overflow-wrap: anywhere;
+}
+
+.dropZone input[type="file"] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.dropZone input[type="file"]:disabled {
+  cursor: not-allowed;
+}
+
+.dropZone:hover,
+.dropZoneActive {
+  border-color: var(--accent);
+  background: var(--hover);
+}
+
+.dropZone:has(input:focus-visible) {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* Long text that must stay whole (routes in the Overview's errors): wraps instead of pushing columns away */
+.wrapAnywhere {
+  overflow-wrap: anywhere;
+}

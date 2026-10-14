@@ -130,6 +130,15 @@ def test_records_answer_with_a_records_citation(client, hr_records, model, recor
     assert saved[-1]["citations"][0]["title"] == "Records: payslip 2026-09-30"
 
 
+def test_the_request_log_api_shows_the_tools(client, hr_records, make_key, model, records_on, ran):
+    model.replies = [call("explain_my_deductions"), say("You were absent on 2026-09-03.")]
+    client.post("/v1/chat", headers=hr_records, json=Q)
+    admin = make_key("iti-admin", ["admin"], [])
+    row = next(r for r in client.get("/v1/admin/requests", headers=admin).json() if r["route"] == "/v1/chat")
+    assert (row["tools"], row["reason"], row["found"]) == ("explain_my_deductions", "records_answered", True)
+    assert isinstance(row["tools_ms"], int)
+
+
 def test_the_model_cannot_pick_another_employee(client, hr_records, model, records_on):
     """Real run_tool: the model's employee_id is refused, the error goes back to the model as text."""
     model.replies = [call("get_my_leave_credits", employee_id="E-1002"), say("I can only show your own records.")]

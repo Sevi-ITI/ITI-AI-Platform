@@ -10,8 +10,16 @@ import dash from "../dashboard.module.css";
 
 export type AppItem = { id: string; text: string; card: React.ReactNode };
 
-export default function AppList({ active, disconnected }: { active: AppItem[]; disconnected: AppItem[] }) {
-  const [query, setQuery] = useState("");
+export default function AppList({
+  active,
+  disconnected,
+  initialQuery = "",
+}: {
+  active: AppItem[];
+  disconnected: AppItem[];
+  initialQuery?: string; // ?q= in the URL (e.g. from Companies: one company's keys)
+}) {
+  const [query, setQuery] = useState(initialQuery);
   const words = query.trim().toLowerCase();
   const matches = (item: AppItem) => words.split(/\s+/).every((w) => item.text.includes(w));
   const shownActive = active.filter(matches);

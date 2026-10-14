@@ -38,12 +38,12 @@ def admin_routes(client):
 
 def test_a_supervisor_reads_every_admin_page_but_every_change_is_refused(client, people):
     routes = list(admin_routes(client))
-    assert len(routes) == 30  # 13 reads + 17 changes today; a new admin route is checked automatically
+    assert len(routes) == 31  # 13 reads + 18 changes today; a new admin route is checked automatically
     for method, path in routes:
         params = {"collection": "iti-docs", "filename": "x", "app_id": "x", "user_id": "x"}
         r = client.request(method, path, headers=people["boss"], params=params)
         if (method, path) in SUPERVISOR_CHANGES:
-            continue  # tested in admin/tests/test_collections.py
+            continue  # tested in app/tests/test_collections.py
         if path in SUPER_ADMIN_ONLY_READS:
             assert r.status_code == 403, (method, path, r.text)
         elif method == "GET":

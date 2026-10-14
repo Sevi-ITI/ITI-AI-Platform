@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { displayMessage } from "@/lib/api/api-error";
 import { endSessionOn401 } from "@/lib/api/client";
-import { formatDateTime } from "@/lib/format";
+import { dayKey, formatDateTime, formatTime } from "@/lib/format";
 
 import { Problem } from "../widgets";
 import styles from "./chat.module.css";
@@ -13,6 +13,11 @@ import { myConversations } from "./data";
 export default async function ChatLayout({ children }: { children: React.ReactNode }) {
   const conversations = await myConversations();
   endSessionOn401(conversations);
+  // Grouped by Manila day, worked out here on the server (no clock mismatch in the browser)
+  const now = new Date().getTime(); // a server component: rendered once per request
+  const today = dayKey(new Date(now));
+  const yesterday = dayKey(new Date(now - 24 * 60 * 60 * 1000));
+  const group = (at: string) => (dayKey(at) === today ? "Today" : dayKey(at) === yesterday ? "Yesterday" : "Earlier");
 
   return (
     <div className={styles.chat}>
@@ -27,7 +32,12 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
               id: c.conversation_id,
               title: c.first_question,
               collection: c.collection,
-              when: formatDateTime(c.created_at),
+              group: group(c.created_at),
+              // Earlier: "Oct 8, 14:05"; Today / Yesterday: just "16:58"
+              when:
+                group(c.created_at) === "Earlier"
+                  ? formatDateTime(c.created_at)
+                  : formatTime(c.created_at).slice(0, 5),
             }))}
           />
         ) : (

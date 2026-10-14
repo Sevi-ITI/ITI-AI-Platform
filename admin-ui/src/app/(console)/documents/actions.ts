@@ -27,3 +27,12 @@ export async function moveCollection(name: string, companyId: string | null): Pr
   );
   return r.ok ? { ok: true } : { ok: false, message: displayMessage(r.error), status: r.error.status };
 }
+
+// Share a company's collection with other companies (the whole list; [] = no one). Their keys may then be given it.
+// FastAPI refuses taking a company off while one of its active keys uses the collection.
+export async function shareCollection(name: string, companyIds: string[]): Promise<ConfirmResult> {
+  const r = await callApi((api) =>
+    api.PUT("/v1/admin/collections/{name}/shares", { params: { path: { name } }, body: { company_ids: companyIds } }),
+  );
+  return r.ok ? { ok: true } : { ok: false, message: displayMessage(r.error), status: r.error.status };
+}

@@ -17,8 +17,11 @@ deductions) over MCP, answered by the same fixed queries as the built-in tools. 
 2. From `backend\`: `python -m mcp_servers.records_server` (listens on 127.0.0.1:8100).
 3. Restart uvicorn. Keys with `records:read` are now offered `records__get_my_leave_credits` and the others.
 
-While the built-in records tools are also on (`ITI_RECORDS_DB_URL`), the model sees both sets. To test the MCP
-path alone, start uvicorn in a window where `$env:ITI_RECORDS_DB_URL = ""` (the server keeps reading `.env`).
+While the built-in records tools are also on (`ITI_RECORDS_DB_URL`), the model sees both sets (decision D6: built-in
+is the default, so afterwards put `#` before `ITI_MCP_SERVERS` again). To test the MCP path alone: put `#` before
+`ITI_RECORDS_DB_URL` in `backend\.env`, start the MCP server in a window where
+`$env:ITI_RECORDS_DB_URL = Read-Host "records DB URL"` was run (paste the URL), then restart uvicorn.
+(Setting `$env:ITI_RECORDS_DB_URL = ""` does not work: Windows deletes an empty variable, and `.env` is read again.)
 
 ## Rules for any new MCP server
 

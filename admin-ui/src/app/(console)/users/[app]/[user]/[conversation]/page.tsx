@@ -20,6 +20,8 @@ const OUTCOMES: Record<string, { label: string; ok: boolean }> = {
   model_refused: { label: "“I don’t know”: the model found no answer", ok: false },
   check_failed: { label: "“I don’t know”: the answer failed the check", ok: false },
   blank: { label: "“I don’t know”: empty answer", ok: false },
+  records_answered: { label: "Answered from records", ok: true },
+  records_empty: { label: "Records: nothing found or unavailable", ok: false },
 };
 
 // One conversation as the user saw it (questions, answers, sources), plus each answer's outcome, time and

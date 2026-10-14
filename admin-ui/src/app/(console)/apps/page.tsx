@@ -27,7 +27,12 @@ type Key = components["schemas"]["KeyInfo"];
 // Every connected system (from its keys, its chats or a profile): profile, live counts and its keys grouped by the
 // client company each key serves (App -> Company -> Keys), with a search box. Apps with no active key (except the console) are "Disconnected": kept as history, folded at the bottom.
 // Changes (create / rotate / revoke / edit a key, edit a profile, disconnect) are the super admin's.
-export default async function AppsPage() {
+export default async function AppsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const { q } = await searchParams;
   const [apps, keys, collections, companies, me] = await Promise.all([
     callApi((api) => api.GET("/v1/admin/apps")),
     callApi((api) => api.GET("/v1/admin/keys")),
@@ -39,7 +44,7 @@ export default async function AppsPage() {
 
   const canEdit = me.ok && me.data.role === "super_admin";
   const collectionOptions: CollectionOption[] = collections.ok
-    ? collections.data.map((c) => ({ name: c.name, company_id: c.company_id ?? null }))
+    ? collections.data.map((c) => ({ name: c.name, company_id: c.company_id ?? null, shared_with: c.shared_with }))
     : [];
   const companyNames = new Map((companies.ok ? companies.data : []).map((c) => [c.company_id, c.name]));
   const now = new Date().getTime(); // a server component: rendered once per request
@@ -88,7 +93,11 @@ export default async function AppsPage() {
       ) : apps.data.length === 0 ? (
         <p className={styles.muted}>No apps yet. Create a key to connect the first one.</p>
       ) : (
-        <AppList active={items.filter((it) => !it.disconnected)} disconnected={items.filter((it) => it.disconnected)} />
+        <AppList
+          active={items.filter((it) => !it.disconnected)}
+          disconnected={items.filter((it) => it.disconnected)}
+          initialQuery={typeof q === "string" ? q : ""}
+        />
       )}
     </>
   );
@@ -270,6 +279,7 @@ function KeyRow({
               {/* an expired key can be renewed here (new expiry); a revoked one can't come back */}
               <EditKeyButton
                 keyId={k.key_id}
+                company={k.company_id}
                 collections={collections}
                 current={k.allowed_collections}
                 expiresLabel={

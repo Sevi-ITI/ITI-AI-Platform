@@ -10,3 +10,4 @@ class CollectionInfo(BaseModel):
     chunks: int
     in_settings: bool = False
     company_id: str | None = None  # None = Global
+    shared_with: list[str] = []  # other companies whose keys may be given it

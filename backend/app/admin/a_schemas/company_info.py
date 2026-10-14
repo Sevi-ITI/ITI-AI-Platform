@@ -11,4 +11,5 @@ class CompanyInfo(BaseModel):
     notes: str | None
     created_at: UtcDateTime
     collections: list[str]  # the collections it owns (Global ones are not listed)
+    shared_collections: list[str] = []  # other companies' collections shared with it
     active_keys: int  # not revoked, not expired, any app

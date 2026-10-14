@@ -3,7 +3,9 @@
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 
-import { PlusIcon } from "../icons";
+import { formatBytes } from "@/lib/format";
+
+import { DocumentsIcon, PlusIcon } from "../icons";
 import { createCollection, jobStatus } from "./actions";
 import dash from "../dashboard.module.css";
 import { toast } from "../toast";
@@ -61,6 +63,8 @@ export default function AddDocument({
   const [created, setCreated] = useState<string[]>([]); // made here, until the page shows them
   const [choice, setChoice] = useState(initial ?? collections[0] ?? NEW);
   const [state, setState] = useState<State>({ step: "idle" });
+  const [picked, setPicked] = useState<File | null>(null); // shown in the drop zone
+  const [dragging, setDragging] = useState(false);
   const options = [...collections, ...created.filter((c) => !collections.includes(c))];
   const busy = state.step === "working";
 
@@ -126,6 +130,7 @@ export default function AddDocument({
       if (job.data.status === "failed") return fail(job.data.error ?? "indexing failed.");
       if (job.data.status === "done") {
         form.reset();
+        setPicked(null);
         const label = `${file.name} is ready in ${collection}: ${job.data.chunks ?? 0} passages indexed.`;
         setState({ step: "done", label });
         toast("ok", label);
@@ -163,10 +168,38 @@ export default function AddDocument({
           onChange={() => state.step === "exists" && setState({ step: "idle" })}
         >
           <h2 id="add-document-title">Add a document</h2>
-          <label className={dash.field}>
-            <span>PDF file</span>
-            <input type="file" name="file" accept="application/pdf,.pdf" required disabled={busy} />
-          </label>
+          {/* Drop zone: the real file input covers it (transparent), so clicking, the keyboard and dropping a
+              file all work natively, and the browser still checks "required" */}
+          <div className={dash.field}>
+            <span id="add-document-file">PDF file</span>
+            <div className={dragging ? `${dash.dropZone} ${dash.dropZoneActive}` : dash.dropZone}>
+              <input
+                type="file"
+                name="file"
+                accept="application/pdf,.pdf"
+                required
+                disabled={busy}
+                aria-labelledby="add-document-file"
+                aria-describedby="add-document-drop"
+                onChange={(e) => setPicked(e.currentTarget.files?.[0] ?? null)}
+                onDragEnter={() => setDragging(true)}
+                onDragLeave={() => setDragging(false)}
+                onDrop={() => setDragging(false)}
+              />
+              <DocumentsIcon />
+              {picked ? (
+                <span id="add-document-drop">
+                  <strong className={dash.dropName}>{picked.name}</strong>
+                  <small className={styles.muted}>{formatBytes(picked.size)}: click or drop to change</small>
+                </span>
+              ) : (
+                <span id="add-document-drop">
+                  <strong>Drop a PDF here</strong>
+                  <small className={styles.muted}>or click to choose a file</small>
+                </span>
+              )}
+            </div>
+          </div>
           <label className={dash.field}>
             <span>Collection</span>
             <select value={choice} onChange={(e) => setChoice(e.target.value)} disabled={busy}>

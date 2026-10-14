@@ -1,5 +1,5 @@
 # SQL Server 2022 (Developer edition) for the Phase 8 records DB, laptop only.
-# Start: docker compose -f deploy/docker-compose.records.yml up -d
+# Start: docker compose -f deploy/docker-compose.records.yaml up -d
 # Data lives in the named volume "iti-records" (only `down -v` deletes it). Port bound to 127.0.0.1:
 # other PCs on the network can't reach it. Tables, views and test data: deploy/records-db/README.md.
 services:

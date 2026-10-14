@@ -334,6 +334,23 @@ export interface paths {
         patch: operations["patch_collection_v1_admin_collections__name__patch"];
         trace?: never;
     };
+    "/v1/admin/collections/{name}/shares": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Put Collection Shares */
+        put: operations["put_collection_shares_v1_admin_collections__name__shares_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/companies": {
         parameters: {
             query?: never;
@@ -787,11 +804,21 @@ export interface components {
             in_settings: boolean;
             /** Company Id */
             company_id?: string | null;
+            /**
+             * Shared With
+             * @default []
+             */
+            shared_with: string[];
         };
         /** CollectionMove */
         CollectionMove: {
             /** Company Id */
             company_id: string | null;
+        };
+        /** CollectionSharesUpdate */
+        CollectionSharesUpdate: {
+            /** Company Ids */
+            company_ids: string[];
         };
         /** CompanyCreate */
         CompanyCreate: {
@@ -817,6 +844,11 @@ export interface components {
             created_at: string;
             /** Collections */
             collections: string[];
+            /**
+             * Shared Collections
+             * @default []
+             */
+            shared_collections: string[];
             /** Active Keys */
             active_keys: number;
         };
@@ -962,7 +994,7 @@ export interface components {
              *       "chat:invoke"
              *     ]
              */
-            scopes: ("chat:invoke" | "documents:write" | "admin")[];
+            scopes: ("chat:invoke" | "documents:write" | "records:read" | "admin")[];
             /** Allowed Collections */
             allowed_collections: string[];
             /**
@@ -1178,6 +1210,10 @@ export interface components {
             ttft_ms: number | null;
             /** Tokens */
             tokens: number | null;
+            /** Tools */
+            tools?: string | null;
+            /** Tools Ms */
+            tools_ms?: number | null;
         };
         /** RouteUsage */
         RouteUsage: {
@@ -3795,6 +3831,113 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["CollectionMove"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectionInfo"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unsupported Media Type */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    put_collection_shares_v1_admin_collections__name__shares_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CollectionSharesUpdate"];
             };
         };
         responses: {

@@ -1,16 +1,20 @@
 """move_collection(): gives a collection to another company, or makes it Global (company_id None).
 404 collection_not_found; 422 company_not_found; 409 collection_in_use when an active key of a different company
-still lists it (it would reach another company's documents: take it off that key first). Making it Global never
-conflicts: Global collections may be given to any company's key."""
+still lists it and the collection isn't shared with that company (take it off that key first). Making it Global
+never conflicts: Global collections may be given to any company's key. Shares: the new owner leaves the share list;
+Global clears the list (every company may use it)."""
 
+from sqlalchemy import delete
 from sqlalchemy.orm import Session
 
 from app.admin.a_schemas.collection_info import CollectionInfo
+from app.admin.c_repository.list_collection_shares import list_collection_shares
 from app.admin.d_service.collection_infos import collection_infos
 from app.auth.c_repository.list_keys import list_keys
 from app.auth.d_keys.is_active import is_active
 from app.core.e_errors.app_error import AppError
 from app.core.h_stores.collection_row import CollectionRow
+from app.core.h_stores.collection_share_row import CollectionShareRow
 from app.core.h_stores.company_row import CompanyRow
 
 
@@ -21,8 +25,11 @@ def move_collection(db: Session, name: str, company_id: str | None) -> Collectio
     if company_id is not None:
         if db.get(CompanyRow, company_id) is None:
             raise AppError(422, "company_not_found", f"No company named '{company_id}'.")
+        shared = set(list_collection_shares(db).get(name, []))
         for key in list_keys(db):
-            if name in key.allowed_collections and key.company_id != company_id and is_active(
+            if key.company_id in shared or key.company_id == company_id:
+                continue
+            if name in key.allowed_collections and is_active(
                 key.revoked_at, key.expires_at
             ):
                 raise AppError(
@@ -32,5 +39,9 @@ def move_collection(db: Session, name: str, company_id: str | None) -> Collectio
                     "Take it off that key first.",
                 )
     row.company_id = company_id
+    stale = CollectionShareRow.collection == name
+    if company_id is not None:
+        stale = stale & (CollectionShareRow.company_id == company_id)
+    db.execute(delete(CollectionShareRow).where(stale))
     db.commit()
     return next(c for c in collection_infos(db) if c.name == name)

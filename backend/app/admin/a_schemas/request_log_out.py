@@ -26,3 +26,6 @@ class RequestLogOut(BaseModel):
     rag_ms: int | None
     ttft_ms: int | None
     tokens: int | None
+    tools: str | None = None  # records / MCP tools the model ran, comma-separated (Phase 8), never their values
+    tools_ms: int | None = None  # time spent running them
+

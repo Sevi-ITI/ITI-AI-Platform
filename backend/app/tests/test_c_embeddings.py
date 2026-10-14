@@ -10,7 +10,7 @@ from app.rag.a_loader import load_pdf
 from app.rag.b_splitter import split_pages
 from app.rag.c_embeddings import BATCH_SIZE, EMBED_DIM, OLLAMA_URL, embed
 
-FIXTURE = Path(__file__).parent / "fixtures" / "sample.pdf"
+FIXTURE = Path(__file__).parents[1] / "rag" / "fixtures" / "sample.pdf"
 # Clause 6.1.2 "Information security risk assessment" is on viewer page 10 (page 3 is the table of contents).
 RISK_ASSESSMENT_PAGE = 10
 

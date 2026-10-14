@@ -11,4 +11,5 @@ ignore = [
 
 [lint.per-file-ignores]
 "migrations/versions/*" = ["W291"]  # alembic's template leaves a trailing space after "Revises:"
-"app/rag/test_*.py" = ["B905"]  # zip() over lists the test itself built with equal lengths
+"app/tests/test_c_embeddings.py" = ["B905"]  # zip() over lists the test itself built with equal lengths
+"app/tests/test_f_chains.py" = ["B905"]  # same

@@ -195,8 +195,17 @@ function RequestRow({ row, companyNames }: { row: Row; companyNames: Map<string,
       <td className={styles.number}>{formatMs(row.queue_ms)}</td>
       <td className={styles.number}>{formatMs(row.rag_ms)}</td>
       <td className={styles.nowrap}>
-        {row.found === true && <span className={styles.ok}>● Answered</span>}
-        {row.found === false && <span className={styles.muted}>○ “I don’t know”</span>}
+        {row.found === true && <span className={styles.ok}>● {row.tools ? "Answered from records" : "Answered"}</span>}
+        {row.found === false && (
+          <span className={styles.muted}>○ {row.tools ? "Records: nothing found" : "“I don’t know”"}</span>
+        )}
+        {/* Records / MCP tools the model ran (Phase 8): names and time only, never the values */}
+        {row.tools && (
+          <span className={`mono ${styles.muted}`} translate="no">
+            {" "}
+            · {row.tools.replaceAll(",", ", ")} ({formatMs(row.tools_ms ?? null)})
+          </span>
+        )}
         {thread && (
           <>
             {" "}

@@ -2,6 +2,7 @@
 404 collection_not_found; 409 collection_in_settings (startup would re-create it); 409 collection_not_empty
 (documents, passages or an upload in progress: delete its documents first). Old chats in it stay as history."""
 
+from sqlalchemy import delete
 from sqlalchemy.orm import Session
 
 from app.admin.a_schemas.collection_deleted import CollectionDeleted
@@ -10,6 +11,7 @@ from app.auth.c_repository.list_keys import list_keys
 from app.core.a_config.get_settings import get_settings
 from app.core.e_errors.app_error import AppError
 from app.core.h_stores.collection_row import CollectionRow
+from app.core.h_stores.collection_share_row import CollectionShareRow
 from app.core.h_stores.store_registry import STORES
 from app.rag.d_vectorstore.count_chunks import count_chunks
 
@@ -33,6 +35,7 @@ def remove_collection(db: Session, name: str) -> CollectionDeleted:
         if name in key.allowed_collections:
             key.allowed_collections = [c for c in key.allowed_collections if c != name]  # a new list: JSON change
             keys_updated += 1
+    db.execute(delete(CollectionShareRow).where(CollectionShareRow.collection == name))
     db.delete(row)
     db.commit()
     STORES.pop(name, None)

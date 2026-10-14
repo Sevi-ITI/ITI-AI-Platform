@@ -92,7 +92,7 @@ export default async function OverviewPage() {
                       // Full detail (app, user, request id) lives on the Request log page (6B.3).
                       <tr key={row.request_id} title={`${row.request_id}, ${row.app_id ?? "no app"}`}>
                         <td className={styles.nowrap}>{formatDateTime(row.created_at)}</td>
-                        <td className={`mono ${styles.nowrap}`}>
+                        <td className={`mono ${styles.wrapAnywhere}`}>
                           {row.method} {row.route ?? row.path}
                         </td>
                         <td className={styles.nowrap}>
