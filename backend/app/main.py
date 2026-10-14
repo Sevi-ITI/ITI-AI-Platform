@@ -14,13 +14,16 @@ from app.documents.f_routes.router import router as documents_router
 from app.lifespan import lifespan
 from app.ops.f_routes.router import router as ops_router
 
+# Every feature's URL table. A new feature's router goes here; ROUTES.md lists every route (scripts/export_routes.py).
+ROUTERS = (ops_router, chat_router, documents_router, admin_router, console_router)
+
 
 def create_app() -> FastAPI:
     app = FastAPI(title="ITI AI API", version="1.0.0", lifespan=lifespan,
                   swagger_ui_parameters={"syntaxHighlight.theme": "obsidian"})
     register_error_handlers(app)
     app.middleware("http")(request_id_and_timing)
-    for router in (ops_router, chat_router, documents_router, admin_router, console_router):
+    for router in ROUTERS:
         app.include_router(router)
     return app
 

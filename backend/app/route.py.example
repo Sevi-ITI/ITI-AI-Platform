@@ -1,0 +1,20 @@
+"""TEMPLATE for a new route (like .env.example). To add a route:
+1. Copy this file to app/<feature>/f_routes/<method>_<thing>.py (e.g. app/chat/f_routes/get_greeting.py) and rename
+   the function to the file name (the structure test checks it). Keep one function in the file.
+2. Add one line to that feature's router.py, e.g.:
+       router.add_api_route("/v1/greeting", get_greeting, methods=["GET"], response_model=Greeting)
+3. From backend\\: python -m scripts.export_routes   (updates app/ROUTES.md; a test fails until you do)
+4. If a C# app calls it (chat, conversations, documents, health): python -m scripts.export_contract
+
+Rules: who may call it is decided by a dependency (require_scope("..."), require_admin, require_console_user);
+logic goes in the feature's d_service, not here; errors are AppError(status, code, message)."""
+
+from fastapi import Depends
+
+from app.auth.a_schemas.app_principal import AppPrincipal
+from app.auth.e_dependencies.require_scope import require_scope
+
+
+def get_new_route(principal: AppPrincipal = Depends(require_scope("chat:invoke"))) -> dict:
+    """NEW_METHOD /v1/NEW_PATH: NEW_WHAT_IT_DOES."""
+    return {"app_id": principal.app_id}  # replace: call the feature's d_service function

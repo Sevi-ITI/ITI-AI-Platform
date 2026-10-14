@@ -1,0 +1,60 @@
+"""TEMPLATE for a new MCP server (like .env.example), for a system that is NOT the records DB. To add one:
+1. Copy this file to app/tools/server/<name>_server.py and replace every CAPITAL placeholder.
+2. Put its secret in backend\\.env under NEW_TOKEN_ENV (letters and digits, 20+ characters).
+3. Add an entry to MCP_SERVERS in app/tools/client/servers.py (same url, the same token_env name, a scope, topics).
+4. Start it (python -m app.tools.server.<name>_server), restart uvicorn, run the checks.
+(For more records tools, add them to the catalog instead: records_server offers the whole catalog.)
+
+Rules (see README.md): every per-employee tool takes employee_id (the AI host fills it in from ITI-User-Id, the
+model never sees it); refuse every request without the secret; read-only; errors as ToolError("what was wrong"),
+never with other people's data; on another host: https + a firewall rule allowing only the AI server."""
+
+import hmac
+
+import uvicorn
+from mcp.server.mcpserver import MCPServer
+from mcp.server.mcpserver.exceptions import ToolError
+from starlette.responses import JSONResponse
+
+from app.tools.shared.read_secret import read_secret
+
+# --- Connections (who may call this server, and what it reads) ---------------------------------------------
+HOST, PORT = "127.0.0.1", 8101  # a free port; on another host: https + a firewall rule (Phase 9)
+TOKEN_ENV = "ITI_MCP_NEW_TOKEN"  # NEW_TOKEN_ENV: the shared secret the AI host sends (client/servers.py)
+# What it reads: NEW_SYSTEM (e.g. an HTTP API or a DB, its URL from backend\.env via read_secret / settings).
+# --------------------------------------------------------------------------------------------------------------
+
+mcp = MCPServer("NEW_NAME", instructions="NEW_SYSTEM (read-only). Every tool answers for ONE employee.")
+
+
+@mcp.tool(description="Get the CURRENT USER's own NEW_WHAT. Not for NEW_WHAT_NOT.")
+def get_my_new_thing(employee_id: str) -> dict:
+    if not employee_id:
+        raise ToolError("employee_id is missing")
+    return {"items": []}  # replace: read NEW_SYSTEM for this employee only
+
+
+def require_token(app, token: str):
+    """ASGI wrapper: every HTTP request must carry "Authorization: Bearer <token>", else 401."""
+    expected = f"Bearer {token}".encode()
+
+    async def guarded(scope, receive, send):
+        if scope["type"] == "http":
+            sent = dict(scope["headers"]).get(b"authorization", b"")
+            if not hmac.compare_digest(sent, expected):
+                await JSONResponse({"code": "unauthorized"}, status_code=401)(scope, receive, send)
+                return
+        await app(scope, receive, send)
+
+    return guarded
+
+
+def main() -> None:
+    token = read_secret(TOKEN_ENV)
+    if len(token) < 16:
+        raise SystemExit(f"Set {TOKEN_ENV} (16+ characters) in backend\\.env")
+    uvicorn.run(require_token(mcp.streamable_http_app(host=HOST), token), host=HOST, port=PORT)
+
+
+if __name__ == "__main__":
+    main()

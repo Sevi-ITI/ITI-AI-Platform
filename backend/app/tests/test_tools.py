@@ -12,10 +12,10 @@ import pytest
 from app.auth.a_schemas.app_principal import AppPrincipal
 from app.core.a_config.get_settings import get_settings
 from app.core.e_errors.app_error import AppError
-from app.tools.c_repository.get_records_engine import get_records_engine
-from app.tools.d_service.run_tool import run_tool
-from app.tools.d_service.tool_registry import TOOL_REGISTRY
-from app.tools.d_service.tools_for import tools_for
+from app.tools.catalog.registry import TOOL_REGISTRY
+from app.tools.host.run_tool import run_tool
+from app.tools.host.tools_for import tools_for
+from app.tools.shared.get_records_engine import get_records_engine
 
 RECORDS_URL = os.environ.get("ITI_TEST_RECORDS_URL")
 needs_records_db = pytest.mark.skipif(not RECORDS_URL, reason="set ITI_TEST_RECORDS_URL to run against the records DB")

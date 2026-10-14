@@ -22,7 +22,7 @@ from app.core.e_errors.app_error import AppError
 from app.core.g_llm_slots.llm_slot import llm_slot
 from app.core.h_stores.get_store import get_store
 from app.rag import f_chains
-from app.tools.d_service.answer_with_tools import answer_with_tools
+from app.tools.host.answer_with_tools import answer_with_tools
 
 log = logging.getLogger(__name__)
 

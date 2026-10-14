@@ -9,12 +9,12 @@ import os
 import pytest
 from sqlalchemy import select
 
-import app.tools.d_service.answer_with_tools as awt
+import app.tools.host.answer_with_tools as awt
 from app.core.a_config.get_settings import get_settings
 from app.core.c_database.get_sessionmaker import get_sessionmaker
 from app.core.d_metrics.request_log import RequestLog
 from app.core.e_errors.app_error import AppError
-from app.tools.c_repository.get_records_engine import get_records_engine
+from app.tools.shared.get_records_engine import get_records_engine
 
 RECORDS_URL = os.environ.get("ITI_TEST_RECORDS_URL")
 Q = {"question": "Why is there a deduction on my last payslip?", "collection": "iti-docs"}

@@ -1,7 +1,8 @@
 """Keeps the codebase shaped the way the guide says. If this fails, the message says which rule broke.
 
 Rule 1: one function OR one class per file (constants allowed), and the file is named after it
-        (main.py is the one exception: it is the name Uvicorn looks for).
+        (main.py is the one exception: it is the name Uvicorn looks for; app/tools/catalog and app/tools/server
+        hold one TOOL or one MCP server per file, with all its parts: Phase 8.6b, decision D1).
 Rule 2: imports only point down: same feature -> same or earlier letter; other features -> only
         core/, auth/ and rag/ (admin/ may read every feature); core/ -> only core/ and rag/.
 """
@@ -12,7 +13,16 @@ from pathlib import Path
 
 APP = Path(__file__).resolve().parents[1]
 LAYER = re.compile(r"^[a-g]_")
-SHARED = {"core", "auth", "rag", "tools"} # tools: chat uses it (Phase 8, R-7)
+SHARED = {"core", "auth", "rag", "tools"}  # tools: chat uses it (Phase 8, R-7)
+WHOLE_FILES = {("tools", "catalog"), ("tools", "server")}  # one tool / one server per file (rule 1 exception)
+# app/tools is organised by role, not by lettered layers (Phase 8.6b, D2): which role may import which.
+TOOLS_ROLES = {
+    "shared": {"shared"},
+    "catalog": {"catalog", "shared"},
+    "client": {"client", "shared"},
+    "host": {"host", "catalog", "client", "shared"},
+    "server": {"server", "catalog", "shared"},
+}
 
 
 def source_files():
@@ -31,6 +41,8 @@ def snake(name: str) -> str:
 def test_one_function_or_class_per_file_named_after_it():
     problems = []
     for path, rel in source_files():
+        if tuple(rel.parts[:2]) in WHOLE_FILES:
+            continue
         tree = ast.parse(path.read_text(encoding="utf-8"))
         defs = [n for n in tree.body if isinstance(n, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef)]
         if len(defs) > 1:
@@ -56,4 +68,23 @@ def test_imports_only_point_down():
                     problems.append(f"{rel} imports {node.module}: features don't import each other")
                 elif feature == "core" and other not in {"core", "rag"}:
                     problems.append(f"{rel} imports {node.module}: core/ must not depend on features")
+    assert not problems, "\n".join(problems)
+
+
+def test_tools_folders_import_in_one_direction():
+    problems = []
+    for path, rel in source_files():
+        if rel.parts[0] != "tools" or len(rel.parts) < 3:
+            continue
+        role = rel.parts[1]
+        if role not in TOOLS_ROLES:
+            problems.append(f"{rel}: app/tools has only the folders {sorted(TOOLS_ROLES)}")
+            continue
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            if isinstance(node, ast.ImportFrom) and node.module and node.module.startswith("app."):
+                parts = node.module.split(".")
+                if parts[1] == "tools" and len(parts) > 2 and parts[2] not in TOOLS_ROLES[role]:
+                    problems.append(f"{rel} imports {node.module}: tools/{role} may import only {sorted(TOOLS_ROLES[role])}")
+                elif parts[1] not in {"tools", "core", "auth", "rag"}:
+                    problems.append(f"{rel} imports {node.module}: tools may import only core, auth, rag and tools")
     assert not problems, "\n".join(problems)
