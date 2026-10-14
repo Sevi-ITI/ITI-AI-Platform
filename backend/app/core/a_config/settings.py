@@ -1,6 +1,7 @@
 """The Settings class: every ITI_* environment variable the service reads."""
 
 from pathlib import Path
+from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -32,4 +33,7 @@ class Settings(BaseSettings):
     # Records DB (Phase 8, SQL Server, read-only login iti_ai_reader). Empty = records tools off.
     # mssql+mssqlpython://iti_ai_reader:<password>@127.0.0.1:1433/iti_records?Encrypt=yes&TrustServerCertificate=yes
     records_db_url: str = ""
-    # MCP servers are listed in app/tools/client/servers.py (Phase 8.6b); only their secrets live in .env.
+    # Who answers the records questions (Phase 8.6c): "builtin" = app/tools/tools.py reads the records DB itself;
+    # "mcp" = the records MCP server in app/tools/servers.py ("records": True). MCP servers are listed in
+    # app/tools/servers.py; only their secrets live in .env.
+    records_source: Literal["builtin", "mcp"] = "builtin"

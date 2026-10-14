@@ -1,57 +1,67 @@
-# Tools (Phase 8): what the chatbot can look up, and how it connects
+# Tools and MCP (Phase 8): how the chatbot looks things up
 
 The chatbot answers from company documents (RAG) and, for keys with the right scope, from **tools**: small,
-read-only lookups such as "the asking employee's leave credits". This folder holds everything about tools,
-by role. Routes (the API) are listed in `app/ROUTES.md`.
+read-only lookups such as "the asking employee's leave credits". Everything about tools is in this folder,
+**one concern per file**: to change or add something, you edit one file. All API routes: `app/ROUTES.md`.
 
-```
-app/tools/
-├── catalog/   THE TOOLS. One file per tool + registry.py           → change or add a tool here
-├── client/    AI host → MCP servers. servers.py lists them         → add or change a connection here
-├── server/    MCP servers (+ their connection to an app or DB)     → a new system's server goes here
-├── host/      the machinery: offer tools, the model loop, run a call (rarely changed)
-└── shared/    used by all: ToolSpec, Tool, the records DB engine, RECORDS_OF, read_secret
-```
+| File | What is in it | You open it to... |
+|---|---|---|
+| `tools.py` | every built-in tool (leave credits, absences, deductions) + the list `TOOLS` | change or add a tool |
+| `servers.py` | every connection from the AI host to an MCP server | connect, switch on/off, or add an MCP server |
+| `mcp_servers.py` | every MCP server we run ourselves (today: `records`) | add a server for a new system |
+| `host.py` | the AI host: which tools a key gets, the system prompt, the tool loop, running a call | rarely: change how tools are used |
+| `client.py` | the MCP client: check a `servers.py` entry, connect, discover, call, cache | rarely: change how servers are reached |
+| `shared.py` | `ToolSpec`, `Tool`, the records DB engine, `read_secret`, `RECORDS_OF` | rarely |
+| `new_tool.example`, `new_mcp_server.example` | templates: a section to paste into `tools.py` / `mcp_servers.py` | start a new tool / server |
 
 ## How a question flows
 
 ```
-C# app ──/v1/chat──▶ chat ──▶ host/answer_with_tools ──▶ the model sees: catalog tools + MCP tools + "documents"
-                                     │                       ├─ documents / no tool ─▶ RAG (unchanged)
-                                     │                       └─ a tool call ─▶ host/run_tool
-                                     │                                          ├─ catalog tool ─▶ fixed SQL on ai.* views
-                                     │                                          └─ "<server>__<tool>" ─▶ client ─▶ MCP server ─▶ its app / DB
-                                     └─ employee_id ALWAYS from ITI-User-Id (never from the model)
+C# app ─/v1/chat─▶ chat ─▶ host.answer_with_tools ─▶ the model sees the key's tools + "search_company_documents"
+                                                       ├─ documents / no tool call ─▶ RAG (unchanged)
+                                                       └─ a tool call ─▶ host.run_tool (employee_id = ITI-User-Id)
+                                                             ├─ built-in (tools.py) ─▶ fixed SQL on the records DB
+                                                             └─ "<server>__<tool>" ─▶ client ─▶ MCP server ─▶ its app / DB
 ```
 
 ## Common changes
 
-| I want to... | Do this |
+| I want to... | Do this, then restart uvicorn |
 |---|---|
-| **Change a tool** (its question, query, description) | Open `catalog/<tool>.py`. Everything about the tool is in that one file |
-| **Add a tool** on the records DB | Copy `catalog/_new_tool.py.example` → `catalog/<name>.py`, fill it in, add one line to `catalog/registry.py`. It works built-in **and** over the records MCP server |
-| **Connect the AI host to an MCP server** | Add an entry to `MCP_SERVERS` in `client/servers.py` (copy the EXAMPLE there), put its secret in `backend\.env` under its `token_env` |
-| **Switch an MCP server off** | `"enabled": False` in `client/servers.py`, or remove its secret from `.env` |
-| **Add an MCP server for a new system** | Copy `server/_new_server.py.example` → `server/<name>_server.py`; its connection to the app/DB is at the top of the file; then the `client/servers.py` entry above |
-| **Give an app access to tools** | Its key needs the tool's scope (`records:read`): console → Apps & keys → preset "Chat + own records" |
-| **A new kind of access** (e.g. `tickets:read`) | Add the scope to `Scope` in `app/admin/a_schemas/key_create.py` (+ a console preset) |
+| **Change a tool** | Edit its section in `tools.py` |
+| **Add a tool** on the records DB | Paste `new_tool.example` at the end of `tools.py`, fill it in, add it to `TOOLS`. It works built-in **and** over the records MCP server |
+| **Answer records through MCP instead of built-in** | `ITI_RECORDS_SOURCE=mcp` in `backend\.env` (back: `builtin` or remove the line). That is all: the AI host starts the records server itself |
+| **Connect an MCP server on another machine** | Copy the http EXAMPLE in `servers.py`, put its secret in `backend\.env` under its `token_env` |
+| **Add an MCP server for a new system on this machine** | Paste `new_mcp_server.example` into `mcp_servers.py`, add it to `SERVERS`, add its `servers.py` entry |
+| **Switch a server off** | `"enabled": False` in `servers.py` |
+| **Give an app access** | Its key needs the tool's scope (`records:read`): console → Apps & keys → "Chat + own records" |
+| **A new kind of access** (e.g. `tickets:read`) | Add it to `Scope` in `app/admin/a_schemas/key_create.py` (+ a console preset) |
 
-After any change: `ruff check .`, `pytest -q` (from `backend\`), restart uvicorn; for tools the live check
-`python -m scripts.check_records_chat`. `app/tests/test_templates.py` keeps the `.example` templates working.
+Checks: from `backend\`: `ruff check .`, `pytest -q`, then `python -m scripts.check_records_chat` (live) and
+`python -m scripts.check_records_isolation` (prompts must never reach another employee's data).
+
+## stdio or http
+
+- **stdio** (servers on this machine): the AI host starts `python -m app.tools.mcp_servers <name>` itself for each
+  use. No window, no port, no secret: only the process that started the server can talk to it. Each use starts a
+  process, about 1.5 s on the laptop, so an MCP records answer is about that much slower than built-in.
+- **http** (servers on another machine): a url and a shared secret. Plain `http://` only to 127.0.0.1 / localhost,
+  otherwise https + a firewall rule that lets only the AI server in (Phase 9). Our own server can also run this way:
+  `python -m app.tools.mcp_servers records --http` (127.0.0.1:8100, secret `ITI_MCP_RECORDS_TOKEN`).
 
 ## Rules every tool and server follows
 
 1. **The model never chooses whose data is read.** No `employee_id` in what the model sees; the host fills it in
-   from `ITI-User-Id` (catalog: `run(conn, employee_id, args)`; MCP: removed from the schema, overwritten on every call).
+   from `ITI-User-Id` (built-in: refused as an argument; MCP: removed from the schema, overwritten on every call).
+   `scripts/check_records_isolation.py` tries 12 prompt attacks to prove it.
 2. **Read-only, fixed queries:** bound parameters, `WHERE employee_id = :employee_id`, views in schema `ai` only.
-3. **Every tool has a scope**, checked twice: when offering it (`tools_for`) and when running it (`run_tool`).
-4. **Results never go to logs:** the request log keeps tool names and time only; source titles name what was read.
-5. **MCP servers accept only the AI host:** a shared secret per server (only in `.env`), 127.0.0.1 on the same
-   machine, https + a firewall rule on another host (the host refuses plain http to any other host).
+3. **Every tool has a scope**, checked when offered (`tools_for`) and when run (`run_tool`).
+4. **Values never go to logs:** the request log keeps tool names and time; source titles name what was read.
+5. **Secrets only in `backend\.env`**, never in `servers.py` or any committed file.
 6. **Descriptions matter:** the 4B model picks tools by them ("the CURRENT USER's own ...", and what it is NOT for).
 
 ## Import directions (checked by `app/tests/test_structure.py`)
 
-`shared` → nothing else in tools · `catalog` → shared · `client` → shared · `host` → catalog, client, shared ·
-`server` → catalog, shared. Files in `catalog/` and `server/` may hold several definitions (one tool or one server
-per file); everywhere else the project rule "one function or one class per file" applies.
+`servers.py` and `shared.py` import no other tools file · `tools.py` → shared · `client.py` → servers, shared ·
+`host.py` → tools, client, shared · `mcp_servers.py` → tools, shared. In `app/tools/` the rule is one concern per
+file; everywhere else in the backend it stays one function or one class per file.

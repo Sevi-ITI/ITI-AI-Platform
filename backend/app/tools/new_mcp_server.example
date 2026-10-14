@@ -1,0 +1,20 @@
+
+# --- TEMPLATE: a new MCP server for a system that is NOT the records DB (like .env.example) ---------------------
+# (More records tools? Add them to tools.py instead: the records server offers the whole of tools.py.)
+# 1. Copy this section to app/tools/mcp_servers.py, just ABOVE "the list", and replace every CAPITAL placeholder.
+# 2. Add it to SERVERS there:   "new_name": (new_name, 8101, "ITI_MCP_NEW_NAME_TOKEN"),
+# 3. Add its entry to app/tools/servers.py:
+#        {"name": "new_name", "transport": "stdio", "server": "new_name", "scope": "records:read",
+#         "topics": ["NEW_TOPIC"], "enabled": True},
+# 4. Restart uvicorn (the AI host starts the server itself), then ruff + pytest.
+# Rules: every per-employee tool takes employee_id (the AI host fills it in, the model never sees it); read-only;
+# errors as ToolError("what was wrong"), never with other people's data.
+
+new_name = MCPServer("new_name", instructions="NEW_SYSTEM (read-only). Every tool answers for ONE employee.")
+
+
+@new_name.tool(description="Get the CURRENT USER's own NEW_WHAT. Not for NEW_WHAT_NOT.")
+def get_my_new_thing(employee_id: str) -> dict:
+    if not employee_id:
+        raise ToolError("employee_id is missing")
+    return {"items": []}  # replace: read NEW_SYSTEM (its URL / key from backend\.env via read_secret) for this employee

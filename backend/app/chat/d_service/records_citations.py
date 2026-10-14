@@ -3,7 +3,7 @@ like document sources (decision R-8: no contract change). One per source, no pag
 doc_id is "<source>:<tool>", e.g. "records:explain_my_deductions" (built-in or through the records MCP server)."""
 
 from app.chat.a_schemas.citation import Citation
-from app.tools.host.tool_answer import ToolAnswer
+from app.tools.host import ToolAnswer
 
 SNIPPET = "From the ITI records database, for the logged-in employee only."
 

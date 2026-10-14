@@ -1,8 +1,8 @@
 """Keeps the codebase shaped the way the guide says. If this fails, the message says which rule broke.
 
 Rule 1: one function OR one class per file (constants allowed), and the file is named after it
-        (main.py is the one exception: it is the name Uvicorn looks for; app/tools/catalog and app/tools/server
-        hold one TOOL or one MCP server per file, with all its parts: Phase 8.6b, decision D1).
+        (main.py is the one exception: it is the name Uvicorn looks for). app/tools follows its own rule
+        instead: ONE CONCERN PER FILE (Phase 8.6c): all tools in tools.py, all servers in servers.py, ...
 Rule 2: imports only point down: same feature -> same or earlier letter; other features -> only
         core/, auth/ and rag/ (admin/ may read every feature); core/ -> only core/ and rag/.
 """
@@ -14,14 +14,14 @@ from pathlib import Path
 APP = Path(__file__).resolve().parents[1]
 LAYER = re.compile(r"^[a-g]_")
 SHARED = {"core", "auth", "rag", "tools"}  # tools: chat uses it (Phase 8, R-7)
-WHOLE_FILES = {("tools", "catalog"), ("tools", "server")}  # one tool / one server per file (rule 1 exception)
-# app/tools is organised by role, not by lettered layers (Phase 8.6b, D2): which role may import which.
-TOOLS_ROLES = {
-    "shared": {"shared"},
-    "catalog": {"catalog", "shared"},
-    "client": {"client", "shared"},
-    "host": {"host", "catalog", "client", "shared"},
-    "server": {"server", "catalog", "shared"},
+# app/tools: one concern per file (Phase 8.6c). These are its only files, and which may import which.
+TOOLS_FILES = {
+    "servers": set(),
+    "shared": set(),
+    "tools": {"shared"},
+    "client": {"servers", "shared"},
+    "host": {"tools", "client", "shared"},
+    "mcp_servers": {"tools", "shared"},
 }
 
 
@@ -41,8 +41,8 @@ def snake(name: str) -> str:
 def test_one_function_or_class_per_file_named_after_it():
     problems = []
     for path, rel in source_files():
-        if tuple(rel.parts[:2]) in WHOLE_FILES:
-            continue
+        if rel.parts[0] == "tools":
+            continue  # one concern per file there, see TOOLS_FILES
         tree = ast.parse(path.read_text(encoding="utf-8"))
         defs = [n for n in tree.body if isinstance(n, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef)]
         if len(defs) > 1:
@@ -71,20 +71,20 @@ def test_imports_only_point_down():
     assert not problems, "\n".join(problems)
 
 
-def test_tools_folders_import_in_one_direction():
+def test_tools_has_one_file_per_concern_importing_in_one_direction():
     problems = []
     for path, rel in source_files():
-        if rel.parts[0] != "tools" or len(rel.parts) < 3:
+        if rel.parts[0] != "tools":
             continue
-        role = rel.parts[1]
-        if role not in TOOLS_ROLES:
-            problems.append(f"{rel}: app/tools has only the folders {sorted(TOOLS_ROLES)}")
+        if len(rel.parts) != 2 or path.stem not in TOOLS_FILES:
+            problems.append(f"{rel}: app/tools has only the files {sorted(TOOLS_FILES)} (one concern per file, no folders)")
             continue
+        allowed = TOOLS_FILES[path.stem]
         for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
             if isinstance(node, ast.ImportFrom) and node.module and node.module.startswith("app."):
                 parts = node.module.split(".")
-                if parts[1] == "tools" and len(parts) > 2 and parts[2] not in TOOLS_ROLES[role]:
-                    problems.append(f"{rel} imports {node.module}: tools/{role} may import only {sorted(TOOLS_ROLES[role])}")
+                if parts[1] == "tools" and len(parts) > 2 and parts[2] not in allowed:
+                    problems.append(f"{rel} imports {node.module}: tools/{path.name} may import only {sorted(allowed) or 'no other tools file'}")
                 elif parts[1] not in {"tools", "core", "auth", "rag"}:
                     problems.append(f"{rel} imports {node.module}: tools may import only core, auth, rag and tools")
-    assert not problems, "\n".join(problems)
+    assert not problems, chr(10).join(problems)

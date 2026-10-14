@@ -1,0 +1,43 @@
+
+# --- TEMPLATE: a new built-in tool (like .env.example) ----------------------------------------------------------
+# 1. Copy this section to the END of app/tools/tools.py and replace every CAPITAL placeholder.
+# 2. Add NEW_TOOL to TOOLS in tools.py:   TOOLS = (LEAVE_CREDITS, ABSENCES, DEDUCTIONS, NEW_TOOL)
+# 3. If its view is new: add it to deploy/records-db/02_ai_access.sql (schema "ai", only the columns it needs).
+# 4. ruff, pytest, restart uvicorn, python -m scripts.check_records_chat. The records MCP server offers it too.
+# Rules (see the top of tools.py): no employee_id in the arguments; a fixed query WHERE employee_id = :employee_id;
+# views in schema "ai" only; the description says "the CURRENT USER's own ..." and what it is NOT for.
+
+
+class NewToolArgs(BaseModel):
+    model_config = ConfigDict(extra="forbid")  # an unknown field (e.g. employee_id) is refused
+
+    NEW_ARGUMENT: int | None = Field(default=None, ge=0)  # replace: name, type, limits; None = a sensible default
+
+
+NEW_TOOL_SQL = text("""
+    SELECT NEW_COLUMNS
+    FROM ai.NEW_VIEW
+    WHERE employee_id = :employee_id
+""")
+
+
+def new_tool(conn: Connection, employee_id: str, args: NewToolArgs) -> dict:
+    rows = conn.execute(NEW_TOOL_SQL, {"employee_id": employee_id})
+    return {"rows": [dict(row._mapping) for row in rows]}  # replace: the shape the model reads
+
+
+NEW_TOOL = Tool(
+    spec=ToolSpec(
+        name="NEW_TOOL_NAME",  # e.g. get_my_overtime; lowercase with "_"
+        description="Get the CURRENT USER's own NEW_WHAT. Not for NEW_WHAT_NOT.",
+        parameters={
+            "type": "object",
+            "properties": {"NEW_ARGUMENT": {"type": "integer", "description": "NEW_ARGUMENT_HELP. Leave out for NEW_DEFAULT"}},
+        },
+        scope="records:read",  # or a new scope: then also add it to Scope in app/admin/a_schemas/key_create.py
+    ),
+    args=NewToolArgs,
+    run=new_tool,
+    describe=lambda result: ("Records: NEW_WHAT_WAS_READ", bool(result["rows"])),  # (source title, holds data)
+    topic="NEW_TOPIC",  # a few words for the system prompt, e.g. "overtime"
+)
