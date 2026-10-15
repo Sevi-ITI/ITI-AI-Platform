@@ -494,6 +494,23 @@
   }
 }
 
+/* The smallest phones (under 360 px): the top bar shows "ITI" instead of "ITI AI Console", so the menu, health,
+   theme and log-out buttons still fit (it was 22 px too wide at 320 px with the health pill) */
+@media (max-width: 22.4rem) {
+  .brand .label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+
+  .brandShort {
+    display: inline;
+  }
+}
+
 @keyframes menu-in {
   from {
     opacity: 0;

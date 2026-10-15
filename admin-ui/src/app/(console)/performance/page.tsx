@@ -74,6 +74,15 @@ export default async function PerformancePage({ searchParams }: PageProps<"/perf
   const quiet = summary.ok && summary.data.requests === 0;
   const routes = summary.ok ? [...summary.data.by_route].sort((a, b) => b.requests - a.requests) : [];
   const previous = summary.ok && doubled?.ok ? doubled.data : null;
+  // Where the time goes: one row per step (a step with no measurement is listed under the table instead)
+  const steps = summary.ok
+    ? [
+        { label: "Queue wait", stats: summary.data.queue_ms },
+        { label: "Search and answer", stats: summary.data.rag_ms },
+        { label: "First word (streams)", stats: summary.data.ttft_ms },
+        { label: "Whole request", stats: summary.data.total_ms },
+      ]
+    : [];
   // Busiest bucket, per minute (the laptop answered about 17-18 chats per minute at most in Phase 5)
   const peak = series.ok ? Math.max(0, ...series.data.map((p) => p.requests)) / span.bucket : 0;
 
@@ -148,6 +157,14 @@ export default async function PerformancePage({ searchParams }: PageProps<"/perf
           ) : (
             <TimesChart points={series.data} tick={tick} />
           )}
+          {/* under the chart (so both charts start level): the lines mix chats (seconds) with quick console calls
+              (milliseconds); a chats-only line needs a backend change, parked (R1) */}
+          {series.ok && !quiet && series.data.length > 0 && (
+            <p className={styles.kpiNote}>
+              Every request in the window: chats take seconds, console calls milliseconds, so the lines jump when the
+              mix changes.
+            </p>
+          )}
         </section>
       </div>
 
@@ -178,13 +195,25 @@ export default async function PerformancePage({ searchParams }: PageProps<"/perf
                       </tr>
                     </thead>
                     <tbody>
-                      <Step label="Queue wait" stats={summary.data.queue_ms} />
-                      <Step label="Search and answer" stats={summary.data.rag_ms} />
-                      <Step label="First word (streams)" stats={summary.data.ttft_ms} />
-                      <Step label="Whole request" stats={summary.data.total_ms} />
+                      {steps
+                        .filter((s) => s.stats.count > 0)
+                        .map((s) => (
+                          <Step key={s.label} label={s.label} stats={s.stats} />
+                        ))}
                     </tbody>
                   </table>
                 </div>
+                {/* a step with nothing measured is a row of dashes: named here instead */}
+                {steps.some((s) => s.stats.count === 0) && (
+                  <p className={styles.kpiNote}>
+                    Not measured in this window:{" "}
+                    {steps
+                      .filter((s) => s.stats.count === 0)
+                      .map((s) => s.label)
+                      .join(", ")}
+                    .
+                  </p>
+                )}
               </section>
 
               <section className={styles.card} aria-labelledby="routes">

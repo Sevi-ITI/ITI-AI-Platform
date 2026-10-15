@@ -41,7 +41,7 @@ export function Problem({ message }: { message: string }) {
   );
 }
 
-/** Live GPU memory gauge + loaded models, indexing, uptime (from GET /v1/admin/health). */
+/** Live GPU memory meter + loaded models, indexing, uptime (from GET /v1/admin/health). */
 export function GpuAndModels({ health }: { health: Health }) {
   const gpu = health.gpu;
   const percent = gpu ? Math.round(Math.min(1, gpu.memory_used_mb / gpu.memory_total_mb) * 100) : 0;
@@ -49,26 +49,25 @@ export function GpuAndModels({ health }: { health: Health }) {
   return (
     <>
       {gpu ? (
-        <figure className={styles.gauge}>
-          {/* Half circle: grey track, accent arc = share of GPU memory in use */}
-          <svg viewBox="0 0 120 66" aria-hidden="true">
-            <path d="M 10 60 A 50 50 0 0 1 110 60" pathLength={100} className={styles.gaugeTrack} />
+        // A compact meter (was a large half-circle gauge): the number and words carry the value, the bar is a visual
+        // aid; 90 % or more turns it amber
+        <div className={styles.meter}>
+          <p className={styles.meterHead}>
+            <span className={styles.kpiLabel}>GPU memory</span>
+            <span className={`${styles.meterValue} ${percent >= 90 ? styles.warn : ""}`}>{percent}%</span>
+          </p>
+          <span className={styles.barTrack} aria-hidden="true">
             {percent > 0 && (
-              <path
-                d="M 10 60 A 50 50 0 0 1 110 60"
-                pathLength={100}
-                className={styles.gaugeArc}
-                strokeDasharray={`${percent} 100`}
+              <span
+                className={percent >= 90 ? styles.meterHigh : styles.barTop}
+                style={{ width: `${percent}%` }}
               />
             )}
-          </svg>
-          <figcaption>
-            <span className={styles.gaugeValue}>{percent}%</span>
-            <span className={styles.kpiNote}>
-              {formatMb(gpu.memory_used_mb)} of {formatMb(gpu.memory_total_mb)} in use, {gpu.utilization_pct}% busy
-            </span>
-          </figcaption>
-        </figure>
+          </span>
+          <p className={styles.kpiNote}>
+            {formatMb(gpu.memory_used_mb)} of {formatMb(gpu.memory_total_mb)} in use, {gpu.utilization_pct}% busy
+          </p>
+        </div>
       ) : (
         <p className={styles.muted}>No GPU reported.</p>
       )}
