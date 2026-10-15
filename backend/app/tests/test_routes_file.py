@@ -10,6 +10,6 @@ def test_routes_file_is_up_to_date():
 
 def test_every_route_says_who_may_call_it():
     rows = [line for line in routes_markdown().splitlines() if line.startswith("| ") and "`/" in line]
-    assert len(rows) == 42
+    assert len(rows) == 58  # 42 + 16 Tools & MCP routes (8.6d)
     anyone = sorted(row.split(" | ")[1] for row in rows if " | anyone | " in row)
     assert anyone == ["`/health`", "`/v1/console/login`"]  # the only routes without a login

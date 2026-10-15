@@ -21,8 +21,11 @@ from app.core.d_metrics.record_metric import record_metric
 from app.core.e_errors.app_error import AppError
 from app.rag.c_embeddings import OLLAMA_URL
 from app.rag.f_chains import CHAT_MODEL, NUM_CTX, TEMPERATURE, TIMEOUT_SECONDS
-from app.tools.client import call_mcp_tool, mcp_tools
-from app.tools.shared import RECORDS_OF, ToolSpec, get_records_engine
+from app.tools.client import McpTool, call_mcp_tool, mcp_tools
+from app.tools.console_features import feature_on
+from app.tools.shared import RECORDS_OF, Tool, ToolSpec, get_records_engine
+from app.tools.sql_tools import tool_from_row
+from app.tools.store import records_source, sql_tool_rows, tool_overrides
 from app.tools.tools import TOOL_REGISTRY
 
 MAX_ROUNDS = 3
@@ -68,11 +71,11 @@ def system_prompt(topics: list[str], today: date, history: Sequence[str] = ()) -
 
 
 def topics_for(specs: list[ToolSpec]) -> list[str]:
-    """What the offered tools answer, in order, no repeats: a built-in tool's topic, an MCP server's topics."""
-    topics, remote = [], mcp_tools()
+    """What the offered tools answer, in order, no repeats: a local tool's topic, an MCP server's topics."""
+    topics, local, remote = [], local_tools(), mcp_tools()
     for spec in specs:
-        if spec.name in TOOL_REGISTRY:
-            topics.append(TOOL_REGISTRY[spec.name].topic)
+        if spec.name in local:
+            topics.append(local[spec.name].topic)
         elif spec.name in remote:
             topics.extend(remote[spec.name].server.topics)
     return list(dict.fromkeys(topics))
@@ -82,34 +85,73 @@ def topics_for(specs: list[ToolSpec]) -> list[str]:
 
 
 def builtin_records_on() -> bool:
-    """The built-in tools answer the records questions: ITI_RECORDS_SOURCE=builtin and the records DB is set."""
-    settings = get_settings()
-    return settings.records_source == "builtin" and bool(settings.records_db_url)
+    """Local tools answer the records questions: records source "builtin" (console or ITI_RECORDS_SOURCE) and the
+    records DB is set."""
+    return records_source() == "builtin" and bool(get_settings().records_db_url)
+
+
+def local_tools() -> dict[str, Tool]:
+    """The tools the AI host runs itself: tools.py, plus the SQL tools made in the console (switch "sql_tools")."""
+    tools = dict(TOOL_REGISTRY)
+    if feature_on("sql_tools"):
+        tools.update({row["name"]: tool_from_row(row) for row in sql_tool_rows() if row["enabled"]})
+    return tools
+
+
+def apply_overrides(spec: ToolSpec, overrides: dict) -> ToolSpec | None:
+    """None = switched off in the console; a console description replaces the code's (switch "edit_descriptions")."""
+    changed = overrides.get(spec.name)
+    if not changed:
+        return spec
+    if not changed["enabled"] and feature_on("tool_switches"):
+        return None
+    if changed["description"] and feature_on("edit_descriptions"):
+        return spec.model_copy(update={"description": changed["description"]})
+    return spec
+
+
+def approval_of(remote: McpTool, overrides: dict) -> str:
+    """not_needed: a stdio server from mcp_servers.py (our own code). For a server on another machine (http):
+    approved (as it is now), pending (never approved) or changed (its text or arguments changed since)."""
+    if remote.server.transport == "stdio":
+        return "not_needed"
+    approved = overrides.get(remote.spec.name, {}).get("approved")
+    if approved is None:
+        return "pending"
+    return "approved" if approved == remote.spec.fingerprint() else "changed"
 
 
 def tools_for(principal: AppPrincipal) -> list[ToolSpec]:
-    """Built-in tools (if on) + the usable MCP servers' tools, only those whose scope the key has.
+    """Local tools (if on) + the usable MCP servers' tools (approved, if from another machine), only those switched
+    on and whose scope the key has.
     Console sessions get none: they have no "records:read" and their user id is a username."""
-    specs = [tool.spec for tool in TOOL_REGISTRY.values()] if builtin_records_on() else []
-    specs += [tool.spec for tool in mcp_tools().values()]
-    return [spec for spec in specs if spec.scope in principal.scopes]
+    specs = [tool.spec for tool in local_tools().values()] if builtin_records_on() else []
+    overrides = tool_overrides()
+    specs += [tool.spec for tool in mcp_tools().values() if approval_of(tool, overrides) in ("not_needed", "approved")]
+    offered = [apply_overrides(spec, overrides) for spec in specs]
+    return [spec for spec in offered if spec is not None and spec.scope in principal.scopes]
 
 
 # --- running one call -----------------------------------------------------------------------------------------
 
 
 def run_tool(principal: AppPrincipal, employee_id: str, name: str, arguments: dict | None) -> dict:
-    """One tool call for the asking employee. Refusals: tool_unknown, scope_forbidden, tool_bad_arguments,
-    records_unavailable, tool_failed, tool_unavailable (messages never contain record values)."""
-    tool = TOOL_REGISTRY.get(name)
+    """One tool call for the asking employee. Refusals: tool_unknown, tool_off, scope_forbidden, tool_bad_arguments,
+    tool_not_approved, records_unavailable, tool_failed, tool_unavailable (messages never contain record values)."""
+    tool = local_tools().get(name)
     remote = None if tool else mcp_tools().get(name)
     if tool is None and remote is None:
         raise AppError(400, "tool_unknown", f"There is no tool called '{name}'.")
     if tool and not builtin_records_on():
-        raise AppError(503, "records_unavailable", "The built-in records tools are off (ITI_RECORDS_SOURCE / ITI_RECORDS_DB_URL).")
-    scope = tool.spec.scope if tool else remote.spec.scope
-    if scope not in principal.scopes:
-        raise AppError(403, "scope_forbidden", f"This key may not use '{scope}'.")
+        raise AppError(503, "records_unavailable", "The built-in records tools are off (records source / ITI_RECORDS_DB_URL).")
+    overrides = tool_overrides()
+    if remote and approval_of(remote, overrides) not in ("not_needed", "approved"):
+        raise AppError(403, "tool_not_approved", f"The tool '{name}' waits for a super admin's approval in the console.")
+    spec = apply_overrides(tool.spec if tool else remote.spec, overrides)
+    if spec is None:
+        raise AppError(403, "tool_off", f"The tool '{name}' is switched off in the console.")
+    if spec.scope not in principal.scopes:
+        raise AppError(403, "scope_forbidden", f"This key may not use '{spec.scope}'.")
     if remote:
         result = call_mcp_tool(remote, employee_id, arguments if isinstance(arguments, dict) else None)
         return {"records_of": RECORDS_OF, **result} if remote.per_employee else result
@@ -129,8 +171,9 @@ def run_tool(principal: AppPrincipal, employee_id: str, name: str, arguments: di
 def describe_result(name: str, result: dict) -> tuple[str, str, bool]:
     """(doc_id "<source>:<tool>", source title, holds data). An MCP tool from a server built on tools.py gets the
     same title as the built-in one; any other MCP tool a generic "<Server>: <tool>". Titles never hold values."""
-    if name in TOOL_REGISTRY:
-        tool = TOOL_REGISTRY[name]
+    local = local_tools()
+    if name in local:
+        tool = local[name]
         title, has_data = tool.describe(result)
         return f"{tool.source}:{name}", title, has_data
     remote = mcp_tools().get(name)

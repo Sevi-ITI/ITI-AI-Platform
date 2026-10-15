@@ -209,7 +209,7 @@ function AppCard({
                         <th scope="col" className={styles.number}>
                           24 h
                         </th>
-                        {canEdit && <th scope="col">{/* actions */}</th>}
+                        {canEdit && <th scope="col" className={styles.actionsCell}>{/* actions */}</th>}
                       </tr>
                     </thead>
                     <tbody>
@@ -273,7 +273,7 @@ function KeyRow({
       <td className={styles.nowrap}>{k.last_used_at ? formatDateTime(k.last_used_at) : "never"}</td>
       <td className={styles.number}>{formatCount(k.requests_24h)}</td>
       {canEdit && (
-        <td>
+        <td className={styles.actionsCell}>
           {!k.revoked_at && (
             <div className={styles.rowActions}>
               {/* an expired key can be renewed here (new expiry); a revoked one can't come back */}

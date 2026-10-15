@@ -51,7 +51,7 @@ export default async function CompaniesPage() {
                   </th>
                   <th scope="col">Added</th>
                   <th scope="col">See its</th>
-                  {canEdit && <th scope="col">{/* actions */}</th>}
+                  {canEdit && <th scope="col" className={styles.actionsCell}>{/* actions */}</th>}
                 </tr>
               </thead>
               <tbody>
@@ -92,7 +92,7 @@ export default async function CompaniesPage() {
                       </div>
                     </td>
                     {canEdit && (
-                      <td>
+                      <td className={styles.actionsCell}>
                         <div className={styles.rowActions}>
                           <EditCompanyButton companyId={c.company_id} name={c.name} notes={c.notes} />
                           {c.company_id !== "iti" && (

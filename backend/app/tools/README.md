@@ -7,11 +7,15 @@ read-only lookups such as "the asking employee's leave credits". Everything abou
 | File | What is in it | You open it to... |
 |---|---|---|
 | `tools.py` | every built-in tool (leave credits, absences, deductions) + the list `TOOLS` | change or add a tool |
-| `servers.py` | every connection from the AI host to an MCP server | connect, switch on/off, or add an MCP server |
+| `servers.py` | the **starting set** of connections from the AI host to MCP servers (copied into the DB once; then the console manages them) | only for a fresh database |
 | `mcp_servers.py` | every MCP server we run ourselves (today: `records`) | add a server for a new system |
 | `host.py` | the AI host: which tools a key gets, the system prompt, the tool loop, running a call | rarely: change how tools are used |
 | `client.py` | the MCP client: check a `servers.py` entry, connect, discover, call, cache | rarely: change how servers are reached |
 | `shared.py` | `ToolSpec`, `Tool`, the records DB engine, `read_secret`, `RECORDS_OF` | rarely |
+| `console_features.py` | **the kill switches** of the console's Tools & MCP page (True / False) | show or hide a part of that page |
+| `store.py` | the console's settings in Postgres: connections, records source, tool on/off, descriptions, SQL tools, change log | rarely |
+| `sql_tools.py` | the guards for SQL tools written in the console, and turning one into a tool | rarely |
+| `admin_api.py` | the API behind the console page (`/v1/admin/tools/...`), super admin only | rarely |
 | `new_tool.example`, `new_mcp_server.example` | templates: a section to paste into `tools.py` / `mcp_servers.py` | start a new tool / server |
 
 ## How a question flows
@@ -24,16 +28,33 @@ C# app ─/v1/chat─▶ chat ─▶ host.answer_with_tools ─▶ the model see
                                                              └─ "<server>__<tool>" ─▶ client ─▶ MCP server ─▶ its app / DB
 ```
 
+## The console (Phase 8.6d)
+
+Console → **Tools & MCP** (super admin only) manages, without a restart and with every change logged: who answers the
+records questions (built-in or MCP), the MCP connections (stdio: only servers defined in `mcp_servers.py`; http: url +
+the NAME of the `.env` variable with the secret), the status of each server, each tool on or off, and (when switched on
+in `console_features.py`) tool descriptions and SQL tools. Each part shows only while its switch is True; when False the
+API refuses it too. Secrets stay in `backend\.env`; the console only shows "secret set: yes / no".
+
+SQL tools (switch `sql_tools`, off by default) must be one SELECT on `ai.*` views with `WHERE employee_id = :employee_id`,
+declared arguments only, and run as the read-only `iti_ai_reader`; a check button runs them once as a non-existing
+employee and shows only the column names.
+
+Approval (8.6e, always on, no switch): a tool from a server on another machine (http connection) is offered only after
+a super admin approves it in the console. What was approved is its fingerprint (`ToolSpec.fingerprint()`: text +
+arguments); if the server changes either, the tool waits for approval again (refused with `tool_not_approved`).
+Tools from `tools.py`, SQL tools and stdio servers from `mcp_servers.py` are our own code: no approval needed.
+
 ## Common changes
 
 | I want to... | Do this, then restart uvicorn |
 |---|---|
 | **Change a tool** | Edit its section in `tools.py` |
 | **Add a tool** on the records DB | Paste `new_tool.example` at the end of `tools.py`, fill it in, add it to `TOOLS`. It works built-in **and** over the records MCP server |
-| **Answer records through MCP instead of built-in** | `ITI_RECORDS_SOURCE=mcp` in `backend\.env` (back: `builtin` or remove the line). That is all: the AI host starts the records server itself |
-| **Connect an MCP server on another machine** | Copy the http EXAMPLE in `servers.py`, put its secret in `backend\.env` under its `token_env` |
+| **Answer records through MCP instead of built-in** | Console → Tools & MCP → Records source → MCP (or `ITI_RECORDS_SOURCE=mcp` in `backend\.env` as the default). The AI host starts the records server itself |
+| **Connect an MCP server on another machine** | Put its secret in `backend\.env` (e.g. `ITI_MCP_PAYROLL_TOKEN=...`), then console → Tools & MCP → Add connection (http, url, that variable's name) |
 | **Add an MCP server for a new system on this machine** | Paste `new_mcp_server.example` into `mcp_servers.py`, add it to `SERVERS`, add its `servers.py` entry |
-| **Switch a server off** | `"enabled": False` in `servers.py` |
+| **Switch a server or a tool off** | Console → Tools & MCP (connection: Enabled off; tool: its switch) |
 | **Give an app access** | Its key needs the tool's scope (`records:read`): console → Apps & keys → "Chat + own records" |
 | **A new kind of access** (e.g. `tickets:read`) | Add it to `Scope` in `app/admin/a_schemas/key_create.py` (+ a console preset) |
 
@@ -62,6 +83,7 @@ Checks: from `backend\`: `ruff check .`, `pytest -q`, then `python -m scripts.ch
 
 ## Import directions (checked by `app/tests/test_structure.py`)
 
-`servers.py` and `shared.py` import no other tools file · `tools.py` → shared · `client.py` → servers, shared ·
-`host.py` → tools, client, shared · `mcp_servers.py` → tools, shared. In `app/tools/` the rule is one concern per
+`servers.py`, `shared.py`, `console_features.py` import no other tools file · `store.py` → servers · `tools.py`, `sql_tools.py`
+→ shared · `client.py` → shared, store · `host.py` → tools, client, shared, store, sql_tools, console_features ·
+`mcp_servers.py` → tools, shared · `admin_api.py` → the others. In `app/tools/` the rule is one concern per
 file; everywhere else in the backend it stays one function or one class per file.

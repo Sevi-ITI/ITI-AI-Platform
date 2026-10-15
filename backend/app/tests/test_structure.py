@@ -18,10 +18,14 @@ SHARED = {"core", "auth", "rag", "tools"}  # tools: chat uses it (Phase 8, R-7)
 TOOLS_FILES = {
     "servers": set(),
     "shared": set(),
+    "console_features": set(),
+    "store": {"servers"},
     "tools": {"shared"},
-    "client": {"servers", "shared"},
-    "host": {"tools", "client", "shared"},
+    "sql_tools": {"shared"},
+    "client": {"shared", "store"},
+    "host": {"tools", "client", "shared", "store", "sql_tools", "console_features"},
     "mcp_servers": {"tools", "shared"},
+    "admin_api": {"client", "store", "console_features", "host", "mcp_servers", "shared", "sql_tools", "tools"},
 }
 
 

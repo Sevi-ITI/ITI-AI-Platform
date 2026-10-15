@@ -5,7 +5,7 @@ Safety (decisions D2, D3, D5):
 - A tool's employee_id is removed from what the model sees, and ALWAYS overwritten with the caller's on a call.
 - Tool names become "<server>__<tool>", so two systems can't collide.
 - http: plain http only to 127.0.0.1 / localhost, else https; the shared secret comes from backend\\.env.
-- A bad entry or a server that is down is skipped with a log line (never the secret): chat keeps working.
+- A bad connection or a server that is down is skipped with a log line (never the secret): chat keeps working.
 The SDK is async; chat runs in a thread, so every connection runs with anyio.run (one short session per use)."""
 
 import copy
@@ -28,10 +28,9 @@ from mcp import Client, StdioServerParameters
 from mcp.client.streamable_http import streamable_http_client
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
-from app.core.a_config.get_settings import get_settings
 from app.core.e_errors.app_error import AppError
-from app.tools.servers import MCP_SERVERS
 from app.tools.shared import ToolSpec, read_secret
+from app.tools.store import connection_entries, records_source
 
 log = logging.getLogger(__name__)
 BACKEND = Path(__file__).resolve().parents[2]  # stdio servers start here: python -m app.tools.mcp_servers <name>
@@ -90,7 +89,7 @@ class McpTool:
 
 def usable(server: McpServerConfig) -> bool:
     """Enabled; a records server only while ITI_RECORDS_SOURCE=mcp; an http server only with its secret set."""
-    if not server.enabled or (server.records and get_settings().records_source != "mcp"):
+    if not server.enabled or (server.records and records_source() != "mcp"):
         return False
     return server.transport == "stdio" or bool(read_secret(server.token_env))
 
@@ -140,12 +139,12 @@ def mcp_tools() -> dict[str, McpTool]:
     if CACHE and time.monotonic() < CACHE["until"]:
         return CACHE["tools"]
     servers = []
-    for entry in MCP_SERVERS:
+    for entry in connection_entries():
         try:
             server = McpServerConfig.model_validate(entry)
         except ValidationError as error:
             problems = "; ".join(f"{'.'.join(map(str, e['loc']))}: {e['msg']}" for e in error.errors())
-            log.error("MCP server %s skipped, bad entry in servers.py: %s", entry.get("name", "?"), problems)
+            log.error("MCP server %s skipped, bad connection: %s", entry.get("name", "?"), problems)
             continue
         if usable(server):
             servers.append(server)

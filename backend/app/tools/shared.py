@@ -6,6 +6,8 @@
 - get_records_engine()  the ONE connection pool to the records DB (ITI_RECORDS_DB_URL, read-only login)
 - read_secret()  a secret by its env-variable name: from the environment, else backend\\.env (never in tests)"""
 
+import hashlib
+import json
 import os
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -32,6 +34,12 @@ class ToolSpec(BaseModel):
     def as_ollama(self) -> dict:
         function = {"name": self.name, "description": self.description, "parameters": self.parameters}
         return {"type": "function", "function": function}
+
+    def fingerprint(self) -> str:
+        """What a super admin approved for a tool from another machine: its text and arguments. If the server
+        changes either, the fingerprint changes and the tool needs approval again (8.6e)."""
+        seen = json.dumps({"description": self.description, "parameters": self.parameters}, sort_keys=True)
+        return hashlib.sha256(seen.encode()).hexdigest()
 
 
 # --- Tool -----------------------------------------------------------------------------------------------------

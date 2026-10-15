@@ -17,6 +17,7 @@ from app.tools.shared import get_records_engine
 from app.tools.tools import TOOL_REGISTRY
 
 RECORDS_URL = os.environ.get("ITI_TEST_RECORDS_URL")
+pytestmark = pytest.mark.usefixtures("db_engine")  # the tools read their console settings from the DB (8.6d)
 needs_records_db = pytest.mark.skipif(not RECORDS_URL, reason="set ITI_TEST_RECORDS_URL to run against the records DB")
 NOWHERE = "mssql+mssqlpython://nobody:x@127.0.0.1:1/none"  # "configured", but nothing listens there
 

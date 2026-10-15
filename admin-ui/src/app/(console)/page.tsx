@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Suspense } from "react";
 
 import { displayMessage } from "@/lib/api/api-error";
@@ -71,12 +72,18 @@ export default async function OverviewPage() {
             <StatusCard />
           </Suspense>
 
+          {/* Refused (4xx, amber) and failed (5xx, red): the Errors number above counts only the failed ones */}
           <section className={styles.card} aria-labelledby="errors">
-            <h2 id="errors">Latest errors</h2>
+            <div className={styles.cardHead}>
+              <h2 id="errors">Latest refused or failed</h2>
+              <Link href="/requests?errors=1" className={styles.smallButton}>
+                All in Request log →
+              </Link>
+            </div>
             {!errors.ok ? (
               <Problem message={displayMessage(errors.error)} />
             ) : errors.data.length === 0 ? (
-              <p className={styles.muted}>No errors in the request log.</p>
+              <p className={styles.muted}>No refused or failed requests in the log.</p>
             ) : (
               <div className={styles.tableWrap}>
                 <table className={styles.table}>
@@ -89,14 +96,20 @@ export default async function OverviewPage() {
                   </thead>
                   <tbody>
                     {errors.data.map((row) => (
-                      // Full detail (app, user, request id) lives on the Request log page (6B.3).
+                      // Full detail (app, user, request id) lives on the Request log page: the time links to its row.
                       <tr key={row.request_id} title={`${row.request_id}, ${row.app_id ?? "no app"}`}>
-                        <td className={styles.nowrap}>{formatDateTime(row.created_at)}</td>
+                        <td className={styles.nowrap}>
+                          <Link href={`/requests?errors=1#${encodeURIComponent(row.request_id)}`}>
+                            {formatDateTime(row.created_at)}
+                          </Link>
+                        </td>
                         <td className={`mono ${styles.wrapAnywhere}`}>
                           {row.method} {row.route ?? row.path}
                         </td>
                         <td className={styles.nowrap}>
-                          <span className={styles.error}>{row.status}</span>{" "}
+                          <span className={row.status >= 500 ? styles.error : styles.warn}>
+                            {row.status >= 500 ? "✕" : "▲"} {row.status}
+                          </span>{" "}
                           <span className="mono">{row.error_code ?? ""}</span>
                         </td>
                       </tr>
@@ -127,7 +140,7 @@ export default async function OverviewPage() {
                   label: c.name,
                   value: c.chunks,
                   text: formatCount(c.chunks),
-                  note: `chunks, ${formatCount(c.documents)} docs`,
+                  note: `${c.chunks === 1 ? "chunk" : "chunks"}, ${formatCount(c.documents)} ${c.documents === 1 ? "doc" : "docs"}`,
                 }))}
               />
             )}

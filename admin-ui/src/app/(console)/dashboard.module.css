@@ -288,7 +288,8 @@
   background: var(--surface);
 }
 
-.switch a {
+.switch a,
+.switch button {
   padding: var(--space-1) var(--space-3);
   border-radius: var(--radius-pill);
   color: var(--text-muted);
@@ -299,7 +300,8 @@
     color var(--fast);
 }
 
-.switch a:hover {
+.switch a:hover,
+.switch button:hover:not(:disabled) {
   background: var(--hover);
   color: var(--text);
 }
@@ -334,7 +336,14 @@
   }
 }
 
-.switch a[aria-current="page"] {
+.switch button {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.switch a[aria-current="page"],
+.switch button[aria-pressed="true"] {
   background: var(--accent-soft);
   color: var(--text);
   font-weight: 700;
@@ -826,6 +835,66 @@
 
 .dimmed {
   opacity: 0.6; /* revoked / expired keys: still listed, with their state in words */
+}
+
+/* A dimmed row fades cell by cell, so a pinned actions cell (below) stays solid over the scrolled columns */
+tr.dimmed {
+  opacity: 1;
+}
+
+tr.dimmed > td:not(.actionsCell) {
+  opacity: 0.6;
+}
+
+/* Row actions pinned to the right edge: in a narrow window the middle columns scroll under them instead of
+   pushing the buttons out of sight (.rowActions stays on one line). Solid background = the layer it sits on. */
+.actionsCell {
+  position: sticky;
+  right: 0;
+  background: var(--surface);
+  box-shadow: inset 1px 0 0 var(--border-subtle);
+}
+
+/* A row with nothing to do (revoked key, nothing to approve) doesn't pin an empty box over the other columns */
+td.actionsCell:not(:has(button, a)) {
+  position: static;
+  box-shadow: none;
+}
+
+.table tbody tr:hover > .actionsCell {
+  background: linear-gradient(var(--hover), var(--hover)), var(--surface);
+}
+
+.companyGroup .actionsCell {
+  background: linear-gradient(var(--surface-nested), var(--surface-nested)), var(--surface);
+}
+
+.companyGroup .table tbody tr:hover > .actionsCell {
+  background:
+    linear-gradient(var(--hover), var(--hover)),
+    linear-gradient(var(--surface-nested), var(--surface-nested)),
+    var(--surface);
+}
+
+/* A row opened by a link (Overview's latest errors -> /requests#request_id) stands out */
+.table tbody tr:target {
+  background: var(--accent-soft);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+/* Tools & MCP: the tool's name with what the model reads under it, at a readable width */
+.toolCell {
+  min-width: 18rem;
+}
+
+.toolCell p {
+  max-width: 60ch;
+  margin-top: var(--space-1);
+}
+
+/* "No (why)": wraps, but never to one word per line */
+.reasonCell {
+  min-width: 10rem;
 }
 
 .rowActions {

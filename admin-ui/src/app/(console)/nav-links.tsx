@@ -13,10 +13,11 @@ import {
   OverviewIcon,
   PerformanceIcon,
   RequestLogIcon,
+  ToolsIcon,
   UsersIcon,
 } from "./icons";
 
-// Grouped by what the person is doing; Admin (Accounts) only for super admins.
+// Grouped by what the person is doing; Admin (Accounts, Tools & MCP) only for super admins.
 const GROUPS = [
   {
     title: "Monitor",
@@ -41,7 +42,14 @@ const GROUPS = [
       { href: "/users", label: "Users & chats", Icon: UsersIcon },
     ],
   },
-  { title: "Admin", superAdminOnly: true, links: [{ href: "/accounts", label: "Accounts", Icon: AccountsIcon }] },
+  {
+    title: "Admin",
+    superAdminOnly: true,
+    links: [
+      { href: "/accounts", label: "Accounts", Icon: AccountsIcon },
+      { href: "/tools", label: "Tools & MCP", Icon: ToolsIcon },
+    ],
+  },
 ];
 
 export default function NavLinks({ showAccounts }: { showAccounts: boolean }) {

@@ -13,9 +13,10 @@ from app.core.i_middleware.request_id_and_timing import request_id_and_timing
 from app.documents.f_routes.router import router as documents_router
 from app.lifespan import lifespan
 from app.ops.f_routes.router import router as ops_router
+from app.tools.admin_api import router as tools_router
 
 # Every feature's URL table. A new feature's router goes here; ROUTES.md lists every route (scripts/export_routes.py).
-ROUTERS = (ops_router, chat_router, documents_router, admin_router, console_router)
+ROUTERS = (ops_router, chat_router, documents_router, admin_router, console_router, tools_router)
 
 
 def create_app() -> FastAPI:

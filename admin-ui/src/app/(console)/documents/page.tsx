@@ -154,7 +154,7 @@ export default async function DocumentsPage({ searchParams }: PageProps<"/docume
                     Uploaded by
                   </th>
                   <th scope="col">Uploaded</th>
-                  {isSuperAdmin && <th scope="col">{/* actions */}</th>}
+                  {isSuperAdmin && <th scope="col" className={styles.actionsCell}>{/* actions */}</th>}
                 </tr>
               </thead>
               <tbody>
@@ -218,7 +218,7 @@ function DocumentRow({ row, replaced, canDelete }: { row: Row; replaced: boolean
       </td>
       <td className={styles.nowrap}>{formatDateTime(row.finished_at ?? row.created_at)}</td>
       {canDelete && (
-        <td>
+        <td className={styles.actionsCell}>
           {/* one Delete per file (it removes every version), on its newest row */}
           {!replaced && (
             <ConfirmAction
