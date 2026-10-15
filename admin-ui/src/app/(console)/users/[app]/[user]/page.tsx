@@ -2,9 +2,10 @@ import Link from "next/link";
 
 import { displayMessage } from "@/lib/api/api-error";
 import { callApi, endSessionOn401 } from "@/lib/api/client";
-import { formatCount, formatDateTime } from "@/lib/format";
+import { formatCount, formatDateTime, initials } from "@/lib/format";
 import { currentAccount } from "@/lib/session/current-account";
 
+import Breadcrumbs from "../../../breadcrumbs";
 import Pager from "../../../pager";
 import styles from "../../../dashboard.module.css";
 import { Problem } from "../../../widgets";
@@ -73,30 +74,33 @@ export default async function UserChatsPage({
 
   return (
     <>
-      <nav aria-label="Breadcrumb">
-        <Link
-          href={`/users?app=${encodeURIComponent(appId)}&company=${encodeURIComponent(companyId)}`}
-          className={styles.muted}
-        >
-          ← Users of {appId} at {companyName}
-        </Link>
-      </nav>
-      <header className={styles.header}>
-        <h1>
-          <span className="mono" translate="no">
+      <Breadcrumbs
+        trail={[
+          { label: "Users & chats", href: "/users" },
+          {
+            label: `${appId} at ${companyName}`,
+            href: `/users?app=${encodeURIComponent(appId)}&company=${encodeURIComponent(companyId)}`,
+          },
+          { label: userId },
+        ]}
+      />
+      {/* who: tile + id, then where they chat (the delete button moved to the danger zone at the bottom) */}
+      <header className={styles.titleRow}>
+        <span className={styles.appAvatar} aria-hidden="true">
+          {initials(userId)}
+        </span>
+        <div className={styles.appMain}>
+          <h1 className="mono" translate="no">
             {userId}
-          </span>
-          <span className={styles.muted}>
-            {" "}
-            in{" "}
+          </h1>
+          <p className={styles.muted}>
+            chats in{" "}
             <span className="mono" translate="no">
               {appId}
             </span>{" "}
             at {companyName}
-          </span>
-        </h1>
-        {/* Hidden for supervisors only as a courtesy: FastAPI refuses them anyway */}
-        {isSuperAdmin && hasChats && <DeleteChats appId={appId} companyId={companyId} userId={userId} />}
+          </p>
+        </div>
       </header>
 
       <section className={styles.card} aria-label="Conversations">
@@ -167,6 +171,7 @@ export default async function UserChatsPage({
                     <td>
                       <Link
                         href={`${base}/${encodeURIComponent(c.conversation_id)}?company=${encodeURIComponent(companyId)}`}
+                        className={styles.rowLink}
                       >
                         {c.first_question}
                       </Link>
@@ -184,6 +189,22 @@ export default async function UserChatsPage({
           </div>
         )}
       </section>
+
+      {/* Hidden for supervisors only as a courtesy: FastAPI refuses them anyway */}
+      {isSuperAdmin && hasChats && (
+        <section className={styles.dangerZone} aria-labelledby="danger-title">
+          <div>
+            <h2 id="danger-title" className={styles.panelTitle}>
+              Danger zone
+            </h2>
+            <p className={styles.muted}>
+              Erases every conversation and message of this user in this app, for good. Their request-log rows (no
+              chat text) stay until the 90-day clean-up.
+            </p>
+          </div>
+          <DeleteChats appId={appId} companyId={companyId} userId={userId} />
+        </section>
+      )}
     </>
   );
 }

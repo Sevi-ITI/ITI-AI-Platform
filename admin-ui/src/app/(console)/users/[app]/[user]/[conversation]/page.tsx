@@ -4,8 +4,10 @@ import { displayMessage } from "@/lib/api/api-error";
 import { callApi, endSessionOn401 } from "@/lib/api/client";
 import { formatDateTime, formatStamp } from "@/lib/format";
 
+import Breadcrumbs from "../../../../breadcrumbs";
 import Message from "../../../../chat/message";
 import styles from "../../../../dashboard.module.css";
+import { StatusOkIcon } from "../../../../icons";
 import { Problem } from "../../../../widgets";
 
 export async function generateMetadata({ params }: { params: Promise<{ app: string; user: string }> }) {
@@ -61,11 +63,13 @@ export default async function ThreadPage({
 
   return (
     <>
-      <nav aria-label="Breadcrumb">
-        <Link href={userPage} className={styles.muted}>
-          ← Conversations of {userId} in {appId}
-        </Link>
-      </nav>
+      <Breadcrumbs
+        trail={[
+          { label: "Users & chats", href: "/users" },
+          { label: userId, href: userPage },
+          { label: summary ? summary.first_question : "Conversation" },
+        ]}
+      />
       <header className={styles.header}>
         <h1>Conversation</h1>
         {summary && (
@@ -95,15 +99,23 @@ export default async function ThreadPage({
                 <Message role={m.role === "user" ? "user" : "assistant"} content={m.content} citations={m.citations} />
                 <p className={m.role === "user" ? `${styles.turnMeta} ${styles.turnMetaUser}` : styles.turnMeta}>
                   {outcome && (
-                    <span className={outcome.ok ? styles.ok : undefined}>
-                      {outcome.ok ? "●" : "○"} {outcome.label} ·{" "}
-                    </span>
+                    <>
+                      <span className={outcome.ok ? `${styles.withIcon} ${styles.ok}` : undefined}>
+                        {outcome.ok ? <StatusOkIcon /> : "○"} {outcome.label}
+                      </span>
+                      {" · "}
+                    </>
                   )}
                   {formatStamp(m.created_at)}
                   {m.role !== "user" && (
                     <>
                       {" · "}
-                      <Link href={`${requestLog}#${m.request_id}`} className="mono" translate="no">
+                      {/* opens that request's details panel in the Request log */}
+                      <Link
+                        href={`${requestLog}&req=${encodeURIComponent(m.request_id)}`}
+                        className="mono"
+                        translate="no"
+                      >
                         {m.request_id}
                       </Link>
                     </>

@@ -112,13 +112,9 @@ export default async function UsersPage({ searchParams }: PageProps<"/users">) {
               <thead>
                 <tr>
                   <th scope="col">User</th>
-                  <th scope="col">App</th>
-                  <th scope="col">Company</th>
-                  <th scope="col" className={styles.nowrap}>
-                    Role label
-                  </th>
+                  <th scope="col">Company · app</th>
                   <th scope="col" className={styles.number}>
-                    Conversations
+                    Chats
                   </th>
                   <th scope="col" className={styles.number}>
                     Messages
@@ -129,20 +125,23 @@ export default async function UsersPage({ searchParams }: PageProps<"/users">) {
               <tbody>
                 {users.data.map((u) => (
                   <tr key={`${u.app_id}/${u.company_id}/${u.user_id}`}>
+                    {/* 7 columns → 5: the role label sits under the user, the app under the company */}
                     <td className={styles.nowrap}>
                       <Link
                         href={`/users/${encodeURIComponent(u.app_id)}/${encodeURIComponent(u.user_id)}?company=${encodeURIComponent(u.company_id)}`}
-                        className="mono"
+                        className={`${styles.rowLink} mono`}
                         translate="no"
                       >
                         {u.user_id}
                       </Link>
+                      {u.user_role && <div className={styles.kpiNote}>{u.user_role}</div>}
                     </td>
-                    <td className={`mono ${styles.nowrap}`} translate="no">
-                      {u.app_id}
+                    <td className={styles.nowrap}>
+                      {companyNames.get(u.company_id) ?? u.company_id}
+                      <div className={`${styles.kpiNote} mono`} translate="no">
+                        {u.app_id}
+                      </div>
                     </td>
-                    <td className={styles.nowrap}>{companyNames.get(u.company_id) ?? u.company_id}</td>
-                    <td className={styles.muted}>{u.user_role ?? "–"}</td>
                     <td className={styles.number}>{formatCount(u.conversations)}</td>
                     <td className={styles.number}>{formatCount(u.messages)}</td>
                     <td className={styles.nowrap}>{u.last_active ? formatDateTime(u.last_active) : "–"}</td>

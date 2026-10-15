@@ -1826,3 +1826,88 @@ td.actionsCell:not(:has(button, a)) {
   align-items: center;
   text-decoration: none;
 }
+
+/* Breadcrumbs (breadcrumbs.tsx): "Users & chats › vince › What is…"; the separators are CSS, the last step is the page */
+.crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.crumbs li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.crumbs li + li::before {
+  content: "›";
+  color: var(--text-subtle);
+}
+
+.crumbs a {
+  color: var(--text-muted);
+  text-decoration: none;
+}
+
+.crumbs a:hover {
+  color: var(--text);
+  text-decoration: underline;
+}
+
+/* the current page: a long first question is cut with "…" instead of wrapping the trail */
+.crumbs [aria-current="page"] {
+  max-width: 32ch;
+  overflow: hidden;
+  color: var(--text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The main link of a row (a user, a conversation): bold, no underline until hovered */
+.rowLink {
+  color: var(--text);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.rowLink:hover {
+  text-decoration: underline;
+}
+
+/* A page title with a tile (a user's page): tile | title + one muted line */
+.titleRow {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.titleRow h1 {
+  font-size: var(--text-xl);
+  overflow-wrap: anywhere;
+}
+
+/* Danger zone: irreversible actions, last on the page, set apart in red */
+.dangerZone {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-5);
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--error);
+  border-radius: var(--radius-md);
+  background: var(--error-soft);
+}
+
+.dangerZone h2 {
+  color: var(--error);
+}
