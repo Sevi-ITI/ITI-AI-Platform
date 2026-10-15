@@ -113,3 +113,118 @@
     transform: rotate(1turn);
   }
 }
+
+/* Left column: three lines on what is inside (icon + words) */
+.features {
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.features li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.features svg {
+  flex: none;
+  color: var(--accent);
+}
+
+/* Which server this console runs on (Local · 127.0.0.1:3000, or the office server later), and whether the AI
+   service answers: two pills side by side */
+.places {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.place {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
+.placeDot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--ok);
+}
+
+/* not reachable: red pill, and a cross instead of the dot (the shape changes too) */
+.placeDown {
+  border-color: var(--error);
+  background: var(--error-soft);
+  color: var(--error);
+}
+
+.placeCross {
+  position: relative;
+  width: 0.6rem;
+  height: 0.6rem;
+}
+
+.placeCross::before,
+.placeCross::after {
+  content: "";
+  position: absolute;
+  inset: 45% 0 auto;
+  height: 2px;
+  border-radius: 1px;
+  background: currentColor;
+  rotate: 45deg;
+}
+
+.placeCross::after {
+  rotate: -45deg;
+}
+
+/* Password with its Show / Hide button inside the same box */
+.passwordRow {
+  position: relative;
+  display: grid;
+}
+
+.passwordRow input {
+  padding-right: 4.5rem; /* room for the button */
+}
+
+.reveal {
+  position: absolute;
+  top: 50%;
+  right: var(--space-2);
+  translate: 0 -50%;
+  min-height: 2rem;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.reveal:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.caps {
+  color: var(--warn);
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
