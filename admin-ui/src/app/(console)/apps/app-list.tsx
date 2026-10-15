@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import dash from "../dashboard.module.css";
+import { SearchingContext } from "./app-details";
 
 // The app cards with a search box above them. The server builds each card and the text it can be found by
 // (app id, name, owner, company, key ids); typing filters both groups at once. "Disconnected apps" (no active
@@ -27,7 +28,8 @@ export default function AppList({
   const nothing = words && shownActive.length === 0 && shownDisconnected.length === 0;
 
   return (
-    <>
+    // while the search has text, every shown card is open (AppDetails reads this)
+    <SearchingContext value={Boolean(words)}>
       <label className={dash.search}>
         <span className="sr-only">Search apps and keys</span>
         <input
@@ -59,6 +61,6 @@ export default function AppList({
           </div>
         </details>
       )}
-    </>
+    </SearchingContext>
   );
 }

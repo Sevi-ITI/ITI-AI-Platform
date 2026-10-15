@@ -6,8 +6,10 @@ import { currentAccount } from "@/lib/session/current-account";
 
 import ConfirmAction from "../confirm-action";
 import styles from "../dashboard.module.css";
+import { StatusErrorIcon, StatusOkIcon, StatusWarnIcon } from "../icons";
 import { Problem } from "../widgets";
 import { revokeKey } from "./actions";
+import AppDetails from "./app-details";
 import AppList from "./app-list";
 import { type CollectionOption, usableBy } from "./collection-options";
 import {
@@ -50,7 +52,14 @@ export default async function AppsPage({
   const now = new Date().getTime(); // a server component: rendered once per request
 
   // Each card with the text it can be searched by (lowercase): app id, profile fields, key ids.
-  const items = (apps.ok ? apps.data : []).map((app) => {
+  // Order (Vince): the console first, then In use, Idle, Not used yet, Disconnected; A to Z inside each group.
+  const ordered = [...(apps.ok ? apps.data : [])].sort(
+    (a, b) =>
+      Number(b.app_id === "iti-console") - Number(a.app_id === "iti-console") ||
+      usageOf(a, now).rank - usageOf(b, now).rank ||
+      (a.display_name ?? a.app_id).localeCompare(b.display_name ?? b.app_id, "en", { sensitivity: "base" }),
+  );
+  const items = ordered.map((app) => {
     const appKeys = keys.ok ? keys.data.filter((k) => k.app_id === app.app_id) : [];
     const text = [app.app_id, app.display_name, app.owner_name, app.owner_email, app.company, app.description]
       .concat(appKeys.flatMap((k) => [k.key_id, k.company_id, companyNames.get(k.company_id)]))
@@ -103,6 +112,25 @@ export default async function AppsPage({
   );
 }
 
+/** How the app is doing, in one word (the pill on its closed card); rank = its group in the page order. */
+function usageOf(app: App, now: number): { text: string; tone: "ok" | "idle" | "off"; rank: number } {
+  if (app.active_keys === 0 && app.app_id !== "iti-console") return { text: "Disconnected", tone: "off", rank: 3 };
+  if (app.last_used_at !== null && now - Date.parse(app.last_used_at) < RECENT_DAYS * 86_400_000)
+    return { text: "In use", tone: "ok", rank: 0 };
+  if (app.last_used_at !== null) return { text: "Idle", tone: "idle", rank: 1 };
+  return { text: "Not used yet", tone: "idle", rank: 2 };
+}
+
+/** Two letters for the app's tile: the first letters of two words ("Admin Console" → AC), else its first two. */
+function initials(name: string): string {
+  const words = name.split(/[\s\-_.]+/).filter(Boolean);
+  const two = words.length >= 2 ? words[0][0] + words[1][0] : name.slice(0, 2);
+  return two.toUpperCase();
+}
+
+// An app counts as recently used (its card starts open) when a key was used within this many days.
+const RECENT_DAYS = 7;
+
 function AppCard({
   app,
   keys,
@@ -123,49 +151,78 @@ function AppCard({
   const details = [app.description, app.company, app.owner_name && `Owner: ${app.owner_name}`, app.owner_email]
     .filter(Boolean)
     .join(" · ");
+  const usage = usageOf(app, now);
+  const recent = app.app_id === "iti-console" || usage.tone === "ok";
+  const name = app.display_name ?? app.app_id;
 
   return (
-    <section className={styles.card} aria-label={app.display_name ?? app.app_id}>
-      <div className={styles.cardHead}>
-        <div>
-          <h2>
-            {app.display_name ?? app.app_id}{" "}
-            {app.display_name && (
-              <span className={`mono ${styles.muted}`} translate="no">
-                {app.app_id}
+    <AppDetails
+      defaultOpen={recent}
+      summary={
+        // closed card, read top-down: who (tile, name, id / company), how much (three numbers), state (pill)
+        <>
+          <span className={styles.appAvatar} aria-hidden="true">
+            {initials(name)}
+          </span>
+          <span className={styles.appMain}>
+            <span className={styles.appName}>{name}</span>
+            <span className={styles.appMeta}>
+              {app.display_name && (
+                <span className="mono" translate="no">
+                  {app.app_id}
+                </span>
+              )}
+              {app.display_name && app.company && " · "}
+              {app.company}
+            </span>
+            <span className={styles.appStats}>
+              <span>
+                <b>{formatCount(app.users)}</b> {app.users === 1 ? "user" : "users"}
               </span>
-            )}
-          </h2>
-          {details && <p className={styles.muted}>{details}</p>}
-          {app.notes && <p className={styles.muted}>{app.notes}</p>}
-        </div>
-        {canEdit && (
-          <div className={styles.rowActions}>
-            <EditProfileButton appId={app.app_id} profile={app} />
-            {/* only when it would change something: an active key, a profile, or users' chats to erase */}
-            {app.app_id !== "iti-console" && (app.active_keys > 0 || app.profile_updated_at || app.users > 0) && (
-              <DisconnectAppButton
-                appId={app.app_id}
-                users={app.users}
-                activeKeys={app.active_keys}
-                hasAdminKey={keys.some(
-                  (k) =>
-                    k.scopes.includes("admin") && !k.revoked_at && (!k.expires_at || Date.parse(k.expires_at) > now),
-                )}
-              />
-            )}
-            {/* a disconnected app with no chats left can go for good */}
-            {app.app_id !== "iti-console" && app.active_keys === 0 && app.users === 0 && (
-              <RemoveAppButton appId={app.app_id} keys={keys.length} />
-            )}
+              <span>
+                <b>{formatCount(app.active_keys)}</b> active {app.active_keys === 1 ? "key" : "keys"}
+              </span>
+              <span>
+                last used <b>{app.last_used_at ? formatDateTime(app.last_used_at) : "never"}</b>
+              </span>
+            </span>
+          </span>
+          <span className={`${styles.appUsage} ${styles[`appUsage_${usage.tone}`]}`}>
+            {usage.tone === "ok" && <StatusOkIcon />}
+            {usage.text}
+          </span>
+        </>
+      }
+    >
+      {(details || app.notes || canEdit) && (
+        <div className={styles.cardHead}>
+          <div>
+            {details && <p className={styles.muted}>{details}</p>}
+            {app.notes && <p className={styles.muted}>{app.notes}</p>}
           </div>
-        )}
-      </div>
-      <p className={styles.muted}>
-        {formatCount(app.users)} {app.users === 1 ? "user" : "users"} · {formatCount(app.active_keys)} active{" "}
-        {app.active_keys === 1 ? "key" : "keys"} · last used{" "}
-        {app.last_used_at ? formatDateTime(app.last_used_at) : "never"}
-      </p>
+          {canEdit && (
+            <div className={styles.rowActions}>
+              <EditProfileButton appId={app.app_id} profile={app} />
+              {/* only when it would change something: an active key, a profile, or users' chats to erase */}
+              {app.app_id !== "iti-console" && (app.active_keys > 0 || app.profile_updated_at || app.users > 0) && (
+                <DisconnectAppButton
+                  appId={app.app_id}
+                  users={app.users}
+                  activeKeys={app.active_keys}
+                  hasAdminKey={keys.some(
+                    (k) =>
+                      k.scopes.includes("admin") && !k.revoked_at && (!k.expires_at || Date.parse(k.expires_at) > now),
+                  )}
+                />
+              )}
+              {/* a disconnected app with no chats left can go for good */}
+              {app.app_id !== "iti-console" && app.active_keys === 0 && app.users === 0 && (
+                <RemoveAppButton appId={app.app_id} keys={keys.length} />
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {keysError ? (
         <Problem message={keysError} />
@@ -183,6 +240,12 @@ function AppCard({
             const companyKeys = keys.filter((k) => k.company_id === companyId);
             const live = companyKeys.filter((k) => isLive(k, now));
             const mayUse = [...new Set(live.flatMap((k) => k.allowed_collections))].sort();
+            // revoked keys can't come back: folded under the company's table, still there as history
+            const current = companyKeys.filter((k) => !k.revoked_at);
+            const revoked = companyKeys.filter((k) => k.revoked_at);
+            const table = (rows: Key[]) => (
+              <KeyTable rows={rows} collections={collections} canEdit={canEdit} now={now} />
+            );
             return (
               <div key={companyId} className={styles.companyGroup}>
                 <h3>
@@ -191,45 +254,71 @@ function AppCard({
                     {companyId}
                   </span>
                 </h3>
-                <p className={styles.muted}>
-                  May use:{" "}
-                  {mayUse.length ? <span className="mono">{mayUse.join(", ")}</span> : "nothing (no active key)"}
+                <p className={styles.mayUse}>
+                  <span className={styles.muted}>May use</span>
+                  {mayUse.length ? (
+                    mayUse.map((c) => (
+                      <span key={c} className={`${styles.tag} mono`} translate="no">
+                        {c}
+                      </span>
+                    ))
+                  ) : (
+                    <span className={styles.muted}>nothing (no active key)</span>
+                  )}
                 </p>
-                <div className={styles.tableWrap}>
-                  <table className={styles.table}>
-                    <thead>
-                      <tr>
-                        <th scope="col">Key</th>
-                        <th scope="col">Permissions</th>
-                        <th scope="col">Collections</th>
-                        <th scope="col">State</th>
-                        <th scope="col" className={styles.nowrap}>
-                          Last used
-                        </th>
-                        <th scope="col" className={styles.number}>
-                          24 h
-                        </th>
-                        {canEdit && <th scope="col" className={styles.actionsCell}>{/* actions */}</th>}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {companyKeys.map((k) => (
-                        <KeyRow
-                          key={k.key_id}
-                          k={k}
-                          collections={usableBy(collections, k.company_id)}
-                          canEdit={canEdit}
-                          now={now}
-                        />
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                {current.length > 0 && table(current)}
+                {revoked.length > 0 && (
+                  <details className={styles.more}>
+                    <summary>
+                      Show {revoked.length} revoked {revoked.length === 1 ? "key" : "keys"}
+                    </summary>
+                    {table(revoked)}
+                  </details>
+                )}
               </div>
             );
           })
       )}
-    </section>
+    </AppDetails>
+  );
+}
+
+function KeyTable({
+  rows,
+  collections,
+  canEdit,
+  now,
+}: {
+  rows: Key[];
+  collections: CollectionOption[];
+  canEdit: boolean;
+  now: number;
+}) {
+  return (
+    <div className={styles.tableWrap}>
+      <table className={styles.table}>
+        <thead>
+          <tr>
+            <th scope="col">Key</th>
+            <th scope="col">Permissions</th>
+            <th scope="col">Collections</th>
+            <th scope="col">State</th>
+            <th scope="col" className={styles.nowrap}>
+              Last used
+            </th>
+            <th scope="col" className={styles.number}>
+              24 h
+            </th>
+            {canEdit && <th scope="col" className={styles.actionsCell}>{/* actions */}</th>}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((k) => (
+            <KeyRow key={k.key_id} k={k} collections={usableBy(collections, k.company_id)} canEdit={canEdit} now={now} />
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -260,15 +349,27 @@ function KeyRow({
       <td className="mono">{k.scopes.join(", ")}</td>
       <td className="mono">{k.allowed_collections.length ? k.allowed_collections.join(", ") : "–"}</td>
       <td className={styles.nowrap}>
+        {/* the state on one line, its date under it (keeps the column narrow) */}
         {k.revoked_at ? (
-          <span className={styles.muted}>✕ Revoked {formatDay(k.revoked_at)}</span>
+          <span className={`${styles.withIcon} ${styles.muted}`}>
+            <StatusErrorIcon /> Revoked
+          </span>
         ) : expired ? (
-          <span className={styles.warn}>○ Expired {formatDay(k.expires_at!)}</span>
+          <span className={`${styles.withIcon} ${styles.warn}`}>
+            <StatusWarnIcon /> Expired
+          </span>
         ) : (
-          <span className={styles.ok}>
-            ● Active <span className={styles.muted}>({expiresLabel})</span>
+          <span className={`${styles.withIcon} ${styles.ok}`}>
+            <StatusOkIcon /> Active
           </span>
         )}
+        <div className={styles.kpiNote}>
+          {k.revoked_at
+            ? formatDay(k.revoked_at)
+            : expired
+              ? formatDay(k.expires_at!)
+              : expiresLabel}
+        </div>
       </td>
       <td className={styles.nowrap}>{k.last_used_at ? formatDateTime(k.last_used_at) : "never"}</td>
       <td className={styles.number}>{formatCount(k.requests_24h)}</td>
