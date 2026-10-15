@@ -10,6 +10,7 @@ import AddDocument from "../chat/add-document";
 import ConfirmAction from "../confirm-action";
 import Pager from "../pager";
 import styles from "../dashboard.module.css";
+import { StatusErrorIcon, StatusOkIcon } from "../icons";
 import { Problem } from "../widgets";
 import { deleteCollection, deleteDocument } from "./actions";
 import MoveCollectionButton from "./move-collection";
@@ -68,62 +69,70 @@ export default async function DocumentsPage({ searchParams }: PageProps<"/docume
       </header>
 
       {collections.ok && collections.data.length > 0 && (
-        // grouped by owner: each company (alphabetical), then Global
+        // One compact row per collection (was one box per company): owner order = each company (alphabetical), then
+        // Global. A name is a link that lists only its files below (?collection=, shareable, Back works).
         <section aria-labelledby="collections-title" className={styles.card}>
-          <h2 id="collections-title" className={styles.panelTitle}>
-            Collections
-          </h2>
-          <div className={styles.collectionGroups}>
-            {[...companyList, { company_id: null, name: "Global" }]
-              .map((owner) => ({
-                owner,
-                own: collections.data.filter((c) => (c.company_id ?? null) === owner.company_id),
-              }))
-              .filter(({ own }) => own.length > 0)
-              .map(({ owner, own }) => (
-                <div key={owner.company_id ?? "global"} className={styles.collectionGroup}>
-                  <span className={styles.groupLabel}>
-                    {owner.name}
-                    {owner.company_id === null && (
-                      <span className={styles.muted}> (any company&apos;s key may be given these)</span>
-                    )}
-                  </span>
-                  <div className={styles.collections}>
-                    {own.map((c) => (
-                      <CollectionChip key={c.name} c={c} canDelete={isSuperAdmin} companies={companyList} />
-                    ))}
-                  </div>
-                </div>
-              ))}
+          <div className={styles.cardHead}>
+            <h2 id="collections-title" className={styles.panelTitle}>
+              Collections
+            </h2>
+            <p className={styles.muted}>Click a name to list only its files.</p>
+          </div>
+          <div className={styles.tableWrap}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th scope="col">Collection</th>
+                  <th scope="col">Belongs to</th>
+                  <th scope="col" className={styles.number}>
+                    Files
+                  </th>
+                  <th scope="col" className={styles.number}>
+                    Passages
+                  </th>
+                  <th scope="col">Also shared with</th>
+                  {isSuperAdmin && <th scope="col" className={styles.actionsCell}>{/* actions */}</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {[...companyList, { company_id: null, name: "Global" }].flatMap((owner) =>
+                  collections.data
+                    .filter((c) => (c.company_id ?? null) === owner.company_id)
+                    .map((c) => (
+                      <CollectionRow
+                        key={c.name}
+                        c={c}
+                        ownerName={owner.name}
+                        open={c.name === collection}
+                        canDelete={isSuperAdmin}
+                        companies={companyList}
+                      />
+                    )),
+                )}
+              </tbody>
+            </table>
           </div>
         </section>
       )}
 
-      <section className={styles.card} aria-label="Documents">
+      <section className={styles.card} aria-labelledby="files-title">
         <div className={styles.toolbar}>
-          {/* Filters (a plain GET form: the filter lands in the URL (shareable, Back works), no JavaScript), then the pager */}
-          <form action="/documents" className={styles.filters}>
-            <label>
-              <span>Collection</span>
-              <select name="collection" defaultValue={collection}>
-                <option value="">All collections</option>
-                {collections.ok &&
-                  collections.data.map((c) => (
-                    <option key={c.name} value={c.name}>
-                      {c.name}
-                    </option>
-                  ))}
-              </select>
-            </label>
-            <button type="submit" className={styles.filterApply}>
-              Apply filter
-            </button>
+          <div className={styles.inline}>
+            <h2 id="files-title" className={styles.panelTitle}>
+              {collection ? (
+                <>
+                  Files in <span className="mono">{collection}</span>
+                </>
+              ) : (
+                "All files"
+              )}
+            </h2>
             {collection && (
               <Link href="/documents" className={styles.clear}>
-                Clear filter
+                Show all collections
               </Link>
             )}
-          </form>
+          </div>
           {rows.ok && <Pager page={page} count={rows.data.length} pageSize={PAGE_SIZE} noun="Files" href={pageHref} />}
         </div>
         {!rows.ok ? (
@@ -141,25 +150,26 @@ export default async function DocumentsPage({ searchParams }: PageProps<"/docume
             <table className={styles.table}>
               <thead>
                 <tr>
-                  <th scope="col">File</th>
-                  <th scope="col">Collection</th>
-                  <th scope="col" className={styles.number}>
-                    Size
-                  </th>
+                  <th scope="col">File and size</th>
+                  {/* one collection chosen: the column would only repeat it */}
+                  {!collection && <th scope="col">Collection</th>}
                   <th scope="col">Status</th>
                   <th scope="col" className={styles.number}>
                     Passages
                   </th>
-                  <th scope="col" className={styles.nowrap}>
-                    Uploaded by
-                  </th>
-                  <th scope="col">Uploaded</th>
+                  <th scope="col">Uploaded, by</th>
                   {isSuperAdmin && <th scope="col" className={styles.actionsCell}>{/* actions */}</th>}
                 </tr>
               </thead>
               <tbody>
                 {markReplaced(rows.data).map(({ row, replaced }) => (
-                  <DocumentRow key={row.document_id} row={row} replaced={replaced} canDelete={isSuperAdmin} />
+                  <DocumentRow
+                    key={row.document_id}
+                    row={row}
+                    replaced={replaced}
+                    canDelete={isSuperAdmin}
+                    showCollection={!collection}
+                  />
                 ))}
               </tbody>
             </table>
@@ -184,39 +194,58 @@ function markReplaced(rows: Row[]): { row: Row; replaced: boolean }[] {
   });
 }
 
-function DocumentRow({ row, replaced, canDelete }: { row: Row; replaced: boolean; canDelete: boolean }) {
+function DocumentRow({
+  row,
+  replaced,
+  canDelete,
+  showCollection,
+}: {
+  row: Row;
+  replaced: boolean;
+  canDelete: boolean;
+  showCollection: boolean;
+}) {
   const status = replaced ? (
     <span className={styles.muted} title="A newer upload of this file replaced it; its passages are no longer searched">
       ○ Replaced
     </span>
   ) : row.job_status === "done" ? (
-    <span className={styles.ok}>● Indexed</span>
+    <span className={`${styles.withIcon} ${styles.ok}`}>
+      <StatusOkIcon /> Indexed
+    </span>
   ) : row.job_status === "failed" ? (
-    <span className={styles.error}>✕ Failed</span>
+    <span className={`${styles.withIcon} ${styles.error}`}>
+      <StatusErrorIcon /> Failed
+    </span>
   ) : (
     <span className={styles.warn}>◌ Indexing…</span>
   );
 
   return (
     <tr className={replaced ? styles.dimmed : undefined}>
+      {/* size and uploader sit under the name / date (two fewer columns: the table fits without scrolling) */}
       <td className={styles.fileCell}>
         {row.filename}
+        <div className={`${styles.kpiNote} ${styles.num}`}>{formatBytes(row.size_bytes)}</div>
         {row.error && <div className={styles.error}>{row.error}</div>}
       </td>
-      <td className={`mono ${styles.nowrap}`} translate="no">
-        {row.collection}
-      </td>
-      <td className={styles.number}>{formatBytes(row.size_bytes)}</td>
+      {showCollection && (
+        <td className={`mono ${styles.nowrap}`} translate="no">
+          {row.collection}
+        </td>
+      )}
       <td className={styles.nowrap}>{status}</td>
       <td className={styles.number}>{replaced || row.chunks == null ? "–" : formatCount(row.chunks)}</td>
       <td className={styles.nowrap}>
-        {row.uploaded_by_user ?? (
-          <span className="mono" translate="no">
-            {row.uploaded_by}
-          </span>
-        )}
+        {formatDateTime(row.finished_at ?? row.created_at)}
+        <div className={styles.kpiNote}>
+          {row.uploaded_by_user ?? (
+            <span className="mono" translate="no">
+              {row.uploaded_by}
+            </span>
+          )}
+        </div>
       </td>
-      <td className={styles.nowrap}>{formatDateTime(row.finished_at ?? row.created_at)}</td>
       {canDelete && (
         <td className={styles.actionsCell}>
           {/* one Delete per file (it removes every version), on its newest row */}
@@ -241,62 +270,85 @@ function DocumentRow({ row, replaced, canDelete }: { row: Row; replaced: boolean
   );
 }
 
-// One collection: its counts, and (super admin) Delete when it can go: empty and not from the server settings.
-// Otherwise the reason it stays, in words. FastAPI checks both again.
-function CollectionChip({
+// One collection as a table row: name (a link that filters the files), owner, counts, who else may use it, and for the
+// super admin Move / Share / Delete. Delete only when it can go (empty and not from the server settings); otherwise
+// the reason, in words. FastAPI checks both again.
+function CollectionRow({
   c,
+  ownerName,
+  open,
   canDelete,
   companies,
 }: {
   c: Collection;
+  ownerName: string;
+  open: boolean;
   canDelete: boolean;
   companies: { company_id: string; name: string }[];
 }) {
   const empty = c.documents === 0 && c.chunks === 0;
   return (
-    <div className={styles.collection}>
-      <span>
-        <span className="mono" translate="no">
+    <tr className={open ? styles.rowOpen : undefined}>
+      <td className={styles.nowrap}>
+        <Link
+          href={`/documents?collection=${encodeURIComponent(c.name)}`}
+          className="mono"
+          translate="no"
+          aria-current={open ? "true" : undefined}
+        >
           {c.name}
-        </span>{" "}
-        <span className={styles.muted}>
-          {formatCount(c.documents)} {c.documents === 1 ? "file" : "files"}, {formatCount(c.chunks)} passages
-        </span>
-        {c.shared_with.length > 0 && (
-          <span className={styles.muted}>
-            {" "}
-            · also{" "}
-            {c.shared_with.map((id) => companies.find((x) => x.company_id === id)?.name ?? id).join(", ")}
-          </span>
-        )}
-      </span>
-      {canDelete && <MoveCollectionButton name={c.name} current={c.company_id ?? null} companies={companies} />}
-      {canDelete && c.company_id && (
-        <ShareCollectionButton name={c.name} owner={c.company_id} sharedWith={c.shared_with} companies={companies} />
-      )}
-      {canDelete &&
-        (c.in_settings ? (
-          <span className={styles.muted} title="Listed in ITI_COLLECTIONS: it would come back at the next restart">
-            from server settings
-          </span>
-        ) : !empty ? (
-          <span className={styles.muted} title="Delete its documents first">
-            not empty
-          </span>
+        </Link>
+      </td>
+      <td className={styles.ownerCell}>
+        {ownerName}
+        {c.company_id === null && <div className={styles.kpiNote}>any company&apos;s key may get it</div>}
+      </td>
+      <td className={styles.number}>{formatCount(c.documents)}</td>
+      <td className={styles.number}>{formatCount(c.chunks)}</td>
+      <td>
+        {c.shared_with.length > 0 ? (
+          c.shared_with.map((id) => companies.find((x) => x.company_id === id)?.name ?? id).join(", ")
         ) : (
-          <ConfirmAction
-            label="Delete"
-            title={`Delete the collection ${c.name}?`}
-            confirmLabel="Delete collection"
-            action={deleteCollection.bind(null, c.name)}
-            done={`Collection ${c.name} deleted`}
-          >
-            <p>
-              The empty collection <strong className="mono">{c.name}</strong> is removed and taken off every API key
-              that lists it. Old chats in it stay readable in Users &amp; chats but can&apos;t be continued.
-            </p>
-          </ConfirmAction>
-        ))}
-    </div>
+          <span className={styles.muted}>–</span>
+        )}
+      </td>
+      {canDelete && (
+        <td className={styles.actionsCell}>
+          <div className={styles.rowActions}>
+            <MoveCollectionButton name={c.name} current={c.company_id ?? null} companies={companies} />
+            {c.company_id && (
+              <ShareCollectionButton
+                name={c.name}
+                owner={c.company_id}
+                sharedWith={c.shared_with}
+                companies={companies}
+              />
+            )}
+            {c.in_settings ? (
+              <span className={styles.actionNote} title="Listed in ITI_COLLECTIONS: it would come back at the next restart">
+                Kept: server settings
+              </span>
+            ) : !empty ? (
+              <span className={styles.actionNote} title="Delete its files first">
+                Kept: has files
+              </span>
+            ) : (
+              <ConfirmAction
+                label="Delete"
+                title={`Delete the collection ${c.name}?`}
+                confirmLabel="Delete collection"
+                action={deleteCollection.bind(null, c.name)}
+                done={`Collection ${c.name} deleted`}
+              >
+                <p>
+                  The empty collection <strong className="mono">{c.name}</strong> is removed and taken off every API key
+                  that lists it. Old chats in it stay readable in Users &amp; chats but can&apos;t be continued.
+                </p>
+              </ConfirmAction>
+            )}
+          </div>
+        </td>
+      )}
+    </tr>
   );
 }
