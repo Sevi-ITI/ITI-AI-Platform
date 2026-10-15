@@ -4,11 +4,12 @@ import { Suspense } from "react";
 import { displayMessage } from "@/lib/api/api-error";
 import { callApi, endSessionOn401 } from "@/lib/api/client";
 import type { components } from "@/lib/api/schema";
-import { formatCount, formatDateTime, formatMs, formatPercent, formatTime } from "@/lib/format";
+import { formatCount, formatDateTime, formatMb, formatMs, formatPercent, formatTime, formatUptime } from "@/lib/format";
 
 import AutoRefresh from "./auto-refresh";
 import styles from "./dashboard.module.css";
-import { CardLoading, currentHealth, GpuCard } from "./health-cards";
+import { CardLoading, currentHealth } from "./health-cards";
+import { StatusErrorIcon, StatusOkIcon, StatusWarnIcon } from "./icons";
 import { Kpi, Problem, ShareBars, type Tone } from "./widgets";
 
 export const metadata = { title: "Overview" };
@@ -66,9 +67,9 @@ export default async function OverviewPage() {
       )}
 
       <div className={styles.columns}>
-        {/* Wide column: status, then the latest errors */}
+        {/* Wide column: the system (status, GPU, models), then the latest refused / failed requests */}
         <div className={styles.column}>
-          <Suspense fallback={<CardLoading title="System status" height="7rem" />}>
+          <Suspense fallback={<CardLoading title="System" height="9rem" />}>
             <StatusCard />
           </Suspense>
 
@@ -121,12 +122,8 @@ export default async function OverviewPage() {
           </section>
         </div>
 
-        {/* Narrow column: GPU and models, collections */}
+        {/* Narrow column: collections */}
         <div className={styles.column}>
-          <Suspense fallback={<CardLoading title="GPU and models" height="13rem" />}>
-            <GpuCard title="GPU and models" />
-          </Suspense>
-
           <section className={styles.card} aria-labelledby="collections">
             <h2 id="collections">Chunks per collection</h2>
             {!collections.ok ? (
@@ -157,36 +154,54 @@ async function StatusCard() {
 
   return (
     <section className={styles.card} aria-labelledby="status">
-      {health.ok ? <Status health={health.data} /> : <Problem message={displayMessage(health.error)} />}
+      {health.ok ? (
+        <Status health={health.data} />
+      ) : (
+        <>
+          <h2 id="status">System</h2>
+          <Problem message={displayMessage(health.error)} />
+        </>
+      )}
     </section>
   );
 }
 
+// One card for the machine: the overall state as a pill, four tiles (database, Ollama, answer queue, GPU memory),
+// then the loaded models, indexing and uptime on one line. (Was two cards with a large GPU gauge.)
 function Status({ health }: { health: Health }) {
   const problems = [
     !health.database.ok && "the database is not reachable",
     !health.ollama.ok && "Ollama is not reachable",
   ].filter(Boolean);
   const queue = health.llm_slots;
+  const gpu = health.gpu;
+  const gpuPercent = gpu ? Math.round(Math.min(1, gpu.memory_used_mb / gpu.memory_total_mb) * 100) : null;
 
   return (
     <>
-      <h2 id="status" className={health.status === "ok" ? styles.ok : styles.warn}>
-        {health.status === "ok"
-          ? "● Everything is working"
-          : `▲ Degraded${problems.length ? `: ${problems.join(" and ")}` : ""}`}
-      </h2>
+      <div className={styles.cardHead}>
+        <h2 id="status">System</h2>
+        {health.status === "ok" ? (
+          <p className={`${styles.statusPill} ${styles.statusPill_ok}`}>
+            <StatusOkIcon /> Everything is working
+          </p>
+        ) : (
+          <p className={`${styles.statusPill} ${styles.statusPill_error}`}>
+            <StatusErrorIcon /> Degraded{problems.length ? `: ${problems.join(" and ")}` : ""}
+          </p>
+        )}
+      </div>
       <div className={styles.tiles}>
         <Tile
           label="Database"
           tone={health.database.ok ? "ok" : "error"}
-          value={health.database.ok ? "● OK" : "✕ Not reachable"}
+          value={health.database.ok ? "OK" : "Not reachable"}
           note={health.database.ok ? formatMs(health.database.latency_ms) : health.database.detail}
         />
         <Tile
           label="Ollama"
           tone={health.ollama.ok ? "ok" : "error"}
-          value={health.ollama.ok ? "● OK" : "✕ Not reachable"}
+          value={health.ollama.ok ? "OK" : "Not reachable"}
           note={health.ollama.ok ? formatMs(health.ollama.latency_ms) : health.ollama.detail}
         />
         <Tile
@@ -195,16 +210,55 @@ function Status({ health }: { health: Health }) {
           value={`${queue.running} of ${queue.limit}`}
           note={`running, ${queue.waiting} waiting`}
         />
+        <Tile
+          label="GPU memory"
+          tone={gpuPercent === null ? undefined : gpuPercent >= 90 ? "warn" : "ok"}
+          value={gpuPercent === null ? "–" : `${gpuPercent}%`}
+          note={
+            gpu
+              ? `${formatMb(gpu.memory_used_mb)} of ${formatMb(gpu.memory_total_mb)}, ${gpu.utilization_pct}% busy`
+              : "No GPU reported"
+          }
+        />
       </div>
+      <dl className={styles.facts}>
+        <div>
+          <dt>Models</dt>
+          {health.models.length === 0 ? (
+            <dd title="Ollama unloads idle models; they load again on the next question">None loaded</dd>
+          ) : (
+            <dd>
+              {health.models.map((m, i) => (
+                <span key={m.name}>
+                  {i > 0 && ", "}
+                  <span className="mono">{m.name}</span> ({formatMb(m.vram_mb)})
+                </span>
+              ))}
+            </dd>
+          )}
+        </div>
+        <div>
+          <dt>Indexing</dt>
+          <dd>{health.ingest_busy ? "Busy" : "Idle"}</dd>
+        </div>
+        <div>
+          <dt>Service up for</dt>
+          <dd>{formatUptime(health.uptime_s)}</dd>
+        </div>
+      </dl>
     </>
   );
 }
 
+// The shape of the icon and the word carry the state; the tile's colored underline repeats it.
 function Tile({ label, value, note, tone }: { label: string; value: string; note: string; tone: Tone }) {
+  const Icon = tone === "ok" ? StatusOkIcon : tone === "warn" ? StatusWarnIcon : tone === "error" ? StatusErrorIcon : null;
   return (
     <div className={`${styles.tile} ${tone ? styles[`tile_${tone}`] : ""}`}>
       <p className={styles.kpiLabel}>{label}</p>
-      <p className={`${styles.tileValue} ${tone ? styles[tone] : ""}`}>{value}</p>
+      <p className={`${styles.tileValue} ${tone ? styles[tone] : ""}`}>
+        {Icon && <Icon />} {value}
+      </p>
       <p className={styles.kpiNote}>{note}</p>
     </div>
   );

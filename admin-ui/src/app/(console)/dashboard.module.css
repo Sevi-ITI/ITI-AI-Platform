@@ -90,16 +90,24 @@
   display: grid;
   gap: var(--space-3);
   min-width: 0;
+  container-type: inline-size; /* cards inside can adapt to the column's width, not the window's */
 }
 
 /* Status tiles: a colored underline carries the status (with a word, never color alone) */
 .tiles {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 7rem), 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr)); /* 4 across, or 2 x 2 in a narrow column: never 3 + 1 */
   gap: var(--space-2);
   padding: var(--space-3);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
+}
+
+/* after .tiles, so it wins: the column (a size container) is narrow -> 2 x 2 */
+@container (max-width: 36rem) {
+  .tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .tile {
@@ -122,7 +130,58 @@
 }
 
 .tileValue {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.tileValue svg {
+  flex: none;
+}
+
+/* Overview's System card: the overall state as a pill beside the title (icon shape + words, color repeats it) */
+.statusPill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.statusPill_ok {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.statusPill_error {
+  background: var(--error-soft);
+  color: var(--error);
+}
+
+/* Small facts on one line under the tiles (Models, Indexing, Service up for); they wrap on narrow cards */
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.facts div {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.facts dt {
+  color: var(--text-muted);
+}
+
+.facts dd {
+  margin: 0;
   font-variant-numeric: tabular-nums;
 }
 

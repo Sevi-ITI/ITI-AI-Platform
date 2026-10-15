@@ -9,6 +9,7 @@ import { THEME_COOKIE, themeFrom } from "@/lib/theme";
 import { toggleTheme } from "@/lib/theme-actions";
 
 import styles from "./console.module.css";
+import HealthPill from "./health-pill";
 import { LogOutIcon, MenuIcon, MoonIcon, SunIcon } from "./icons";
 import NavLinks from "./nav-links";
 import Toaster from "./toast";
@@ -58,6 +59,7 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
         <nav id="console-nav" popover="auto" className={styles.navPanel} aria-label="Console">
           <NavLinks showAccounts={account.role === "super_admin"} />
         </nav>
+        <HealthPill />
         <div className={styles.account}>
           <div className={styles.who}>
             <p className={styles.name}>{account.display_name ?? account.username}</p>

@@ -1,14 +1,14 @@
 // Small line icons for the console (inline SVG, no icon package). Decorative: the text next to each
 // icon (or the button's aria-label) carries the meaning.
 
-type IconProps = { d: string };
+type IconProps = { d: string; size?: number };
 
-function Icon({ d }: IconProps) {
+function Icon({ d, size = 18 }: IconProps) {
   return (
     <svg
       viewBox="0 0 24 24"
-      width="18"
-      height="18"
+      width={size}
+      height={size}
       fill="none"
       stroke="currentColor"
       strokeWidth="1.8"
@@ -42,3 +42,9 @@ export const StopIcon = () => <Icon d="M7 7h10v10H7z" />;
 export const CompaniesIcon = () => (
   <Icon d="M4 21V6l8-3 8 3v15 M2 21h20 M10 21v-4h4v4 M8 9h.01 M12 9h.01 M16 9h.01 M8 13h.01 M12 13h.01 M16 13h.01" />
 );
+
+// Status marks: a different SHAPE per state (check, triangle, cross), so color is never the only signal.
+// Sized to sit inside a line of small text.
+export const StatusOkIcon = () => <Icon size={14} d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M8 12.5l2.5 2.5L16 9.5" />;
+export const StatusWarnIcon = () => <Icon size={14} d="M12 3.5l9.5 16.5h-19z M12 10v4 M12 17h.01" />;
+export const StatusErrorIcon = () => <Icon size={14} d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M9 9l6 6 M15 9l-6 6" />;
