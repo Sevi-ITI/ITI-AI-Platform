@@ -105,3 +105,10 @@ export function formatUptime(seconds: number): string {
   }
   return `${minutes} min`;
 }
+
+/** Two letters for a name's tile: the first letters of two words ("Admin Console" → AC), else its first two. */
+export function initials(name: string): string {
+  const words = name.split(/[\s\-_.]+/).filter(Boolean);
+  const two = words.length >= 2 ? words[0][0] + words[1][0] : name.slice(0, 2);
+  return two.toUpperCase();
+}

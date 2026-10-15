@@ -1,7 +1,7 @@
 import { displayMessage } from "@/lib/api/api-error";
 import { callApi, endSessionOn401 } from "@/lib/api/client";
 import type { components } from "@/lib/api/schema";
-import { formatCount, formatDateTime, formatDay } from "@/lib/format";
+import { formatCount, formatDateTime, formatDay, initials } from "@/lib/format";
 import { currentAccount } from "@/lib/session/current-account";
 
 import ConfirmAction from "../confirm-action";
@@ -119,13 +119,6 @@ function usageOf(app: App, now: number): { text: string; tone: "ok" | "idle" | "
     return { text: "In use", tone: "ok", rank: 0 };
   if (app.last_used_at !== null) return { text: "Idle", tone: "idle", rank: 1 };
   return { text: "Not used yet", tone: "idle", rank: 2 };
-}
-
-/** Two letters for the app's tile: the first letters of two words ("Admin Console" → AC), else its first two. */
-function initials(name: string): string {
-  const words = name.split(/[\s\-_.]+/).filter(Boolean);
-  const two = words.length >= 2 ? words[0][0] + words[1][0] : name.slice(0, 2);
-  return two.toUpperCase();
 }
 
 // An app counts as recently used (its card starts open) when a key was used within this many days.
