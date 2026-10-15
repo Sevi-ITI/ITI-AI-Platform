@@ -32,11 +32,13 @@ export default function Composer({
   fixedCollection,
   collections = [],
   historyCount,
+  suggestions = {},
 }: {
   conversationId?: string;
   fixedCollection?: string; // an existing conversation keeps its collection
   collections?: { name: string; documents: number }[]; // a new chat picks one; the + dialog lists them
   historyCount: number;
+  suggestions?: Record<string, string[]>; // new chat: up to three questions per collection, shown as chips
 }) {
   const router = useRouter();
   const [turn, setTurn] = useState<Turn | null>(null);
@@ -44,6 +46,9 @@ export default function Composer({
     fixedCollection ?? [...collections].sort((a, b) => b.documents - a.documents)[0]?.name ?? "",
   );
   const stopper = useRef<AbortController | null>(null);
+  const question = useRef<HTMLTextAreaElement>(null);
+  // The chips: for the picked collection, only before the first question of a new chat
+  const chips = !conversationId && turn === null ? (suggestions[collection] ?? []) : [];
   const end = useRef<HTMLDivElement>(null);
 
   const busy = turn?.state === "waiting" || turn?.state === "streaming";
@@ -168,6 +173,33 @@ export default function Composer({
 
   return (
     <>
+      {chips.length > 0 && (
+        // Right under the intro (page.tsx renders it just before this component). A click puts the question in
+        // the box (not sent: it can be changed first) and moves the cursor there
+        <div className={styles.suggestions} role="group" aria-label="Suggested questions">
+          {chips.map((q, i) => (
+            <button
+              key={q}
+              type="button"
+              className={styles.suggestion}
+              title={q}
+              onClick={() => {
+                const field = question.current;
+                if (!field) return;
+                field.value = q;
+                field.focus();
+                field.setSelectionRange(q.length, q.length);
+              }}
+            >
+              {/* "01": the number is decoration; the question is the button's name */}
+              <span className={styles.suggestionNo} aria-hidden="true">
+                {String(i + 1).padStart(2, "0")}
+              </span>
+              <span className={styles.suggestionText}>{q}</span>
+            </button>
+          ))}
+        </div>
+      )}
       {showTurn && (
         <>
           <Message role="user" content={turn.question} />
@@ -213,65 +245,69 @@ export default function Composer({
       </p>
       <div ref={end} />
 
-      {/* The + dialog has its own form, so it sits beside the question form, not inside it. */}
-      <div className={styles.composer}>
-        <div className={styles.box}>
-          <AddDocument collections={collections.map((c) => c.name)} initial={collection} />
-          <form
-            className={styles.ask}
-            onSubmit={(e) => {
-              e.preventDefault();
-              submit(e.currentTarget);
-            }}
-          >
-            <textarea
-              name="question"
-              rows={1}
-              maxLength={4000}
-              placeholder={conversationId ? "Ask a follow-up…" : "Ask about the company documents…"}
-              aria-label="Your question"
-              onKeyDown={(e) => {
-                // Enter sends, Shift+Enter makes a new line (not while an input method is composing text)
-                if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-                  e.preventDefault();
-                  submit(e.currentTarget.form!);
-                }
+      {/* The dock keeps the question box at the bottom (sticky).
+          The + dialog has its own form, so it sits beside the question form, not inside it. */}
+      <div className={styles.dock}>
+        <div className={styles.composer}>
+          <div className={styles.box}>
+            <AddDocument collections={collections.map((c) => c.name)} initial={collection} />
+            <form
+              className={styles.ask}
+              onSubmit={(e) => {
+                e.preventDefault();
+                submit(e.currentTarget);
               }}
-            />
-            {busy ? (
-              <button
-                type="button"
-                className={styles.round}
-                onClick={() => stopper.current?.abort()}
-                aria-label="Stop"
-                title="Stop"
-              >
-                <StopIcon />
-              </button>
-            ) : (
-              <button type="submit" className={styles.round} aria-label="Send" title="Send">
-                <SendIcon />
-              </button>
-            )}
-          </form>
-        </div>
-        <div className={styles.foot}>
-          {!conversationId && (
-            <select
-              className={styles.chip}
-              value={collection}
-              onChange={(e) => setCollection(e.target.value)}
-              disabled={busy}
-              aria-label="Collection to ask"
             >
-              {collections.map((c) => (
-                <option key={c.name} value={c.name}>
-                  {c.name} ({c.documents})
-                </option>
-              ))}
-            </select>
-          )}
-          <p className={styles.hint}>Enter to send · Shift + Enter for a new line</p>
+              <textarea
+                ref={question}
+                name="question"
+                rows={1}
+                maxLength={4000}
+                placeholder={conversationId ? "Ask a follow-up…" : "Ask about the company documents…"}
+                aria-label="Your question"
+                onKeyDown={(e) => {
+                  // Enter sends, Shift+Enter makes a new line (not while an input method is composing text)
+                  if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                    e.preventDefault();
+                    submit(e.currentTarget.form!);
+                  }
+                }}
+              />
+              {busy ? (
+                <button
+                  type="button"
+                  className={styles.round}
+                  onClick={() => stopper.current?.abort()}
+                  aria-label="Stop"
+                  title="Stop"
+                >
+                  <StopIcon />
+                </button>
+              ) : (
+                <button type="submit" className={styles.round} aria-label="Send" title="Send">
+                  <SendIcon />
+                </button>
+              )}
+            </form>
+          </div>
+          <div className={styles.foot}>
+            {!conversationId && (
+              <select
+                className={styles.chip}
+                value={collection}
+                onChange={(e) => setCollection(e.target.value)}
+                disabled={busy}
+                aria-label="Collection to ask"
+              >
+                {collections.map((c) => (
+                  <option key={c.name} value={c.name}>
+                    {c.name} ({c.documents})
+                  </option>
+                ))}
+              </select>
+            )}
+            <p className={styles.hint}>Enter to send · Shift + Enter for a new line</p>
+          </div>
         </div>
       </div>
     </>
