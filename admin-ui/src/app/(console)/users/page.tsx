@@ -85,7 +85,7 @@ export default async function UsersPage({ searchParams }: PageProps<"/users">) {
                   ))}
               </select>
             </label>
-            <button type="submit" className={styles.apply}>
+            <button type="submit" className={styles.filterApply}>
               Apply filter
             </button>
             {(app || company) && (

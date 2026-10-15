@@ -330,7 +330,10 @@
 .table .number {
   text-align: right;
   white-space: nowrap;
-  font-variant-numeric: tabular-nums;
+  /* Comfortaa has no fixed-width digits (a "1" is 2/3 as wide; tabular-nums changes nothing), so number columns
+     use the monospace stack: digits line up from row to row */
+  font-family: var(--font-mono);
+  font-size: 0.92em;
 }
 
 .nowrap {
@@ -512,23 +515,42 @@
   cursor: pointer;
 }
 
-.clear {
-  /* the quiet partner of .apply: same height and shape, outlined, on the same line */
-  display: inline-flex;
-  align-items: center;
+/* Filter forms: Apply is outlined (the table is the page's main thing, not its filter button); Clear is a quiet
+   text link beside it. Same height, same line. */
+.filterApply {
   min-height: 2.25rem;
   padding: var(--space-1) var(--space-4);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-pill);
+  background: transparent;
   color: var(--text);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    background-color var(--fast) var(--ease),
+    border-color var(--fast) var(--ease);
+}
+
+.filterApply:hover {
+  border-color: var(--accent);
+  background: var(--hover);
+}
+
+.clear {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.25rem;
+  padding: var(--space-1) var(--space-2);
+  color: var(--text-muted);
   font-size: var(--text-sm);
   font-weight: 700;
   text-decoration: none;
 }
 
 .clear:hover {
-  border-color: var(--accent);
-  background: var(--hover);
+  color: var(--text);
+  text-decoration: underline;
 }
 
 /* Previous / Next */
@@ -1428,4 +1450,153 @@ td.actionsCell:not(:has(button, a)) {
 /* Long text that must stay whole (routes in the Overview's errors): wraps instead of pushing columns away */
 .wrapAnywhere {
   overflow-wrap: anywhere;
+}
+
+/* Request log: the table and, when a row is open (?req=), its details panel beside it */
+.split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 20rem;
+  gap: var(--space-3);
+  align-items: start;
+}
+
+/* app · company / user: may wrap to two lines rather than clip the Total column */
+.whoCell {
+  min-width: 9rem;
+}
+
+/* long paths wrap (after a "/", see BreakAfterSlashes) instead of pushing the who / total columns out of view */
+.requestCell {
+  min-width: 13rem;
+}
+
+.rowOpen > td {
+  background: var(--accent-soft);
+}
+
+.rowOpen > td:first-child {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+/* A floating panel (rounder than cards, raised); stays in view while the long table scrolls */
+.detailPanel {
+  position: sticky;
+  top: var(--float-gap);
+  display: grid;
+  align-content: start;
+  gap: var(--space-3);
+  max-height: calc(100svh - 2 * var(--float-gap));
+  overflow-y: auto;
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-float);
+  background: var(--surface-raised);
+  box-shadow: var(--elevation-2);
+  animation: panel-in var(--medium) var(--ease);
+}
+
+.detailPanel h2 {
+  font-size: var(--text-lg);
+}
+
+.detailHeading {
+  margin-top: var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.detailList {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.detailList > div {
+  display: grid;
+  grid-template-columns: 8rem minmax(0, 1fr);
+  gap: var(--space-3);
+}
+
+.detailList dt {
+  color: var(--text-muted);
+}
+
+.detailList dd {
+  min-width: 0;
+  margin: 0;
+}
+
+/* a number outside a table column, in the same monospace digits */
+.num {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+}
+
+/* status words with their icon (check, triangle, cross) in one line; wraps around a Copy button if needed */
+.withIcon {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+}
+
+.withIcon svg {
+  flex: none;
+}
+
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: translateX(0.75rem);
+  }
+}
+
+/* Under 1400 px the table needs the whole width (measured: the five columns + a 20rem panel fit from 1400 up):
+   the panel floats over the bottom right corner instead */
+@media (max-width: 87.4rem) {
+  .split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .detailPanel {
+    position: fixed;
+    top: auto;
+    right: var(--float-gap);
+    bottom: var(--float-gap);
+    z-index: 6;
+    width: min(26rem, calc(100vw - 2 * var(--float-gap)));
+    max-height: 70svh;
+    box-shadow: var(--elevation-3);
+  }
+}
+
+/* Copy button (copy-button.tsx): a visible chip from the start (outlined, nested fill), not quiet until hovered
+   like the row buttons: it sits alone next to an id and has to be found */
+.copyButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 1.75rem;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  background: var(--surface-nested);
+  color: var(--text);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--fast) var(--ease),
+    border-color var(--fast) var(--ease);
+}
+
+.copyButton:hover {
+  border-color: var(--accent);
+  background: var(--hover);
+}
+
+.copyButton svg {
+  flex: none;
 }

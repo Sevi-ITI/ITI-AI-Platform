@@ -115,7 +115,7 @@ export default async function DocumentsPage({ searchParams }: PageProps<"/docume
                   ))}
               </select>
             </label>
-            <button type="submit" className={styles.apply}>
+            <button type="submit" className={styles.filterApply}>
               Apply filter
             </button>
             {collection && (
