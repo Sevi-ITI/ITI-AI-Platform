@@ -13,7 +13,7 @@ Q = {"question": "How many vacation days?", "collection": "iti-docs"}
 NEW_KEY = {"app_id": "hr-portal", "scopes": ["chat:invoke"], "allowed_collections": ["iti-docs"]}
 SUPER_ADMIN_ONLY_READS = {"/v1/admin/accounts"} | {  # Accounts and Tools & MCP (8.6d): supervisors may not even see them
     f"/v1/admin/tools/{page}"
-    for page in ("features", "settings", "connections", "stdio-servers", "status", "tools", "sql-tools", "changes", "try/scopes")
+    for page in ("features", "settings", "connections", "stdio-servers", "status", "tools", "sql-tools", "changes", "try/scopes", "apps")
 }
 SUPERVISOR_CHANGES = {("POST", "/v1/admin/collections")}  # supervisors may create collections (Oct 8)
 
@@ -41,7 +41,7 @@ def admin_routes(client):
 
 def test_a_supervisor_reads_every_admin_page_but_every_change_is_refused(client, people):
     routes = list(admin_routes(client))
-    assert len(routes) == 50  # 22 reads + 28 changes today (8.6d: +8 / +8 Tools & MCP; Try it: +1 / +1; company apps: +1); a new admin route is checked automatically
+    assert len(routes) == 52  # 23 reads + 29 changes today (8.6d: +8 / +8 Tools & MCP; Try it: +1 / +1; company apps: +1; app tools: +1 / +1); a new admin route is checked automatically
     for method, path in routes:
         params = {"collection": "iti-docs", "filename": "x", "app_id": "x", "user_id": "x"}
         r = client.request(method, path, headers=people["boss"], params=params)

@@ -25,7 +25,7 @@ from app.tools.client import McpTool, call_mcp_tool, mcp_tools
 from app.tools.console_features import feature_on
 from app.tools.shared import RECORDS_OF, Tool, ToolSpec, get_records_engine
 from app.tools.sql_tools import tool_from_row
-from app.tools.store import records_source, sql_tool_rows, tool_overrides
+from app.tools.store import app_tool_names, records_source, sql_tool_rows, tool_overrides
 from app.tools.tools import TOOL_REGISTRY
 
 MAX_ROUNDS = 3
@@ -121,23 +121,35 @@ def approval_of(remote: McpTool, overrides: dict) -> str:
     return "approved" if approved == remote.spec.fingerprint() else "changed"
 
 
+def app_list_of(principal: AppPrincipal) -> set[str] | None:
+    """The tools an API key's app may use (8.6e-2; a new app has none). None = no list: a console session, which
+    has no app (the console's own Chat gets no tool scopes; Try it tests any switched-on tool, super admin only)."""
+    return None if principal.key_id is None else app_tool_names(principal.app_id)
+
+
 def tools_for(principal: AppPrincipal) -> list[ToolSpec]:
     """Local tools (if on) + the usable MCP servers' tools (approved, if from another machine), only those switched
-    on and whose scope the key has.
-    Console sessions get none: they have no "records:read" and their user id is a username."""
+    on, whose scope the key has and that are on the key's app's tool list.
+    Console sessions get none in chat: they have no "records:read" and their user id is a username."""
     specs = [tool.spec for tool in local_tools().values()] if builtin_records_on() else []
     overrides = tool_overrides()
     specs += [tool.spec for tool in mcp_tools().values() if approval_of(tool, overrides) in ("not_needed", "approved")]
     offered = [apply_overrides(spec, overrides) for spec in specs]
-    return [spec for spec in offered if spec is not None and spec.scope in principal.scopes]
+    allowed = app_list_of(principal)
+    return [
+        spec
+        for spec in offered
+        if spec is not None and spec.scope in principal.scopes and (allowed is None or spec.name in allowed)
+    ]
 
 
 # --- running one call -----------------------------------------------------------------------------------------
 
 
 def run_tool(principal: AppPrincipal, employee_id: str, name: str, arguments: dict | None) -> dict:
-    """One tool call for the asking employee. Refusals: tool_unknown, tool_off, scope_forbidden, tool_bad_arguments,
-    tool_not_approved, records_unavailable, tool_failed, tool_unavailable (messages never contain record values)."""
+    """One tool call for the asking employee. Refusals: tool_unknown, tool_off, scope_forbidden, tool_not_allowed
+    (not on the app's tool list), tool_bad_arguments, tool_not_approved, records_unavailable, tool_failed,
+    tool_unavailable (messages never contain record values)."""
     tool = local_tools().get(name)
     remote = None if tool else mcp_tools().get(name)
     if tool is None and remote is None:
@@ -152,6 +164,9 @@ def run_tool(principal: AppPrincipal, employee_id: str, name: str, arguments: di
         raise AppError(403, "tool_off", f"The tool '{name}' is switched off in the console.")
     if spec.scope not in principal.scopes:
         raise AppError(403, "scope_forbidden", f"This key may not use '{spec.scope}'.")
+    allowed = app_list_of(principal)
+    if allowed is not None and name not in allowed:
+        raise AppError(403, "tool_not_allowed", f"The tool '{name}' is not on this app's tool list.")
     if remote:
         result = call_mcp_tool(remote, employee_id, arguments if isinstance(arguments, dict) else None)
         return {"records_of": RECORDS_OF, **result} if remote.per_employee else result

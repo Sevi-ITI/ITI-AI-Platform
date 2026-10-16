@@ -21,6 +21,14 @@ Q = {"question": "Why is there a deduction on my last payslip?", "collection": "
 PAYSLIP = {"pay_date": "2026-09-30", "found": True, "lines": [{"category": "absence", "amount": "850.00"}]}
 
 
+@pytest.fixture(autouse=True)
+def no_app_tool_lists(monkeypatch):
+    """These tests check the other gates; per-app tool lists (8.6e-2) are tested in test_app_tools.py."""
+    import app.tools.host as host
+
+    monkeypatch.setattr(host, "app_list_of", lambda principal: None)
+
+
 def call(name, **arguments):
     return {"role": "assistant", "content": "", "tool_calls": [{"function": {"name": name, "arguments": arguments}}]}
 

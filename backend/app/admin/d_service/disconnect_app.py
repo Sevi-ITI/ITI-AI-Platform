@@ -1,4 +1,4 @@
-"""disconnect_app(): cuts an app off: every active key revoked, its profile and company links removed; with erase_chats, every
+"""disconnect_app(): cuts an app off: every active key revoked, its profile, company links and tool list removed; with erase_chats, every
 conversation of its users deleted too. Revoked keys, the request log (and chats unless erased) stay as history.
 404 app_not_found if nothing is known about the app; 409 console_app for the console itself."""
 
@@ -15,6 +15,7 @@ from app.auth.c_repository.list_keys import list_keys
 from app.auth.d_keys.is_active import is_active
 from app.core.c_database.utcnow import utcnow
 from app.core.e_errors.app_error import AppError
+from app.tools.store import delete_app_tools
 
 
 def disconnect_app(db: Session, app_id: str, erase_chats: bool) -> AppDisconnected:
@@ -29,6 +30,7 @@ def disconnect_app(db: Session, app_id: str, erase_chats: bool) -> AppDisconnect
             key.revoked_at = utcnow()
             keys_revoked += 1
     db.execute(delete(AppCompany).where(AppCompany.app_id == app_id))  # its company links go with the profile
+    delete_app_tools(db, app_id)  # and its tool list (8.6e-2)
     profile = db.get(AppProfile, app_id)
     if profile is not None:
         db.delete(profile)

@@ -15,11 +15,13 @@ import { type CollectionOption, usableBy } from "./collection-options";
 import {
   CreateAppButton,
   CreateKeyButton,
+  EditToolsButton,
   DisconnectAppButton,
   RemoveAppButton,
   EditKeyButton,
   EditProfileButton,
   RotateKeyButton,
+  type ToolOption,
 } from "./dialogs";
 
 export const metadata = { title: "Apps & keys" };
@@ -37,20 +39,28 @@ export default async function AppsPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { q } = await searchParams;
-  const [apps, keys, collections, companies, me] = await Promise.all([
+  const [apps, keys, collections, companies, toolLists, allTools, me] = await Promise.all([
     callApi((api) => api.GET("/v1/admin/apps")),
     callApi((api) => api.GET("/v1/admin/keys")),
     callApi((api) => api.GET("/v1/admin/collections")),
     callApi((api) => api.GET("/v1/admin/companies")),
+    // super admin only (supervisors get 403: the tools row is then left out)
+    callApi((api) => api.GET("/v1/admin/tools/apps")),
+    callApi((api) => api.GET("/v1/admin/tools/tools")),
     currentAccount(),
   ]);
-  endSessionOn401(apps, keys, collections, companies, me);
+  endSessionOn401(apps, keys, collections, companies, toolLists, allTools, me);
 
   const canEdit = me.ok && me.data.role === "super_admin";
   const collectionOptions: CollectionOption[] = collections.ok
     ? collections.data.map((c) => ({ name: c.name, company_id: c.company_id ?? null, shared_with: c.shared_with }))
     : [];
   const companyNames = new Map((companies.ok ? companies.data : []).map((c) => [c.company_id, c.name]));
+  // 8.6e-2: each app's tool list (null = not shown: no permission or the API refused) and every tool that exists
+  const appTools = toolLists.ok ? new Map(toolLists.data.map((l) => [l.app_id, l.tools])) : null;
+  const toolOptions: ToolOption[] | null = allTools.ok
+    ? allTools.data.map((t) => ({ name: t.name, scope: t.scope, in_use: t.in_use }))
+    : null;
   const now = new Date().getTime(); // a server component: rendered once per request
 
   // Each card with the text it can be searched by (lowercase): app id, profile fields, key ids.
@@ -80,6 +90,8 @@ export default async function AppsPage({
           keysError={keys.ok ? null : displayMessage(keys.error)}
           collections={collectionOptions}
           companyNames={companyNames}
+          tools={appTools ? (appTools.get(app.app_id) ?? []) : null}
+          toolOptions={toolOptions}
           canEdit={canEdit}
           now={now}
         />
@@ -134,6 +146,8 @@ function AppCard({
   keysError,
   collections,
   companyNames,
+  tools,
+  toolOptions,
   canEdit,
   now,
 }: {
@@ -142,6 +156,8 @@ function AppCard({
   keysError: string | null;
   collections: CollectionOption[];
   companyNames: Map<string, string>;
+  tools: { name: string; missing: boolean }[] | null; // its tool list; null = not shown
+  toolOptions: ToolOption[] | null;
   canEdit: boolean;
   now: number;
 }) {
@@ -210,6 +226,21 @@ function AppCard({
                 )}
               </p>
             )}
+            {app.app_id !== "iti-console" && tools && (
+              <p className={styles.mayUse}>
+                <span className={styles.muted}>Tools it may use</span>
+                {tools.length ? (
+                  tools.map((t) => (
+                    <span key={t.name} className={`${styles.tag} mono`} translate="no">
+                      {t.name}
+                      {t.missing && " (missing)"}
+                    </span>
+                  ))
+                ) : (
+                  <span className={styles.muted}>none (its keys answer from documents only)</span>
+                )}
+              </p>
+            )}
           </div>
           {canEdit && (
             <div className={styles.rowActions}>
@@ -218,6 +249,14 @@ function AppCard({
                   appId={app.app_id}
                   companies={app.company_ids.map((c) => ({ company_id: c, name: companyNames.get(c) ?? c }))}
                   collections={collections}
+                />
+              )}
+              {app.app_id !== "iti-console" && tools && toolOptions && (
+                <EditToolsButton
+                  appId={app.app_id}
+                  tools={toolOptions}
+                  checked={tools.map((t) => t.name)}
+                  missing={tools.filter((t) => t.missing).map((t) => t.name)}
                 />
               )}
               <EditProfileButton appId={app.app_id} profile={app} />

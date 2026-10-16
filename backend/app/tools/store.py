@@ -5,12 +5,13 @@ the backend\\.env variable that holds its secret.
 Tables: tools_settings (records_source, ...), mcp_connections (the servers the AI host connects to; filled once
 from servers.py, then managed in the console), tool_overrides (a tool switched off / its description changed),
 sql_tools (tools written as SQL in the console; tool_overrides also keeps
-which tools from other machines were approved), tools_changes (who changed what, when, old and new value).
+which tools from other machines were approved), app_tools (which tools each app's keys may use, 8.6e-2),
+tools_changes (who changed what, when, old and new value).
 Every read opens a short session: a few small queries per chat question, no cache to go stale."""
 
 from datetime import datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, Integer, String, Text, delete, select
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text, delete, select, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.a_config.get_settings import get_settings
@@ -68,6 +69,18 @@ class SqlTool(Base):
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_by: Mapped[str] = mapped_column(String(64))
+
+
+class AppTool(Base):
+    """One tool an app's keys may use (8.6e-2). A new app has none. A name stays even while its tool is missing
+    (its MCP server removed or down): nothing is offered then, and it works again if the tool comes back."""
+
+    __tablename__ = "app_tools"
+
+    app_id: Mapped[str] = mapped_column(String(64), ForeignKey("app_profiles.app_id", ondelete="CASCADE"), primary_key=True)
+    tool: Mapped[str] = mapped_column(String(100), primary_key=True)  # a built-in, SQL or "<server>__<tool>" name
+    added_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    added_by: Mapped[str] = mapped_column(String(64))
 
 
 class ToolsChange(Base):
@@ -219,6 +232,45 @@ def delete_sql_tool(name: str, who: str) -> bool:
         db.execute(delete(ToolOverride).where(ToolOverride.name == name))
         db.commit()
         return True
+
+
+# --- per-app tool lists (8.6e-2) ------------------------------------------------------------------------------
+
+
+def app_tool_names(app_id: str) -> set[str]:
+    """The tools an app's keys may use (empty for a new app)."""
+    with get_sessionmaker()() as db:
+        return set(db.scalars(select(AppTool.tool).where(AppTool.app_id == app_id)))
+
+
+def app_tool_lists() -> dict[str, list[str]]:
+    """{app id: [tool names, sorted]} for every app with at least one tool."""
+    lists: dict[str, list[str]] = {}
+    with get_sessionmaker()() as db:
+        for app_id, tool in db.execute(select(AppTool.app_id, AppTool.tool).order_by(AppTool.tool)):
+            lists.setdefault(app_id, []).append(tool)
+    return lists
+
+
+def app_exists(app_id: str) -> bool:
+    """The app was created (it has a profile). Read by name: app/tools may not import the admin feature."""
+    with get_sessionmaker()() as db:
+        return db.execute(text("SELECT 1 FROM app_profiles WHERE app_id = :a"), {"a": app_id}).first() is not None
+
+
+def save_app_tools(app_id: str, tools: list[str], who: str) -> None:
+    """Replaces an app's whole tool list."""
+    with get_sessionmaker()() as db:
+        old = sorted(db.scalars(select(AppTool.tool).where(AppTool.app_id == app_id)))
+        db.execute(delete(AppTool).where(AppTool.app_id == app_id))
+        db.add_all(AppTool(app_id=app_id, tool=name, added_by=who) for name in sorted(set(tools)))
+        log_change(db, who, "app.tools", app_id, {"tools": old}, {"tools": sorted(set(tools))})
+        db.commit()
+
+
+def delete_app_tools(db, app_id: str) -> None:
+    """In the caller's session: the app is being disconnected or removed, its list goes with it."""
+    db.execute(delete(AppTool).where(AppTool.app_id == app_id))
 
 
 # --- Try it ---------------------------------------------------------------------------------------------------

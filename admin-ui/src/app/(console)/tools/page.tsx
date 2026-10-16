@@ -261,6 +261,9 @@ export default async function ToolsPage() {
                   <th scope="col">From</th>
                   <th scope="col">Scope</th>
                   <th scope="col" className={styles.nowrap}>
+                    Used by
+                  </th>
+                  <th scope="col" className={styles.nowrap}>
                     In use
                   </th>
                   {on.tool_switches && <th scope="col">On</th>}
@@ -283,6 +286,10 @@ export default async function ToolsPage() {
                     </td>
                     <td className={styles.nowrap}>{t.kind === "built-in" ? "tools.py" : t.kind === "sql" ? "SQL tool" : "MCP server"}</td>
                     <td className="mono">{t.scope}</td>
+                    {/* 8.6e-2: the apps whose tool list has it (ticked on Apps & keys) */}
+                    <td className="mono">
+                      {t.used_by.length ? t.used_by.join(", ") : <span className={styles.muted}>no app</span>}
+                    </td>
                     <td className={styles.reasonCell}>
                       {t.in_use ? (
                         <span className={`${styles.withIcon} ${styles.ok}`}>

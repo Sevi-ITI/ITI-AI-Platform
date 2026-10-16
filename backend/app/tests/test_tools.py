@@ -22,6 +22,14 @@ needs_records_db = pytest.mark.skipif(not RECORDS_URL, reason="set ITI_TEST_RECO
 NOWHERE = "mssql+mssqlpython://nobody:x@127.0.0.1:1/none"  # "configured", but nothing listens there
 
 
+@pytest.fixture(autouse=True)
+def no_app_tool_lists(monkeypatch):
+    """These tests check the other gates; per-app tool lists (8.6e-2) are tested in test_app_tools.py."""
+    import app.tools.host as host
+
+    monkeypatch.setattr(host, "app_list_of", lambda principal: None)
+
+
 def key(*scopes: str) -> AppPrincipal:
     return AppPrincipal(key_id="k1", app_id="hr-portal", scopes=list(scopes), allowed_collections=["iti-docs"])
 

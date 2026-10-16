@@ -90,6 +90,7 @@ class ToolOut(BaseModel):
     description_changed: bool
     in_use: bool  # offered right now (to keys with its scope): its source is on, it is switched on and approved
     approval: Literal["not_needed", "approved", "pending", "changed"]  # tools from another machine (http) need it
+    used_by: list[str] = []  # the apps whose tool list has it (8.6e-2)
 
 
 class ToolChangeIn(BaseModel):
@@ -97,6 +98,20 @@ class ToolChangeIn(BaseModel):
     description: str | None = Field(default=None, max_length=1000)  # needs "edit_descriptions"
     reset_description: bool = False  # back to the code's description
     approve: bool = False  # approve a tool from another machine as it is now (its text and arguments)
+
+
+class AppToolsIn(BaseModel):
+    tools: list[str] = Field(max_length=200)  # the app's whole tool list; [] = no tools
+
+
+class AppToolOut(BaseModel):
+    name: str
+    missing: bool  # on the list, but no such tool right now (its MCP server removed or down): nothing is offered
+
+
+class AppToolsOut(BaseModel):
+    app_id: str
+    tools: list[AppToolOut]
 
 
 class SqlParameter(BaseModel):
@@ -269,6 +284,10 @@ def all_tools_out() -> list[ToolOut]:
     for remote in client.mcp_tools().values():
         approval = approval_of(remote, overrides)
         rows.append((remote.spec, "mcp", approval, approval in ("not_needed", "approved")))
+    used_by: dict[str, list[str]] = {}
+    for app_id, names in sorted(store.app_tool_lists().items()):
+        for name in names:
+            used_by.setdefault(name, []).append(app_id)
     out = []
     for spec, kind, approval, source_on in rows:
         changed = overrides.get(spec.name, {})
@@ -276,7 +295,8 @@ def all_tools_out() -> list[ToolOut]:
         description = changed.get("description") if feature_on("edit_descriptions") else None
         out.append(ToolOut(name=spec.name, kind=kind, scope=spec.scope, enabled=enabled,
                            description=description or spec.description, code_description=spec.description,
-                           description_changed=bool(description), in_use=source_on and enabled, approval=approval))
+                           description_changed=bool(description), in_use=source_on and enabled, approval=approval,
+                           used_by=used_by.get(spec.name, [])))
     return out
 
 
@@ -311,6 +331,35 @@ def put_tool(name: str, body: ToolChangeIn, principal: AppPrincipal = Depends(su
     what = "tool.switch" if body.enabled is not None else "tool.description"
     store.save_tool_override(name, enabled, description, who(principal), what)
     return next(t for t in all_tools_out() if t.name == name)
+
+
+# --- per-app tool lists (8.6e-2) ------------------------------------------------------------------------------
+
+
+def app_tools_out(app_id: str, names: list[str], known: set[str]) -> AppToolsOut:
+    return AppToolsOut(app_id=app_id, tools=[AppToolOut(name=n, missing=n not in known) for n in sorted(names)])
+
+
+def get_app_tools(_: AppPrincipal = Depends(super_admin)) -> list[AppToolsOut]:
+    """Every app's tool list (apps with none are left out). An app's keys may use only these tools, and only those
+    switched on, approved and whose scope the key has."""
+    known = {t.name for t in all_tools_out()}
+    return [app_tools_out(app_id, names, known) for app_id, names in sorted(store.app_tool_lists().items())]
+
+
+def put_app_tools(app_id: str, body: AppToolsIn, principal: AppPrincipal = Depends(super_admin)) -> AppToolsOut:
+    """Replaces an app's tool list. 404 app_not_found; 422 tool_not_found (a name that is not a tool now; names
+    already on the list may stay while their tool is missing)."""
+    # 8.6e-3: the security password goes here too (per-app lists decide who may read records)
+    if not store.app_exists(app_id):
+        raise AppError(404, "app_not_found", f"No app named '{app_id}'. Create the app first.")
+    known = {t.name for t in all_tools_out()}
+    kept = store.app_tool_names(app_id)
+    unknown = sorted(set(body.tools) - known - kept)
+    if unknown:
+        raise AppError(422, "tool_not_found", f"Not a tool: {unknown}.")
+    store.save_app_tools(app_id, body.tools, who(principal))
+    return app_tools_out(app_id, sorted(set(body.tools)), known)
 
 
 # --- SQL tools ------------------------------------------------------------------------------------------------
@@ -431,6 +480,8 @@ router.add_api_route(f"{BASE}/connections/{{name}}/test", post_connection_test, 
 router.add_api_route(f"{BASE}/status", get_status, methods=["GET"], response_model=list[ConnectionTest])
 router.add_api_route(f"{BASE}/tools", get_tools, methods=["GET"], response_model=list[ToolOut])
 router.add_api_route(f"{BASE}/tools/{{name}}", put_tool, methods=["PUT"], response_model=ToolOut)
+router.add_api_route(f"{BASE}/apps", get_app_tools, methods=["GET"], response_model=list[AppToolsOut])
+router.add_api_route(f"{BASE}/apps/{{app_id}}", put_app_tools, methods=["PUT"], response_model=AppToolsOut)
 router.add_api_route(f"{BASE}/sql-tools", get_sql_tools, methods=["GET"], response_model=list[SqlToolOut])
 router.add_api_route(f"{BASE}/sql-tools/{{name}}", put_sql_tool, methods=["PUT"], response_model=SqlToolOut)
 router.add_api_route(f"{BASE}/sql-tools/{{name}}/check", post_sql_tool_check, methods=["POST"], response_model=SqlToolCheck)

@@ -1,4 +1,4 @@
-"""remove_app(): removes a disconnected app for good: its revoked / expired key rows, its profile and company links, so it leaves
+"""remove_app(): removes a disconnected app for good: its revoked / expired key rows, its profile, company links and tool list, so it leaves
 the apps list. Only when nothing is lost by accident:
 404 app_not_found; 409 console_app; 409 app_connected (an active key: disconnect it first);
 409 app_has_chats (its users' chats still exist: disconnect with "erase chats" first).
@@ -14,6 +14,7 @@ from app.admin.c_repository.delete_app_keys import delete_app_keys
 from app.admin.d_service.app_overviews import app_overviews
 from app.auth.a_schemas.console_app_id import CONSOLE_APP_ID
 from app.core.e_errors.app_error import AppError
+from app.tools.store import delete_app_tools
 
 
 def remove_app(db: Session, app_id: str) -> AppRemoved:
@@ -31,6 +32,7 @@ def remove_app(db: Session, app_id: str) -> AppRemoved:
 
     keys_removed = delete_app_keys(db, app_id)
     db.execute(delete(AppCompany).where(AppCompany.app_id == app_id))  # its company links go with the profile
+    delete_app_tools(db, app_id)  # and its tool list (8.6e-2)
     profile = db.get(AppProfile, app_id)
     if profile is not None:
         db.delete(profile)

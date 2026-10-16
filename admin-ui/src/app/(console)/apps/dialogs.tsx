@@ -9,7 +9,7 @@ import dash from "../dashboard.module.css";
 import FormDialog from "../form-dialog";
 import { toast } from "../toast";
 import { type CollectionOption, type CompanyOption, usableBy } from "./collection-options";
-import { createKey, disconnectApp, editKey, removeApp, rotateKey, saveProfile, type NewKey } from "./actions";
+import { createKey, disconnectApp, editKey, removeApp, rotateKey, saveAppTools, saveProfile, type NewKey } from "./actions";
 
 // The super admin's buttons on Apps & keys, each with its own native <dialog>. A new key's secret lives only
 // in this component's state while its dialog is open; closing the dialog drops it.
@@ -795,6 +795,59 @@ export function CreateAppButton({ existing }: { existing: string[] }) {
       <small className={dash.muted}>
         Next: link it to its companies (Companies → Add company or Edit), then make its key here with New key.
       </small>
+    </FormDialog>
+  );
+}
+
+export type ToolOption = { name: string; scope: string; in_use: boolean };
+
+// 8.6e-2: which tools this app's keys may use. A new app has none. A ticked tool also needs its scope on the key
+// (e.g. "Chat + own records" for records:read). Missing tools (their MCP server removed) stay listed until unticked.
+export function EditToolsButton({
+  appId,
+  tools,
+  checked,
+  missing,
+}: {
+  appId: string;
+  tools: ToolOption[];
+  checked: string[];
+  missing: string[];
+}) {
+  return (
+    <FormDialog
+      button="Edit tools"
+      buttonClass={dash.smallButton}
+      title={`Tools ${appId} may use`}
+      submitLabel="Save tools"
+      done={() => `Tools of ${appId} saved`}
+      onSubmit={(data) => saveAppTools(appId, data.getAll("tools").map(String))}
+    >
+      <fieldset className={dash.checks}>
+        <legend>Its keys may use the ticked tools (and only with the tool&apos;s scope on the key)</legend>
+        {tools.length === 0 && missing.length === 0 && <span className={dash.muted}>No tools exist yet.</span>}
+        {tools.map((t) => (
+          <label key={t.name} className={dash.check}>
+            <input type="checkbox" name="tools" value={t.name} defaultChecked={checked.includes(t.name)} />
+            <span className="mono" translate="no">
+              {t.name}
+            </span>
+            <span className={dash.muted}>
+              ({t.scope}
+              {t.in_use ? "" : ", not in use now"})
+            </span>
+          </label>
+        ))}
+        {missing.map((name) => (
+          <label key={name} className={dash.check}>
+            <input type="checkbox" name="tools" value={name} defaultChecked />
+            <span className="mono" translate="no">
+              {name}
+            </span>
+            <span className={dash.warn}>(missing: its server is gone; untick to remove)</span>
+          </label>
+        ))}
+      </fieldset>
     </FormDialog>
   );
 }

@@ -74,6 +74,14 @@ export async function saveProfile(
   return r.ok ? { ok: true } : { ok: false, message: displayMessage(r.error), status: r.error.status };
 }
 
+// An app's whole tool list (8.6e-2): its keys may use only these tools (and only with the tool's scope).
+export async function saveAppTools(appId: string, tools: string[]): Promise<ConfirmResult> {
+  const r = await callApi((api) =>
+    api.PUT("/v1/admin/tools/apps/{app_id}", { params: { path: { app_id: appId } }, body: { tools } }),
+  );
+  return r.ok ? { ok: true } : { ok: false, message: displayMessage(r.error), status: r.error.status };
+}
+
 // Disconnect an app: every active key revoked, profile removed; with eraseChats, all its users' chats deleted.
 export async function disconnectApp(appId: string, eraseChats: boolean) {
   const r = await callApi((api) =>

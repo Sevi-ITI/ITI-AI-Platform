@@ -52,6 +52,11 @@ a super admin approves it in the console. What was approved is its fingerprint (
 arguments); if the server changes either, the tool waits for approval again (refused with `tool_not_approved`).
 Tools from `tools.py`, SQL tools and stdio servers from `mcp_servers.py` are our own code: no approval needed.
 
+Per-app tool lists (8.6e-2, always on, no switch): an API key gets only the tools ticked for its APP (console → Apps &
+keys → the app's card → Tools it may use; table `app_tools` in `store.py`). A new app has none. Refused with
+`tool_not_allowed`. A ticked tool that disappears (its MCP server removed) stays on the list as "missing" and offers
+nothing until it comes back. Console sessions have no app: Try it tests any switched-on tool.
+
 ## Common changes
 
 | I want to... | Do this, then restart uvicorn |
@@ -62,7 +67,7 @@ Tools from `tools.py`, SQL tools and stdio servers from `mcp_servers.py` are our
 | **Connect an MCP server on another machine** | Put its secret in `backend\.env` (e.g. `ITI_MCP_PAYROLL_TOKEN=...`), then console → Tools & MCP → Add connection (http, url, that variable's name) |
 | **Add an MCP server for a new system on this machine** | Paste `new_mcp_server.example` into `mcp_servers.py`, add it to `SERVERS`, add its `servers.py` entry |
 | **Switch a server or a tool off** | Console → Tools & MCP (connection: Enabled off; tool: its switch) |
-| **Give an app access** | Its key needs the tool's scope (`records:read`): console → Apps & keys → "Chat + own records" |
+| **Give an app access** | Its key needs the tool's scope (`records:read`, "Chat + own records") AND the tool ticked on the app's card (Apps & keys → Tools it may use) |
 | **A new kind of access** (e.g. `tickets:read`) | Add it to `Scope` in `app/admin/a_schemas/key_create.py` (+ a console preset) |
 
 Checks: from `backend\`: `ruff check .`, `pytest -q`, then `python -m scripts.check_records_chat` (live) and
@@ -83,7 +88,7 @@ Checks: from `backend\`: `ruff check .`, `pytest -q`, then `python -m scripts.ch
    from `ITI-User-Id` (built-in: refused as an argument; MCP: removed from the schema, overwritten on every call).
    `scripts/check_records_isolation.py` tries 12 prompt attacks to prove it.
 2. **Read-only, fixed queries:** bound parameters, `WHERE employee_id = :employee_id`, views in schema `ai` only.
-3. **Every tool has a scope**, checked when offered (`tools_for`) and when run (`run_tool`).
+3. **Every tool has a scope and must be on the app's tool list**, both checked when offered (`tools_for`) and when run (`run_tool`).
 4. **Values never go to logs:** the request log keeps tool names and time; source titles name what was read.
 5. **Secrets only in `backend\.env`**, never in `servers.py` or any committed file.
 6. **Descriptions matter:** the 4B model picks tools by them ("the CURRENT USER's own ...", and what it is NOT for).
