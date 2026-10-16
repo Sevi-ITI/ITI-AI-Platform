@@ -4,6 +4,7 @@ import { displayMessage } from "@/lib/api/api-error";
 import { callApi, endSessionOn401 } from "@/lib/api/client";
 import type { components } from "@/lib/api/schema";
 import { formatCount, formatDateTime, formatMs, formatPercent, formatTime } from "@/lib/format";
+import { testersGoToChat } from "@/lib/session/testers-go-to-chat";
 
 import AutoRefresh from "../auto-refresh";
 import styles from "../dashboard.module.css";
@@ -46,6 +47,7 @@ type Latency = components["schemas"]["LatencyStats"];
 type RouteUsage = components["schemas"]["RouteUsage"];
 
 export default async function PerformancePage({ searchParams }: PageProps<"/performance">) {
+  await testersGoToChat(); // testers have only the Chat page
   const asked = (await searchParams).window;
   const key: WindowKey = typeof asked === "string" && Object.hasOwn(WINDOWS, asked) ? (asked as WindowKey) : "24h";
   const span = WINDOWS[key];

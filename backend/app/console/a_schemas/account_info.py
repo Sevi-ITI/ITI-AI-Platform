@@ -13,3 +13,4 @@ class AccountInfo(BaseModel):
     active: bool
     created_at: UtcDateTime
     last_login_at: UtcDateTime | None
+    collections: list[str] | None = None  # testers: the collections they may ask; None = every one

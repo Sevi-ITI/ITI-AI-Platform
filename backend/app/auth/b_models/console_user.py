@@ -3,7 +3,7 @@ The password itself is never stored, only its scrypt hash (see d_keys/hash_passw
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Integer, String
+from sqlalchemy import JSON, Boolean, DateTime, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.c_database.base import Base
@@ -16,7 +16,8 @@ class ConsoleUser(Base):
     username: Mapped[str] = mapped_column(String(32), primary_key=True)  # lowercase, e.g. "vince"
     display_name: Mapped[str | None] = mapped_column(String(100))
     password_hash: Mapped[str] = mapped_column(String(200))  # "scrypt$n$r$p$salt$hash"
-    role: Mapped[str] = mapped_column(String(16))  # "super_admin" or "supervisor"
+    role: Mapped[str] = mapped_column(String(16))  # "super_admin", "supervisor" or "tester"
+    collections: Mapped[list | None] = mapped_column(JSON)  # testers: the collections they may ask; None = every one
     active: Mapped[bool] = mapped_column(Boolean, default=True)  # False = cannot log in (kept for the record)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

@@ -3,6 +3,7 @@ import { callApi, endSessionOn401 } from "@/lib/api/client";
 import type { components } from "@/lib/api/schema";
 import { formatDateTime } from "@/lib/format";
 import { currentAccount } from "@/lib/session/current-account";
+import { testersGoToChat } from "@/lib/session/testers-go-to-chat";
 
 import ConfirmAction from "../confirm-action";
 import styles from "../dashboard.module.css";
@@ -59,6 +60,7 @@ function changeLines(before: Fields, after: Fields): string[] {
 // backend/app/tools/console_features.py is True; FastAPI refuses a switched-off part too. Secrets are never shown:
 // a connection names its backend\.env variable and the page says whether it is set.
 export default async function ToolsPage() {
+  await testersGoToChat(); // testers have only the Chat page
   const me = await currentAccount();
   endSessionOn401(me);
   if (!me.ok || me.data.role !== "super_admin") {

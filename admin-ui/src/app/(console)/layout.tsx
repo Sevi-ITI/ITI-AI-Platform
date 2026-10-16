@@ -57,9 +57,9 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
           <MenuIcon />
         </button>
         <nav id="console-nav" popover="auto" className={styles.navPanel} aria-label="Console">
-          <NavLinks showAccounts={account.role === "super_admin"} />
+          <NavLinks role={account.role} />
         </nav>
-        <HealthPill />
+        <HealthPill simple={account.role === "tester"} />
         <div className={styles.account}>
           <div className={styles.who}>
             <p className={styles.name}>{account.display_name ?? account.username}</p>

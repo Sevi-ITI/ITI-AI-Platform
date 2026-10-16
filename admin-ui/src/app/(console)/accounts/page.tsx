@@ -3,6 +3,7 @@ import { callApi, endSessionOn401 } from "@/lib/api/client";
 import type { components } from "@/lib/api/schema";
 import { formatDateTime, initials } from "@/lib/format";
 import { currentAccount } from "@/lib/session/current-account";
+import { testersGoToChat } from "@/lib/session/testers-go-to-chat";
 
 import ConfirmAction from "../confirm-action";
 import styles from "../dashboard.module.css";
@@ -19,6 +20,7 @@ type Account = components["schemas"]["AccountInfo"];
 // Console accounts (super admin only): who can log in, with which role. FastAPI refuses everyone else,
 // and refuses a change that would leave no active super admin (409 last_super_admin).
 export default async function AccountsPage() {
+  await testersGoToChat(); // testers have only the Chat page
   const me = await currentAccount();
   endSessionOn401(me);
   if (!me.ok || me.data.role !== "super_admin") {
@@ -29,11 +31,16 @@ export default async function AccountsPage() {
     );
   }
 
-  const accounts = await callApi((api) => api.GET("/v1/admin/accounts"));
-  endSessionOn401(accounts);
+  const [accounts, collections] = await Promise.all([
+    callApi((api) => api.GET("/v1/admin/accounts")),
+    callApi((api) => api.GET("/v1/admin/collections")),
+  ]);
+  endSessionOn401(accounts, collections);
+  const collectionNames = collections.ok ? collections.data.map((c) => c.name).sort() : [];
 
-  // Order: you first, then active accounts (super admins, then supervisors), deactivated last; A to Z inside each.
-  const rank = (a: Account) => (a.username === me.data.username ? 0 : !a.active ? 3 : a.role === "super_admin" ? 1 : 2);
+  // Order: you first, then active accounts (super admins, supervisors, testers), deactivated last; A to Z inside each.
+  const rank = (a: Account) =>
+    a.username === me.data.username ? 0 : !a.active ? 4 : a.role === "super_admin" ? 1 : a.role === "supervisor" ? 2 : 3;
   const rows = accounts.ok
     ? [...accounts.data].sort(
         (a, b) =>
@@ -56,7 +63,7 @@ export default async function AccountsPage() {
             </p>
           )}
         </div>
-        <AddAccountButton />
+        <AddAccountButton collections={collectionNames} />
       </header>
 
       <section className={styles.card} aria-label="Console accounts">
@@ -80,7 +87,7 @@ export default async function AccountsPage() {
               </thead>
               <tbody>
                 {rows.map((a) => (
-                  <AccountRow key={a.username} a={a} isMe={a.username === me.data.username} />
+                  <AccountRow key={a.username} a={a} isMe={a.username === me.data.username} collections={collectionNames} />
                 ))}
               </tbody>
             </table>
@@ -91,7 +98,7 @@ export default async function AccountsPage() {
   );
 }
 
-function AccountRow({ a, isMe }: { a: Account; isMe: boolean }) {
+function AccountRow({ a, isMe, collections }: { a: Account; isMe: boolean; collections: string[] }) {
   const name = a.display_name ?? a.username;
   return (
     <tr className={a.active ? undefined : styles.dimmed}>
@@ -112,8 +119,14 @@ function AccountRow({ a, isMe }: { a: Account; isMe: boolean }) {
       </td>
       <td className={styles.nowrap}>
         <span className={a.role === "super_admin" ? styles.roleAdmin : styles.tag}>
-          {a.role === "super_admin" ? "Super admin" : "Supervisor"}
+          {a.role === "super_admin" ? "Super admin" : a.role === "supervisor" ? "Supervisor" : "Tester"}
         </span>
+        {/* a tester asks only these collections */}
+        {a.role === "tester" && (
+          <div className={`${styles.kpiNote} mono`} translate="no">
+            {(a.collections ?? []).join(", ") || "no collections"}
+          </div>
+        )}
       </td>
       <td className={styles.nowrap}>
         {a.active ? (
@@ -133,7 +146,13 @@ function AccountRow({ a, isMe }: { a: Account; isMe: boolean }) {
       </td>
       <td className={styles.actionsCell}>
         <div className={styles.rowActions}>
-          <EditAccountButton username={a.username} displayName={a.display_name} role={a.role} />
+          <EditAccountButton
+            username={a.username}
+            displayName={a.display_name}
+            role={a.role}
+            collections={collections}
+            checked={a.collections ?? []}
+          />
           <ResetPasswordButton username={a.username} />
           {a.active ? (
             <ConfirmAction

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { displayMessage } from "@/lib/api/api-error";
 import { callApi, endSessionOn401 } from "@/lib/api/client";
 import { formatDateTime } from "@/lib/format";
+import { currentAccount } from "@/lib/session/current-account";
 
 import { Problem } from "../../widgets";
 import styles from "../chat.module.css";
@@ -14,12 +15,13 @@ export const metadata = { title: "Chat" };
 
 export default async function ConversationPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [messages, conversations, collections] = await Promise.all([
+  const [messages, conversations, collections, me] = await Promise.all([
     callApi((api) => api.GET("/v1/conversations/{conversation_id}/messages", { params: { path: { conversation_id: id } } })),
     myConversations(),
     chatCollections(),
+    currentAccount(),
   ]);
-  endSessionOn401(messages, conversations, collections);
+  endSessionOn401(messages, conversations, collections, me);
 
   const summary = conversations.ok ? conversations.data.find((c) => c.conversation_id === id) : undefined;
 
@@ -51,6 +53,7 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
           conversationId={id}
           fixedCollection={summary.collection}
           collections={collections.ok ? collections.data : []}
+          canUpload={me.ok && me.data.role !== "tester"}
           historyCount={messages.data.length}
         />
       ) : (

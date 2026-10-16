@@ -14,3 +14,4 @@ class AccountCreate(BaseModel):
     display_name: str | None = Field(default=None, max_length=100)
     role: ConsoleRole
     password: SecretStr = Field(min_length=12, max_length=128)
+    collections: list[str] | None = None  # testers only (at least one, each must exist); ignored for other roles

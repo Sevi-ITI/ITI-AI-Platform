@@ -10,5 +10,6 @@ export const myConversations = cache(() =>
   callApi((api) => api.GET("/v1/conversations", { params: { query: { limit: 50 } } })),
 );
 
-// Collections for the picker and the upload dialog (new chat and conversation pages).
-export const chatCollections = cache(() => callApi((api) => api.GET("/v1/admin/collections")));
+// The collections this person may ask (a tester: only theirs), with document counts and newest files, for the
+// picker, the suggestion chips and the upload dialog (new chat and conversation pages).
+export const chatCollections = cache(() => callApi((api) => api.GET("/v1/console/collections")));

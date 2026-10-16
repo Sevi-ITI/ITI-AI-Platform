@@ -31,12 +31,14 @@ export default function Composer({
   conversationId,
   fixedCollection,
   collections = [],
+  canUpload = false,
   historyCount,
   suggestions = {},
 }: {
   conversationId?: string;
   fixedCollection?: string; // an existing conversation keeps its collection
   collections?: { name: string; documents: number }[]; // a new chat picks one; the + dialog lists them
+  canUpload?: boolean; // the + (upload) button: not for testers (FastAPI refuses their uploads anyway)
   historyCount: number;
   suggestions?: Record<string, string[]>; // new chat: up to three questions per collection, shown as chips
 }) {
@@ -250,7 +252,7 @@ export default function Composer({
       <div className={styles.dock}>
         <div className={styles.composer}>
           <div className={styles.box}>
-            <AddDocument collections={collections.map((c) => c.name)} initial={collection} />
+            {canUpload && <AddDocument collections={collections.map((c) => c.name)} initial={collection} />}
             <form
               className={styles.ask}
               onSubmit={(e) => {

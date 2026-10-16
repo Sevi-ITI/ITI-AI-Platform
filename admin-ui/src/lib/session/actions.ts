@@ -19,7 +19,7 @@ export async function logIn(_previous: LoginState, form: FormData): Promise<Logi
   }
 
   await saveSession(result.data.session, result.data.expires_at);
-  redirect("/");
+  redirect(result.data.account.role === "tester" ? "/chat" : "/"); // testers have only the Chat page
 }
 
 export async function logOut(): Promise<void> {

@@ -4,6 +4,7 @@ import { displayMessage } from "@/lib/api/api-error";
 import { callApi, endSessionOn401 } from "@/lib/api/client";
 import { formatCount, formatDateTime, initials } from "@/lib/format";
 import { currentAccount } from "@/lib/session/current-account";
+import { testersGoToChat } from "@/lib/session/testers-go-to-chat";
 
 import Breadcrumbs from "../../../breadcrumbs";
 import Pager from "../../../pager";
@@ -29,6 +30,7 @@ export default async function UserChatsPage({
   params: Promise<{ app: string; user: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  await testersGoToChat(); // testers have only the Chat page
   const [{ app, user }, query] = await Promise.all([params, searchParams]);
   const appId = decodeURIComponent(app);
   const userId = decodeURIComponent(user);

@@ -9,3 +9,4 @@ class AccountUpdate(BaseModel):
     display_name: str | None = Field(default=None, max_length=100)
     role: ConsoleRole | None = None
     active: bool | None = None  # False = deactivate (logged out at once); True = reactivate
+    collections: list[str] | None = None  # testers only: the whole new list (a role change to tester needs one)

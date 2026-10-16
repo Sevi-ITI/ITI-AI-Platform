@@ -5,6 +5,7 @@ import { displayMessage } from "@/lib/api/api-error";
 import { callApi, endSessionOn401 } from "@/lib/api/client";
 import type { components } from "@/lib/api/schema";
 import { formatCount, formatDateTime, formatMb, formatMs, formatPercent, formatTime, formatUptime } from "@/lib/format";
+import { testersGoToChat } from "@/lib/session/testers-go-to-chat";
 
 import AutoRefresh from "./auto-refresh";
 import styles from "./dashboard.module.css";
@@ -19,6 +20,7 @@ type Health = components["schemas"]["HealthReport"];
 const REFRESH_SECONDS = 30;
 
 export default async function OverviewPage() {
+  await testersGoToChat(); // testers have only the Chat page
   // Fast calls only (~20 ms each); the slow health check is streamed (StatusCard, GpuCard).
   const [summary, errors, collections] = await Promise.all([
     callApi((api) => api.GET("/v1/admin/metrics/summary", { params: { query: { window_minutes: 1440 } } })),

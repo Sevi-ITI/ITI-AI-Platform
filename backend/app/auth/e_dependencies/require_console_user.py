@@ -29,4 +29,4 @@ def require_console_user(
     if row is None or not is_future(row.expires_at) or user is None or not user.active:
         raise AppError(401, "invalid_session", "Missing, invalid or expired console session. Log in again.")
     record_metric(app_id=CONSOLE_APP_ID, company_id=ITI_COMPANY_ID, user_id=user.username)  # for the request log
-    return ConsolePrincipal(username=user.username, role=user.role, token_hash=row.token_hash)
+    return ConsolePrincipal(username=user.username, role=user.role, token_hash=row.token_hash, collections=user.collections)

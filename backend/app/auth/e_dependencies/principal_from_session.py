@@ -1,6 +1,7 @@
 """principal_from_session(): a console session pass -> AppPrincipal, so every existing route works for
-console users unchanged. App id "iti-console"; the role decides the scopes; every collection
-is readable (knowledge is company-wide). 401 invalid_session if the pass is not good."""
+console users unchanged. App id "iti-console"; the role decides the scopes; every collection is readable
+(knowledge is company-wide), except for testers: only the collections their account lists (that still exist).
+401 invalid_session if the pass is not good."""
 
 from sqlalchemy.orm import Session
 
@@ -17,7 +18,7 @@ def principal_from_session(session_pass: str, db: Session) -> AppPrincipal:
         key_id=None,
         app_id=CONSOLE_APP_ID,
         scopes=CONSOLE_SCOPES[person.role],
-        allowed_collections=list(STORES),
+        allowed_collections=list(STORES) if person.collections is None else [c for c in person.collections if c in STORES],
         console_user=person.username,
         console_role=person.role,
     )

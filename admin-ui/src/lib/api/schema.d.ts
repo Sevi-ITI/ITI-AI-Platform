@@ -508,6 +508,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/console/collections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Console Collections */
+        get: operations["get_console_collections_v1_console_collections_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/console/login": {
         parameters: {
             query?: never;
@@ -890,12 +907,14 @@ export interface components {
              * Role
              * @enum {string}
              */
-            role: "super_admin" | "supervisor";
+            role: "super_admin" | "supervisor" | "tester";
             /**
              * Password
              * Format: password
              */
             password: string;
+            /** Collections */
+            collections?: string[] | null;
         };
         /** AccountInfo */
         AccountInfo: {
@@ -907,7 +926,7 @@ export interface components {
              * Role
              * @enum {string}
              */
-            role: "super_admin" | "supervisor";
+            role: "super_admin" | "supervisor" | "tester";
             /** Active */
             active: boolean;
             /**
@@ -917,15 +936,19 @@ export interface components {
             created_at: string;
             /** Last Login At */
             last_login_at: string | null;
+            /** Collections */
+            collections?: string[] | null;
         };
         /** AccountUpdate */
         AccountUpdate: {
             /** Display Name */
             display_name?: string | null;
             /** Role */
-            role?: ("super_admin" | "supervisor") | null;
+            role?: ("super_admin" | "supervisor" | "tester") | null;
             /** Active */
             active?: boolean | null;
+            /** Collections */
+            collections?: string[] | null;
         };
         /** AdminConversation */
         AdminConversation: {
@@ -1105,6 +1128,15 @@ export interface components {
             new: {
                 [key: string]: unknown;
             } | null;
+        };
+        /** ChatCollection */
+        ChatCollection: {
+            /** Name */
+            name: string;
+            /** Documents */
+            documents: number;
+            /** Recent Files */
+            recent_files: string[];
         };
         /** ChatRequest */
         ChatRequest: {
@@ -5966,6 +5998,107 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unsupported Media Type */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_console_collections_v1_console_collections_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatCollection"][];
+                };
             };
             /** @description Unauthorized */
             401: {

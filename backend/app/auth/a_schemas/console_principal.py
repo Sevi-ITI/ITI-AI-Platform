@@ -7,3 +7,4 @@ class ConsolePrincipal(BaseModel):
     username: str
     role: ConsoleRole
     token_hash: str
+    collections: list[str] | None = None  # testers: the collections they may ask; None = every one

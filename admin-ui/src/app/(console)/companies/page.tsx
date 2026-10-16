@@ -5,6 +5,7 @@ import { callApi, endSessionOn401 } from "@/lib/api/client";
 import type { components } from "@/lib/api/schema";
 import { formatCount, formatDateTime, initials } from "@/lib/format";
 import { currentAccount } from "@/lib/session/current-account";
+import { testersGoToChat } from "@/lib/session/testers-go-to-chat";
 
 import ConfirmAction from "../confirm-action";
 import styles from "../dashboard.module.css";
@@ -18,6 +19,7 @@ export const metadata = { title: "Companies" };
 // ITI's client companies (ITI itself included): their own collections and how many active keys serve them.
 // A company's collections are private to it; Global collections are listed once, at the bottom.
 export default async function CompaniesPage() {
+  await testersGoToChat(); // testers have only the Chat page
   const [companies, collections, apps, me] = await Promise.all([
     callApi((api) => api.GET("/v1/admin/companies")),
     callApi((api) => api.GET("/v1/admin/collections")),

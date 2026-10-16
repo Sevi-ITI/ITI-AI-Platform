@@ -1,5 +1,6 @@
 import { displayMessage } from "@/lib/api/api-error";
-import { callApi, endSessionOn401 } from "@/lib/api/client";
+import { endSessionOn401 } from "@/lib/api/client";
+import { currentAccount } from "@/lib/session/current-account";
 
 import { Problem } from "../widgets";
 import styles from "./chat.module.css";
@@ -24,21 +25,14 @@ function titleOf(filename: string): string {
 
 // A new conversation: choose the collection (it stays fixed for the conversation), then ask.
 export default async function NewChatPage() {
-  const [collections, documents] = await Promise.all([
-    chatCollections(),
-    // the newest files of every collection, for the suggestion chips (no chips if this fails: they are a help only)
-    callApi((api) => api.GET("/v1/admin/documents", { params: { query: { limit: 100 } } })),
-  ]);
-  endSessionOn401(collections, documents);
+  const [collections, me] = await Promise.all([chatCollections(), currentAccount()]);
+  endSessionOn401(collections, me);
 
   // Per collection: up to three questions about its newest indexed files, so a suggestion always fits the
-  // collection that is picked (one question per file; a file uploaded twice counts once).
+  // collection that is picked (one question per file; the API already counts a file uploaded twice once).
   const suggestions: Record<string, string[]> = {};
-  for (const d of documents.ok ? documents.data : []) {
-    if (d.job_status !== "done") continue;
-    const list = (suggestions[d.collection] ??= []);
-    const question = `What does ${titleOf(d.filename)} cover?`;
-    if (list.length < SUGGESTIONS && !list.includes(question)) list.push(question);
+  for (const c of collections.ok ? collections.data : []) {
+    suggestions[c.name] = c.recent_files.slice(0, SUGGESTIONS).map((f) => `What does ${titleOf(f)} cover?`);
   }
 
   return (
@@ -62,6 +56,7 @@ export default async function NewChatPage() {
       {collections.ok ? (
         <Composer
           collections={collections.data.map((c) => ({ name: c.name, documents: c.documents }))}
+          canUpload={me.ok && me.data.role !== "tester"}
           historyCount={0}
           suggestions={suggestions}
         />

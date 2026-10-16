@@ -4,6 +4,7 @@ import { displayMessage } from "@/lib/api/api-error";
 import { callApi, endSessionOn401 } from "@/lib/api/client";
 import type { components } from "@/lib/api/schema";
 import { formatMs, formatStamp } from "@/lib/format";
+import { testersGoToChat } from "@/lib/session/testers-go-to-chat";
 
 import CopyButton from "../copy-button";
 import styles from "../dashboard.module.css";
@@ -22,6 +23,7 @@ type Row = components["schemas"]["RequestLogOut"];
 // opens every detail of that request in a side panel. The open row lives in the URL (?req=<request id>) like the
 // filters: it survives a reload, can be shared, and Back closes it. No browser JavaScript needed.
 export default async function RequestLogPage({ searchParams }: PageProps<"/requests">) {
+  await testersGoToChat(); // testers have only the Chat page
   const params = await searchParams;
   const one = (v: string | string[] | undefined) => (typeof v === "string" ? v.trim() : "");
   const app = one(params.app);

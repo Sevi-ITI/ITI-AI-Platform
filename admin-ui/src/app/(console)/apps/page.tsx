@@ -3,6 +3,7 @@ import { callApi, endSessionOn401 } from "@/lib/api/client";
 import type { components } from "@/lib/api/schema";
 import { formatCount, formatDateTime, formatDay, initials } from "@/lib/format";
 import { currentAccount } from "@/lib/session/current-account";
+import { testersGoToChat } from "@/lib/session/testers-go-to-chat";
 
 import ConfirmAction from "../confirm-action";
 import styles from "../dashboard.module.css";
@@ -38,6 +39,7 @@ export default async function AppsPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  await testersGoToChat(); // testers have only the Chat page
   const { q } = await searchParams;
   const [apps, keys, collections, companies, toolLists, allTools, me] = await Promise.all([
     callApi((api) => api.GET("/v1/admin/apps")),

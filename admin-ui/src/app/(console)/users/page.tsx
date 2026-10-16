@@ -3,6 +3,7 @@ import Link from "next/link";
 import { displayMessage } from "@/lib/api/api-error";
 import { callApi, endSessionOn401 } from "@/lib/api/client";
 import { formatCount, formatDateTime } from "@/lib/format";
+import { testersGoToChat } from "@/lib/session/testers-go-to-chat";
 
 import Pager from "../pager";
 import styles from "../dashboard.module.css";
@@ -15,6 +16,7 @@ const PAGE_SIZE = 100;
 // Every app's users (the C# apps' users and console people), most recently active first, optionally one
 // app's (?app=, in the URL like the Request log's filters). A row opens that user's conversations.
 export default async function UsersPage({ searchParams }: PageProps<"/users">) {
+  await testersGoToChat(); // testers have only the Chat page
   const params = await searchParams;
   const one = (v: string | string[] | undefined) => (typeof v === "string" ? v.trim() : "");
   const app = one(params.app);

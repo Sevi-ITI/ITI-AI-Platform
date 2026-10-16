@@ -1,4 +1,6 @@
-"""update_account(): change a console account's name, role or active flag.
+"""update_account(): change a console account's name, role, active flag or (testers) collections.
+- A tester keeps their collections unless new ones are sent; becoming a tester needs them; leaving the
+  role clears them (other roles may ask every collection).
 - Deactivating logs the person out everywhere at once; reactivating clears any lockout.
 - A role change takes effect on their next request (the role is read on every request).
 - 409 last_super_admin if the change would leave no active super admin (nobody could manage the console)."""
@@ -10,6 +12,7 @@ from app.auth.c_repository.delete_user_sessions import delete_user_sessions
 from app.console.a_schemas.account_info import AccountInfo
 from app.console.a_schemas.account_update import AccountUpdate
 from app.console.d_service.account_or_404 import account_or_404
+from app.console.d_service.tester_collections import tester_collections
 from app.core.e_errors.app_error import AppError
 
 
@@ -18,10 +21,13 @@ def update_account(db: Session, username: str, body: AccountUpdate) -> AccountIn
     stays_super_admin = (body.role or row.role) == "super_admin" and (row.active if body.active is None else body.active)
     if row.role == "super_admin" and row.active and not stays_super_admin and count_active_super_admins(db) == 1:
         raise AppError(409, "last_super_admin", "Keep at least one active super admin.")
+    role = body.role or row.role
+    collections = tester_collections(db, role, body.collections if body.collections is not None else row.collections)
     if body.display_name is not None:
         row.display_name = body.display_name
     if body.role is not None:
         row.role = body.role
+    row.collections = collections
     if body.active is False:
         row.active = False
         delete_user_sessions(db, username)

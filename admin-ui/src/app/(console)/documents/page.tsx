@@ -5,6 +5,7 @@ import { callApi, endSessionOn401 } from "@/lib/api/client";
 import type { components } from "@/lib/api/schema";
 import { formatBytes, formatCount, formatDateTime } from "@/lib/format";
 import { currentAccount } from "@/lib/session/current-account";
+import { testersGoToChat } from "@/lib/session/testers-go-to-chat";
 
 import AddDocument from "../chat/add-document";
 import ConfirmAction from "../confirm-action";
@@ -26,6 +27,7 @@ type Collection = components["schemas"]["CollectionInfo"];
 // Every uploaded file version and its indexing job, newest first, optionally one collection (?collection=).
 // Everyone may upload new files; the super admin may also replace (in the upload dialog) and delete.
 export default async function DocumentsPage({ searchParams }: PageProps<"/documents">) {
+  await testersGoToChat(); // testers have only the Chat page
   const params = await searchParams;
   const one = (v: string | string[] | undefined) => (typeof v === "string" ? v.trim() : "");
   const collection = one(params.collection);

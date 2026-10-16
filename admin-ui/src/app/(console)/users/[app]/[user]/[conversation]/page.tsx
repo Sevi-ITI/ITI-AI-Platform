@@ -3,6 +3,7 @@ import Link from "next/link";
 import { displayMessage } from "@/lib/api/api-error";
 import { callApi, endSessionOn401 } from "@/lib/api/client";
 import { formatDateTime, formatStamp } from "@/lib/format";
+import { testersGoToChat } from "@/lib/session/testers-go-to-chat";
 
 import Breadcrumbs from "../../../../breadcrumbs";
 import Message from "../../../../chat/message";
@@ -35,6 +36,7 @@ export default async function ThreadPage({
   params: Promise<{ app: string; user: string; conversation: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  await testersGoToChat(); // testers have only the Chat page
   const [{ app, user, conversation }, query] = await Promise.all([params, searchParams]);
   const companyId = (typeof query.company === "string" && query.company.trim()) || "iti";
   const appId = decodeURIComponent(app);

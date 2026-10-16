@@ -17,7 +17,7 @@ import {
   UsersIcon,
 } from "./icons";
 
-// Grouped by what the person is doing; Admin (Accounts, Tools & MCP) only for super admins.
+// Grouped by what the person is doing; Admin (Accounts, Tools & MCP) only for super admins; testers see only Chat.
 const GROUPS = [
   {
     title: "Monitor",
@@ -52,12 +52,15 @@ const GROUPS = [
   },
 ];
 
-export default function NavLinks({ showAccounts }: { showAccounts: boolean }) {
+export default function NavLinks({ role }: { role: "super_admin" | "supervisor" | "tester" }) {
   const pathname = usePathname();
 
   return (
     <div className={styles.navGroups}>
-      {GROUPS.filter((g) => showAccounts || !g.superAdminOnly).map((group) => (
+      {GROUPS.filter((g) => role === "super_admin" || !g.superAdminOnly)
+        .map((g) => (role === "tester" ? { ...g, links: g.links.filter((l) => l.href === "/chat") } : g))
+        .filter((g) => g.links.length > 0)
+        .map((group) => (
         // a <p>, not a heading: the sidebar comes before the page's h1
         <div key={group.title}>
           <p id={`nav-${group.title}`} className={styles.navGroup}>

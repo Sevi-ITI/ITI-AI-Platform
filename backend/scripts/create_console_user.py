@@ -4,6 +4,7 @@ The password is typed twice at a hidden prompt: never on the command line, never
 
 Run from backend\\:
     python -m scripts.create_console_user vince --role super_admin --name "Vince"
+    python -m scripts.create_console_user j.cruz --role tester --collections iti-docs   (testers need collections)
 """
 
 import argparse
@@ -24,13 +25,15 @@ def main() -> None:
     parser.add_argument("username", help='lowercase, 3-32 characters, e.g. "vince"')
     parser.add_argument("--role", required=True, choices=get_args(ConsoleRole))
     parser.add_argument("--name", default=None, help='display name, e.g. "Vince"')
+    parser.add_argument("--collections", nargs="*", default=None, help="testers only: the collections they may ask")
     args = parser.parse_args()
 
     password = getpass.getpass("Password (12+ characters): ")
     if password != getpass.getpass("Same password again: "):
         parser.error("the two passwords are different")
     try:
-        body = AccountCreate(username=args.username, display_name=args.name, role=args.role, password=password)
+        body = AccountCreate(username=args.username, display_name=args.name, role=args.role, password=password,
+                             collections=args.collections)
     except ValidationError as exc:
         parser.error(str(exc))  # hide_input_in_errors: the password is never in this text
     with get_sessionmaker()() as db:
@@ -42,6 +45,8 @@ def main() -> None:
     print(f"username: {account.username}")
     print(f"name    : {account.display_name or '-'}")
     print(f"role    : {account.role}")
+    if account.collections:
+        print(f"asks    : {', '.join(account.collections)}")
     print("Log in at POST /v1/console/login (the console's login page in 6B).")
 
 

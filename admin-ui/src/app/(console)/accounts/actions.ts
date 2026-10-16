@@ -19,13 +19,14 @@ export async function addAccount(account: {
   display_name: string | null;
   role: Role;
   password: string;
+  collections?: string[];
 }): Promise<ConfirmResult> {
   return result(await callApi((api) => api.POST("/v1/admin/accounts", { body: account })));
 }
 
 export async function updateAccount(
   username: string,
-  change: { display_name?: string | null; role?: Role; active?: boolean },
+  change: { display_name?: string | null; role?: Role; active?: boolean; collections?: string[] },
 ): Promise<ConfirmResult> {
   return result(
     await callApi((api) =>

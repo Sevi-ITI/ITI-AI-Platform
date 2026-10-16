@@ -7,6 +7,7 @@ from app.admin.a_schemas.admin_message import AdminMessage
 from app.admin.a_schemas.app_disconnected import AppDisconnected
 from app.admin.a_schemas.app_overview import AppOverview
 from app.admin.a_schemas.app_removed import AppRemoved
+from app.admin.a_schemas.chat_collection import ChatCollection
 from app.admin.a_schemas.chats_deleted import ChatsDeleted
 from app.admin.a_schemas.collection_deleted import CollectionDeleted
 from app.admin.a_schemas.collection_info import CollectionInfo
@@ -31,6 +32,7 @@ from app.admin.f_routes.get_admin_conversations import get_admin_conversations
 from app.admin.f_routes.get_apps import get_apps
 from app.admin.f_routes.get_collections import get_collections
 from app.admin.f_routes.get_companies import get_companies
+from app.admin.f_routes.get_console_collections import get_console_collections
 from app.admin.f_routes.get_documents import get_documents
 from app.admin.f_routes.get_health_report import get_health_report
 from app.admin.f_routes.get_keys import get_keys
@@ -93,3 +95,4 @@ add("/v1/admin/accounts", get_accounts, methods=["GET"], response_model=list[Acc
 add("/v1/admin/accounts", post_account, methods=["POST"], status_code=201, response_model=AccountInfo)
 add("/v1/admin/accounts/{username}", patch_account, methods=["PATCH"], response_model=AccountInfo)
 add("/v1/admin/accounts/{username}/password", post_account_password, methods=["POST"], status_code=204)
+add("/v1/console/collections", get_console_collections, methods=["GET"], response_model=list[ChatCollection])
