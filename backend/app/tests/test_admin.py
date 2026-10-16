@@ -12,7 +12,8 @@ NEW_KEY = {"app_id": "hr-portal", "scopes": ["chat:invoke", "documents:write"], 
 
 
 @pytest.fixture
-def admin(make_key):
+def admin(make_key, link_app):
+    link_app("hr-portal", "iti")  # keys are made inside an app linked to the company
     return make_key("iti-admin", scopes=["admin"], collections=[])
 
 

@@ -114,6 +114,7 @@ def make_collection(db_engine):
 def make_key(db_engine):
     """make_key("hr-portal", ["chat:invoke"], ["iti-docs"]) -> {"ITI-Api-Key": "iti_sk_..."}, ready as headers."""
     from app.admin.a_schemas.key_create import KeyCreate
+    from app.admin.d_service.ensure_app_company import ensure_app_company
     from app.admin.d_service.mint_key import mint_key
     from app.core.c_database.get_sessionmaker import get_sessionmaker
 
@@ -122,9 +123,25 @@ def make_key(db_engine):
             app_id=app_id, scopes=list(scopes), allowed_collections=list(collections), valid_days=valid_days
         )
         with get_sessionmaker()() as db:
+            ensure_app_company(db, app_id, body.company_id)  # the app and its link to ITI, as create_key does
             return {"ITI-Api-Key": mint_key(db, body).api_key}
 
     return make
+
+
+@pytest.fixture
+def link_app(db_engine):
+    """link_app("hr-portal", "acme", "beta") creates the app if missing and links it to those companies (which must
+    exist): keys for it can then be made for them."""
+    from app.admin.d_service.ensure_app_company import ensure_app_company
+    from app.core.c_database.get_sessionmaker import get_sessionmaker
+
+    def link(app_id, *company_ids):
+        with get_sessionmaker()() as db:
+            for company_id in company_ids:
+                ensure_app_company(db, app_id, company_id)
+
+    return link
 
 
 @pytest.fixture

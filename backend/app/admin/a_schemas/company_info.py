@@ -13,3 +13,4 @@ class CompanyInfo(BaseModel):
     collections: list[str]  # the collections it owns (Global ones are not listed)
     shared_collections: list[str] = []  # other companies' collections shared with it
     active_keys: int  # not revoked, not expired, any app
+    app_ids: list[str] = []  # the apps linked to it (keys may be made for these apps only)

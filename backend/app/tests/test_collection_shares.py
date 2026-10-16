@@ -5,13 +5,14 @@ import pytest
 
 
 @pytest.fixture
-def setup(client, make_key, make_collection):
+def setup(client, make_key, make_collection, link_app):
     """Companies acme, beta and gamma; acme-hr (acme) and labor-code (Global). Returns the admin key headers."""
     admin = make_key("iti-admin", scopes=["admin"], collections=[])
     for cid in ("acme", "beta", "gamma"):
         assert client.post("/v1/admin/companies", headers=admin, json={"company_id": cid, "name": cid}).status_code == 201
     make_collection("acme-hr", company="acme")
     make_collection("labor-code", company=None)
+    link_app("hr-portal", "acme", "beta", "gamma")
     return admin
 
 

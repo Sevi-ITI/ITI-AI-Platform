@@ -10,7 +10,7 @@ import type { ConfirmResult } from "../confirm-action";
 const result = (r: Awaited<ReturnType<typeof callApi>>): ConfirmResult =>
   r.ok ? { ok: true } : { ok: false, message: displayMessage(r.error), status: r.error.status };
 
-export async function addCompany(company: { company_id: string; name: string; notes: string | null }) {
+export async function addCompany(company: { company_id: string; name: string; notes: string | null; app_ids: string[] }) {
   return result(await callApi((api) => api.POST("/v1/admin/companies", { body: company })));
 }
 
@@ -18,6 +18,18 @@ export async function updateCompany(companyId: string, change: { name: string; n
   return result(
     await callApi((api) =>
       api.PATCH("/v1/admin/companies/{company_id}", { params: { path: { company_id: companyId } }, body: change }),
+    ),
+  );
+}
+
+// The whole list of apps linked to the company. FastAPI refuses to unlink an app that still has an active key here.
+export async function linkApps(companyId: string, appIds: string[]) {
+  return result(
+    await callApi((api) =>
+      api.PUT("/v1/admin/companies/{company_id}/apps", {
+        params: { path: { company_id: companyId } },
+        body: { app_ids: appIds },
+      }),
     ),
   );
 }

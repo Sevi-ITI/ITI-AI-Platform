@@ -50,6 +50,7 @@ from app.admin.f_routes.post_company import post_company
 from app.admin.f_routes.post_key import post_key
 from app.admin.f_routes.put_app import put_app
 from app.admin.f_routes.put_collection_shares import put_collection_shares
+from app.admin.f_routes.put_company_apps import put_company_apps
 from app.console.a_schemas.account_info import AccountInfo
 from app.core.e_errors.error_responses import ERROR_RESPONSES
 
@@ -83,6 +84,7 @@ add("/v1/admin/companies", get_companies, methods=["GET"], response_model=list[C
 add("/v1/admin/companies", post_company, methods=["POST"], status_code=201, response_model=CompanyInfo)
 add("/v1/admin/companies/{company_id}", patch_company, methods=["PATCH"], response_model=CompanyInfo)
 add("/v1/admin/companies/{company_id}", delete_company, methods=["DELETE"], status_code=204)
+add("/v1/admin/companies/{company_id}/apps", put_company_apps, methods=["PUT"], response_model=CompanyInfo)
 add("/v1/admin/apps", get_apps, methods=["GET"], response_model=list[AppOverview])
 add("/v1/admin/apps/{app_id}", put_app, methods=["PUT"], response_model=AppOverview)
 add("/v1/admin/apps/{app_id}", delete_app, methods=["DELETE"], response_model=AppRemoved)

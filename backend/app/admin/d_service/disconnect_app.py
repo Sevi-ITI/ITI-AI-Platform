@@ -1,10 +1,12 @@
-"""disconnect_app(): cuts an app off: every active key revoked and its profile removed; with erase_chats, every
+"""disconnect_app(): cuts an app off: every active key revoked, its profile and company links removed; with erase_chats, every
 conversation of its users deleted too. Revoked keys, the request log (and chats unless erased) stay as history.
 404 app_not_found if nothing is known about the app; 409 console_app for the console itself."""
 
+from sqlalchemy import delete
 from sqlalchemy.orm import Session
 
 from app.admin.a_schemas.app_disconnected import AppDisconnected
+from app.admin.b_models.app_company import AppCompany
 from app.admin.b_models.app_profile import AppProfile
 from app.admin.c_repository.delete_app_conversations import delete_app_conversations
 from app.admin.d_service.app_overviews import app_overviews
@@ -26,6 +28,7 @@ def disconnect_app(db: Session, app_id: str, erase_chats: bool) -> AppDisconnect
         if key.app_id == app_id and is_active(key.revoked_at, key.expires_at):
             key.revoked_at = utcnow()
             keys_revoked += 1
+    db.execute(delete(AppCompany).where(AppCompany.app_id == app_id))  # its company links go with the profile
     profile = db.get(AppProfile, app_id)
     if profile is not None:
         db.delete(profile)

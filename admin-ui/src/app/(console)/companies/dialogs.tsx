@@ -2,13 +2,32 @@
 
 import dash from "../dashboard.module.css";
 import FormDialog from "../form-dialog";
-import { addCompany, updateCompany } from "./actions";
+import { addCompany, linkApps, updateCompany } from "./actions";
 
-// Add a client company; rename one or change its notes.
+// Add a client company and link it to apps; rename one, change its notes or its linked apps.
+
+export type AppOption = { app_id: string; name: string };
+
+/** Ticks for the apps a company connects to: keys for those apps can then be made for it (Apps & keys). */
+function AppChecks({ apps, checked }: { apps: AppOption[]; checked: string[] }) {
+  return (
+    <fieldset className={dash.checks}>
+      <legend>Apps it connects to</legend>
+      {apps.length === 0 && <span className={dash.muted}>No apps yet: create one on Apps &amp; keys first.</span>}
+      {apps.map((a) => (
+        <label key={a.app_id} className={dash.check}>
+          <input type="checkbox" name="app_ids" value={a.app_id} defaultChecked={checked.includes(a.app_id)} />
+          <span>{a.name}</span>
+          {a.name !== a.app_id && <span className={`mono ${dash.muted}`}>({a.app_id})</span>}
+        </label>
+      ))}
+    </fieldset>
+  );
+}
 
 const text = (data: FormData, name: string) => String(data.get(name) ?? "").trim();
 
-export function AddCompanyButton() {
+export function AddCompanyButton({ apps }: { apps: AppOption[] }) {
   return (
     <FormDialog
       button="Add company"
@@ -21,6 +40,7 @@ export function AddCompanyButton() {
           company_id: text(data, "company_id"),
           name: text(data, "name"),
           notes: text(data, "notes") || null,
+          app_ids: data.getAll("app_ids").map(String),
         })
       }
     >
@@ -44,8 +64,10 @@ export function AddCompanyButton() {
         <span>Notes (optional)</span>
         <textarea name="notes" rows={2} maxLength={2000} />
       </label>
+      <AppChecks apps={apps} checked={[]} />
       <small className={dash.muted}>
-        Next: create its collections (Documents → Upload document → New collection) and its keys (Apps &amp; keys).
+        Next: create its collections (Documents → Upload document → New collection), then make each linked app&apos;s
+        key inside that app on Apps &amp; keys.
       </small>
     </FormDialog>
   );
@@ -55,10 +77,14 @@ export function EditCompanyButton({
   companyId,
   name,
   notes,
+  apps,
+  linked,
 }: {
   companyId: string;
   name: string;
   notes: string | null;
+  apps: AppOption[];
+  linked: string[];
 }) {
   return (
     <FormDialog
@@ -67,7 +93,12 @@ export function EditCompanyButton({
       title={`Edit ${companyId}`}
       submitLabel="Save"
       done={(data) => `${text(data, "name")} saved`}
-      onSubmit={(data) => updateCompany(companyId, { name: text(data, "name"), notes: text(data, "notes") || null })}
+      onSubmit={async (data) => {
+        // links first: an app that still has an active key here can't be unlinked, and then nothing is saved
+        const links = await linkApps(companyId, data.getAll("app_ids").map(String));
+        if (!links.ok) return links;
+        return updateCompany(companyId, { name: text(data, "name"), notes: text(data, "notes") || null });
+      }}
     >
       <label className={dash.field}>
         <span>Name</span>
@@ -77,6 +108,7 @@ export function EditCompanyButton({
         <span>Notes</span>
         <textarea name="notes" rows={2} maxLength={2000} defaultValue={notes ?? ""} />
       </label>
+      <AppChecks apps={apps} checked={linked} />
     </FormDialog>
   );
 }

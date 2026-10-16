@@ -1,12 +1,14 @@
-"""remove_app(): removes a disconnected app for good: its revoked / expired key rows and its profile, so it leaves
+"""remove_app(): removes a disconnected app for good: its revoked / expired key rows, its profile and company links, so it leaves
 the apps list. Only when nothing is lost by accident:
 404 app_not_found; 409 console_app; 409 app_connected (an active key: disconnect it first);
 409 app_has_chats (its users' chats still exist: disconnect with "erase chats" first).
 Its request-log rows stay until the 90-day clean-up."""
 
+from sqlalchemy import delete
 from sqlalchemy.orm import Session
 
 from app.admin.a_schemas.app_removed import AppRemoved
+from app.admin.b_models.app_company import AppCompany
 from app.admin.b_models.app_profile import AppProfile
 from app.admin.c_repository.delete_app_keys import delete_app_keys
 from app.admin.d_service.app_overviews import app_overviews
@@ -28,6 +30,7 @@ def remove_app(db: Session, app_id: str) -> AppRemoved:
         )
 
     keys_removed = delete_app_keys(db, app_id)
+    db.execute(delete(AppCompany).where(AppCompany.app_id == app_id))  # its company links go with the profile
     profile = db.get(AppProfile, app_id)
     if profile is not None:
         db.delete(profile)

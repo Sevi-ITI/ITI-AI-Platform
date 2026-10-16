@@ -10,9 +10,11 @@ Q = {"question": "How many vacation days?"}
 def setup(client, make_key, make_collection):
     """admin key + one hr-portal key each for acme and beta, both used by user 1042."""
     admin = make_key("iti-admin", scopes=["admin"], collections=[])
+    client.put("/v1/admin/apps/hr-portal", headers=admin, json={"display_name": "HR Portal"})
     keys = {}
     for company in ("acme", "beta"):
-        client.post("/v1/admin/companies", headers=admin, json={"company_id": company, "name": company.title()})
+        body = {"company_id": company, "name": company.title(), "app_ids": ["hr-portal"]}
+        client.post("/v1/admin/companies", headers=admin, json=body)
         make_collection(f"{company}-hr", company=company)
         body = {"app_id": "hr-portal", "company_id": company, "allowed_collections": [f"{company}-hr"]}
         made = client.post("/v1/admin/keys", headers=admin, json=body).json()

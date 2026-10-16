@@ -1,9 +1,11 @@
-"""company_infos(): every company with the collections it owns, the ones shared with it and its active keys (any app)."""
+"""company_infos(): every company with the collections it owns, the ones shared with it, its active keys (any app)
+and the apps linked to it."""
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.admin.a_schemas.company_info import CompanyInfo
+from app.admin.c_repository.list_app_companies import list_app_companies
 from app.admin.c_repository.list_collection_shares import list_collection_shares
 from app.auth.c_repository.list_keys import list_keys
 from app.auth.d_keys.is_active import is_active
@@ -23,6 +25,10 @@ def company_infos(db: Session) -> list[CompanyInfo]:
     active: dict[str, int] = {}
     for key in list_keys(db):
         active[key.company_id] = active.get(key.company_id, 0) + is_active(key.revoked_at, key.expires_at)
+    apps: dict[str, list[str]] = {}
+    for app_id, companies in sorted(list_app_companies(db).items()):
+        for company_id in companies:
+            apps.setdefault(company_id, []).append(app_id)
     return [
         CompanyInfo(
             company_id=c.company_id,
@@ -32,6 +38,7 @@ def company_infos(db: Session) -> list[CompanyInfo]:
             collections=owned.get(c.company_id, []),
             shared_collections=shared.get(c.company_id, []),
             active_keys=active.get(c.company_id, 0),
+            app_ids=apps.get(c.company_id, []),
         )
         for c in db.scalars(select(CompanyRow).order_by(CompanyRow.name))
     ]

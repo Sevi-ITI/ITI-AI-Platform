@@ -10,13 +10,14 @@ def admin(make_key):
 
 
 @pytest.fixture
-def acme(client, admin, make_collection):
+def acme(client, admin, make_collection, link_app):
     """Companies acme and beta; collections acme-hr (acme), beta-hr (beta) and labor-code (Global)."""
     for cid, name in (("acme", "Acme Corp"), ("beta", "Beta Inc")):
         assert client.post("/v1/admin/companies", headers=admin, json={"company_id": cid, "name": name}).status_code == 201
     make_collection("acme-hr", company="acme")
     make_collection("beta-hr", company="beta")
     make_collection("labor-code", company=None)
+    link_app("hr-portal", "acme")
     return admin
 
 
@@ -70,7 +71,8 @@ def test_a_key_may_use_only_its_companys_collections_and_global_ones(client, acm
     assert client.post("/v1/chat", headers=acme_key, json=q | {"collection": "beta-hr"}).status_code == 403
 
 
-def test_keys_without_a_company_belong_to_iti(client, admin):
+def test_keys_without_a_company_belong_to_iti(client, admin, link_app):
+    link_app("hr-portal", "iti")
     made = client.post("/v1/admin/keys", headers=admin, json={"app_id": "hr-portal", "allowed_collections": ["iti-docs"]})
     assert made.status_code == 201 and made.json()["company_id"] == "iti"
 

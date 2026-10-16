@@ -13,6 +13,7 @@ import AppDetails from "./app-details";
 import AppList from "./app-list";
 import { type CollectionOption, usableBy } from "./collection-options";
 import {
+  CreateAppButton,
   CreateKeyButton,
   DisconnectAppButton,
   RemoveAppButton,
@@ -27,8 +28,9 @@ type App = components["schemas"]["AppOverview"];
 type Key = components["schemas"]["KeyInfo"];
 
 // Every connected system (from its keys, its chats or a profile): profile, live counts and its keys grouped by the
-// client company each key serves (App -> Company -> Keys), with a search box. Apps with no active key (except the console) are "Disconnected": kept as history, folded at the bottom.
-// Changes (create / rotate / revoke / edit a key, edit a profile, disconnect) are the super admin's.
+// client company each key serves (App -> Company -> Keys), with a search box. Apps with no active key and no profile (except the console) are "Disconnected": kept as history, folded at the bottom. A created app (it has a profile) waiting for its first key stays in the list.
+// Order of work: New app here, link it to companies on Companies, then New key inside the app's card.
+// Changes (create an app, create / rotate / revoke / edit a key, edit a profile, disconnect) are the super admin's.
 export default async function AppsPage({
   searchParams,
 }: {
@@ -62,6 +64,7 @@ export default async function AppsPage({
   const items = ordered.map((app) => {
     const appKeys = keys.ok ? keys.data.filter((k) => k.app_id === app.app_id) : [];
     const text = [app.app_id, app.display_name, app.owner_name, app.owner_email, app.company, app.description]
+      .concat(app.company_ids.flatMap((c) => [c, companyNames.get(c)]))
       .concat(appKeys.flatMap((k) => [k.key_id, k.company_id, companyNames.get(k.company_id)]))
       .filter(Boolean)
       .join(" ")
@@ -69,7 +72,7 @@ export default async function AppsPage({
     return {
       id: app.app_id,
       text,
-      disconnected: app.active_keys === 0 && app.app_id !== "iti-console",
+      disconnected: isDisconnected(app),
       card: (
         <AppCard
           app={app}
@@ -88,19 +91,13 @@ export default async function AppsPage({
     <>
       <header className={styles.header}>
         <h1>Apps &amp; keys</h1>
-        {canEdit && apps.ok && (
-          <CreateKeyButton
-            apps={apps.data.map((a) => a.app_id)}
-            companies={companies.ok ? companies.data.map((c) => ({ company_id: c.company_id, name: c.name })) : []}
-            collections={collectionOptions}
-          />
-        )}
+        {canEdit && apps.ok && <CreateAppButton existing={apps.data.map((a) => a.app_id)} />}
       </header>
 
       {!apps.ok ? (
         <Problem message={displayMessage(apps.error)} />
       ) : apps.data.length === 0 ? (
-        <p className={styles.muted}>No apps yet. Create a key to connect the first one.</p>
+        <p className={styles.muted}>No apps yet. Create one with New app, link it to a company, then make its key.</p>
       ) : (
         <AppList
           active={items.filter((it) => !it.disconnected)}
@@ -114,11 +111,18 @@ export default async function AppsPage({
 
 /** How the app is doing, in one word (the pill on its closed card); rank = its group in the page order. */
 function usageOf(app: App, now: number): { text: string; tone: "ok" | "idle" | "off"; rank: number } {
-  if (app.active_keys === 0 && app.app_id !== "iti-console") return { text: "Disconnected", tone: "off", rank: 3 };
+  if (isDisconnected(app)) return { text: "Disconnected", tone: "off", rank: 3 };
+  if (app.active_keys === 0 && app.app_id !== "iti-console") return { text: "No active key", tone: "idle", rank: 2 };
   if (app.last_used_at !== null && now - Date.parse(app.last_used_at) < RECENT_DAYS * 86_400_000)
     return { text: "In use", tone: "ok", rank: 0 };
   if (app.last_used_at !== null) return { text: "Idle", tone: "idle", rank: 1 };
   return { text: "Not used yet", tone: "idle", rank: 2 };
+}
+
+/** Disconnect removes the profile, so: no active key and no profile = disconnected. A created app (New app) has a
+ * profile and waits for its first key in the main list. */
+function isDisconnected(app: App) {
+  return app.active_keys === 0 && app.profile_updated_at === null && app.app_id !== "iti-console";
 }
 
 // An app counts as recently used (its card starts open) when a key was used within this many days.
@@ -187,14 +191,35 @@ function AppCard({
         </>
       }
     >
-      {(details || app.notes || canEdit) && (
+      {(details || app.notes || canEdit || app.app_id !== "iti-console") && (
         <div className={styles.cardHead}>
           <div>
             {details && <p className={styles.muted}>{details}</p>}
             {app.notes && <p className={styles.muted}>{app.notes}</p>}
+            {app.app_id !== "iti-console" && (
+              <p className={styles.mayUse}>
+                <span className={styles.muted}>Linked companies</span>
+                {app.company_ids.length ? (
+                  app.company_ids.map((c) => (
+                    <span key={c} className={styles.tag}>
+                      {companyNames.get(c) ?? c}
+                    </span>
+                  ))
+                ) : (
+                  <span className={styles.muted}>none yet (link it on Companies before making a key)</span>
+                )}
+              </p>
+            )}
           </div>
           {canEdit && (
             <div className={styles.rowActions}>
+              {app.app_id !== "iti-console" && (
+                <CreateKeyButton
+                  appId={app.app_id}
+                  companies={app.company_ids.map((c) => ({ company_id: c, name: companyNames.get(c) ?? c }))}
+                  collections={collections}
+                />
+              )}
               <EditProfileButton appId={app.app_id} profile={app} />
               {/* only when it would change something: an active key, a profile, or users' chats to erase */}
               {app.app_id !== "iti-console" && (app.active_keys > 0 || app.profile_updated_at || app.users > 0) && (
@@ -223,7 +248,9 @@ function AppCard({
         <p className={styles.muted}>
           {app.app_id === "iti-console"
             ? "The console itself: people log in with their accounts, no keys."
-            : "No keys (this app only appears because of its chats or profile)."}
+            : app.company_ids.length
+              ? "No keys yet: make one with New key."
+              : "No keys yet: link this app to a company (Companies), then make its key with New key."}
         </p>
       ) : (
         // one small table per client company, alphabetical by company name

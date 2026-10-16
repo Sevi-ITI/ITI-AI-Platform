@@ -898,6 +898,11 @@
   gap: var(--space-2) var(--space-4);
 }
 
+/* outside tables (an app card's buttons) the row may wrap: four buttons don't fit a phone */
+.cardHead .rowActions {
+  flex-wrap: wrap;
+}
+
 .cardHead h2 {
   font-size: var(--text-lg);
 }

@@ -1,18 +1,27 @@
-"""create_company(): adds a client company. 409 company_exists if the id is taken."""
+"""create_company(): adds a client company, linked to the apps in app_ids. 409 company_exists if the id is taken;
+422 app_not_found (nothing is saved then)."""
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.admin.a_schemas.company_create import CompanyCreate
 from app.admin.a_schemas.company_info import CompanyInfo
+from app.admin.b_models.app_company import AppCompany
+from app.admin.b_models.app_profile import AppProfile
 from app.admin.d_service.company_infos import company_infos
 from app.core.e_errors.app_error import AppError
 from app.core.h_stores.company_row import CompanyRow
 
 
 def create_company(db: Session, body: CompanyCreate) -> CompanyInfo:
+    app_ids = sorted(set(body.app_ids))
+    for app_id in app_ids:
+        if db.get(AppProfile, app_id) is None:
+            raise AppError(422, "app_not_found", f"No app named '{app_id}'. Create the app first.")
     db.add(CompanyRow(company_id=body.company_id, name=body.name, notes=body.notes))
     try:
+        db.flush()  # the company row first: the links point to it
+        db.add_all(AppCompany(app_id=a, company_id=body.company_id) for a in app_ids)
         db.commit()
     except IntegrityError:
         db.rollback()

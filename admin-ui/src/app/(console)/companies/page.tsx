@@ -11,28 +11,34 @@ import styles from "../dashboard.module.css";
 import { Problem } from "../widgets";
 import { deleteCompany } from "./actions";
 import CompanyList from "./company-list";
-import { AddCompanyButton, EditCompanyButton } from "./dialogs";
+import { type AppOption, AddCompanyButton, EditCompanyButton } from "./dialogs";
 
 export const metadata = { title: "Companies" };
 
 // ITI's client companies (ITI itself included): their own collections and how many active keys serve them.
 // A company's collections are private to it; Global collections are listed once, at the bottom.
 export default async function CompaniesPage() {
-  const [companies, collections, me] = await Promise.all([
+  const [companies, collections, apps, me] = await Promise.all([
     callApi((api) => api.GET("/v1/admin/companies")),
     callApi((api) => api.GET("/v1/admin/collections")),
+    callApi((api) => api.GET("/v1/admin/apps")),
     currentAccount(),
   ]);
-  endSessionOn401(companies, collections, me);
+  endSessionOn401(companies, collections, apps, me);
 
   const canEdit = me.ok && me.data.role === "super_admin";
+  // apps that can be linked: every app except the console (people log in to it; it has no keys)
+  const appOptions: AppOption[] = (apps.ok ? apps.data : [])
+    .filter((a) => a.app_id !== "iti-console")
+    .map((a) => ({ app_id: a.app_id, name: a.display_name ?? a.app_id }));
+  const appNames = new Map(appOptions.map((a) => [a.app_id, a.name]));
   const globals = collections.ok ? collections.data.filter((c) => !c.company_id).map((c) => c.name) : [];
 
   return (
     <>
       <header className={styles.header}>
         <h1>Companies</h1>
-        {canEdit && <AddCompanyButton />}
+        {canEdit && <AddCompanyButton apps={appOptions} />}
       </header>
       <p className={styles.muted}>
         Each client company has its own collections; its people reach them only through keys made for that company.
@@ -53,11 +59,11 @@ export default async function CompaniesPage() {
             .map((c) => ({
               id: c.company_id,
               // what the search box can find it by (lowercase)
-              text: [c.name, c.company_id, c.notes, ...c.collections, ...c.shared_collections]
+              text: [c.name, c.company_id, c.notes, ...c.collections, ...c.shared_collections, ...c.app_ids]
                 .filter(Boolean)
                 .join(" ")
                 .toLowerCase(),
-              card: <CompanyCard c={c} canEdit={canEdit} />,
+              card: <CompanyCard c={c} canEdit={canEdit} apps={appOptions} appNames={appNames} />,
             }))}
         />
       )}
@@ -88,7 +94,17 @@ type Company = components["schemas"]["CompanyInfo"];
 
 // A company at a glance: who (tile, name, id, added, notes), what it reaches (its collections, those shared with it,
 // active keys), and where to look next (its keys, users, requests: the filters that already exist).
-function CompanyCard({ c, canEdit }: { c: Company; canEdit: boolean }) {
+function CompanyCard({
+  c,
+  canEdit,
+  apps,
+  appNames,
+}: {
+  c: Company;
+  canEdit: boolean;
+  apps: AppOption[];
+  appNames: Map<string, string>;
+}) {
   const id = encodeURIComponent(c.company_id);
   return (
     <article className={styles.companyCard} aria-labelledby={`company-${c.company_id}`}>
@@ -110,7 +126,7 @@ function CompanyCard({ c, canEdit }: { c: Company; canEdit: boolean }) {
         </div>
         {canEdit && (
           <div className={styles.rowActions}>
-            <EditCompanyButton companyId={c.company_id} name={c.name} notes={c.notes} />
+            <EditCompanyButton companyId={c.company_id} name={c.name} notes={c.notes} apps={apps} linked={c.app_ids} />
             {c.company_id !== "iti" && (
               <ConfirmAction
                 label="Delete"
@@ -158,6 +174,20 @@ function CompanyCard({ c, canEdit }: { c: Company; canEdit: boolean }) {
             </dd>
           </div>
         )}
+        <div>
+          <dt>Linked apps</dt>
+          <dd className={styles.tags}>
+            {c.app_ids.length ? (
+              c.app_ids.map((a) => (
+                <span key={a} className={styles.tag}>
+                  {appNames.get(a) ?? a}
+                </span>
+              ))
+            ) : (
+              <span className={styles.muted}>none yet (Edit to link one)</span>
+            )}
+          </dd>
+        </div>
         <div>
           <dt>Active keys</dt>
           <dd>

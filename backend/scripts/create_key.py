@@ -1,5 +1,6 @@
 """create_key: makes an API key from the command line. Needed for the FIRST admin key
 (the API needs an admin key before it will make keys). Prints the key once; only its hash is stored.
+Keys are for ITI ("iti"); the app and its link to ITI are created first when missing (the console asks for both).
 
 Run from backend\\:
     python -m scripts.create_key iti-admin --scopes admin
@@ -11,6 +12,7 @@ import argparse
 from pydantic import ValidationError
 
 from app.admin.a_schemas.key_create import KeyCreate
+from app.admin.d_service.ensure_app_company import ensure_app_company
 from app.admin.d_service.mint_key import mint_key
 from app.core.c_database.get_sessionmaker import get_sessionmaker
 
@@ -33,6 +35,7 @@ def main() -> None:
     except ValidationError as exc:
         parser.error(str(exc))
     with get_sessionmaker()() as db:
+        ensure_app_company(db, body.app_id, body.company_id)
         key = mint_key(db, body)
 
     print(f"app_id : {key.app_id}")

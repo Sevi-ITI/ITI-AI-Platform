@@ -387,6 +387,23 @@ export interface paths {
         patch: operations["patch_company_v1_admin_companies__company_id__patch"];
         trace?: never;
     };
+    "/v1/admin/companies/{company_id}/apps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Put Company Apps */
+        put: operations["put_company_apps_v1_admin_companies__company_id__apps_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/apps": {
         parameters: {
             query?: never;
@@ -955,6 +972,11 @@ export interface components {
             last_used_at: string | null;
             /** Profile Updated At */
             profile_updated_at: string | null;
+            /**
+             * Company Ids
+             * @default []
+             */
+            company_ids: string[];
         };
         /** AppProfileIn */
         AppProfileIn: {
@@ -1117,6 +1139,11 @@ export interface components {
             /** Company Ids */
             company_ids: string[];
         };
+        /** CompanyAppsUpdate */
+        CompanyAppsUpdate: {
+            /** App Ids */
+            app_ids: string[];
+        };
         /** CompanyCreate */
         CompanyCreate: {
             /** Company Id */
@@ -1125,6 +1152,11 @@ export interface components {
             name: string;
             /** Notes */
             notes?: string | null;
+            /**
+             * App Ids
+             * @default []
+             */
+            app_ids: string[];
         };
         /** CompanyInfo */
         CompanyInfo: {
@@ -1148,6 +1180,11 @@ export interface components {
             shared_collections: string[];
             /** Active Keys */
             active_keys: number;
+            /**
+             * App Ids
+             * @default []
+             */
+            app_ids: string[];
         };
         /** CompanyUpdate */
         CompanyUpdate: {
@@ -4909,6 +4946,113 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["CompanyUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompanyInfo"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unsupported Media Type */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    put_company_apps_v1_admin_companies__company_id__apps_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                company_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CompanyAppsUpdate"];
             };
         };
         responses: {

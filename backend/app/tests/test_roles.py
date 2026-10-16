@@ -41,7 +41,7 @@ def admin_routes(client):
 
 def test_a_supervisor_reads_every_admin_page_but_every_change_is_refused(client, people):
     routes = list(admin_routes(client))
-    assert len(routes) == 49  # 22 reads + 27 changes today (8.6d: +8 / +8 Tools & MCP; Try it: +1 / +1); a new admin route is checked automatically
+    assert len(routes) == 50  # 22 reads + 28 changes today (8.6d: +8 / +8 Tools & MCP; Try it: +1 / +1; company apps: +1); a new admin route is checked automatically
     for method, path in routes:
         params = {"collection": "iti-docs", "filename": "x", "app_id": "x", "user_id": "x"}
         r = client.request(method, path, headers=people["boss"], params=params)
@@ -55,7 +55,8 @@ def test_a_supervisor_reads_every_admin_page_but_every_change_is_refused(client,
             assert r.status_code == 403 and r.json()["error"]["code"] == "scope_forbidden", (method, path, r.text)
 
 
-def test_a_super_admin_and_the_admin_key_can_still_change_things(client, people, make_key):
+def test_a_super_admin_and_the_admin_key_can_still_change_things(client, people, make_key, link_app):
+    link_app("hr-portal", "iti")
     for headers in (people["vince"], make_key("iti-admin", scopes=["admin"], collections=[])):
         created = client.post("/v1/admin/keys", headers=headers, json=NEW_KEY)
         assert created.status_code == 201

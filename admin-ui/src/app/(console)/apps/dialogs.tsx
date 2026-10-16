@@ -6,6 +6,7 @@ import { useRef, useState } from "react";
 import type { components } from "@/lib/api/schema";
 
 import dash from "../dashboard.module.css";
+import FormDialog from "../form-dialog";
 import { toast } from "../toast";
 import { type CollectionOption, type CompanyOption, usableBy } from "./collection-options";
 import { createKey, disconnectApp, editKey, removeApp, rotateKey, saveProfile, type NewKey } from "./actions";
@@ -106,13 +107,14 @@ function CollectionChecks({
   );
 }
 
+// A key is made inside its app, for one of the companies linked to that app (linked on the Companies page).
 export function CreateKeyButton({
-  apps,
+  appId,
   companies,
   collections,
 }: {
-  apps: string[];
-  companies: CompanyOption[];
+  appId: string;
+  companies: CompanyOption[]; // the companies linked to this app
   collections: CollectionOption[];
 }) {
   const router = useRouter();
@@ -120,7 +122,8 @@ export function CreateKeyButton({
   const toMessage = useErrorRedirect();
   const [preset, setPreset] = useState(PRESETS[0].id);
   const [never, setNever] = useState(false);
-  const [company, setCompany] = useState("iti");
+  const firstCompany = companies[0]?.company_id ?? "";
+  const [company, setCompany] = useState(firstCompany);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [made, setMade] = useState<Extract<NewKey, { ok: true }> | null>(null);
@@ -133,7 +136,7 @@ export function CreateKeyButton({
     setBusy(true);
     setError(null);
     const r = await createKey({
-      app_id: String(data.get("app_id") ?? "").trim(),
+      app_id: appId,
       company_id: company,
       scopes,
       allowed_collections: isAdmin ? [] : data.getAll("collections").map(String),
@@ -153,20 +156,20 @@ export function CreateKeyButton({
     <>
       <button
         type="button"
-        className={dash.apply}
+        className={dash.smallButton}
         onClick={() => {
           setMade(null);
           setError(null);
-          setPreset(PRESETS[0].id); // a fresh dialog: the safest preset, ITI, 365 days
-          setCompany("iti");
+          setPreset(PRESETS[0].id); // a fresh dialog: the safest preset, the first linked company, 365 days
+          setCompany(firstCompany);
           setNever(false);
           dialog.current?.querySelector("form")?.reset();
           dialog.current?.showModal();
         }}
       >
-        Create key
+        New key
       </button>
-      <dialog ref={dialog} className={dash.dialog} aria-labelledby="create-key-title" onClose={() => setMade(null)}>
+      <dialog ref={dialog} className={dash.dialog} aria-labelledby={`create-key-title-${appId}`} onClose={() => setMade(null)}>
         <form
           className={dash.dialogForm}
           onSubmit={(e) => {
@@ -174,9 +177,16 @@ export function CreateKeyButton({
             if (!busy) void submit(e.currentTarget);
           }}
         >
-          <h2 id="create-key-title">Create an API key</h2>
+          <h2 id={`create-key-title-${appId}`}>
+            New key for <span className="mono">{appId}</span>
+          </h2>
           {made ? (
             <NewKeyPanel result={made} />
+          ) : companies.length === 0 ? (
+            <p className={dash.muted}>
+              This app isn&apos;t linked to any company yet. On the Companies page, add a company (or edit one) and tick
+              this app under &quot;Apps it connects to&quot;; then make its key here.
+            </p>
           ) : (
             <>
               <label className={dash.field}>
@@ -197,25 +207,7 @@ export function CreateKeyButton({
                 </p>
               )}
               <label className={dash.field}>
-                <span>App id</span>
-                <input
-                  name="app_id"
-                  required
-                  pattern="[a-z0-9\-]{2,64}"
-                  title="Lowercase letters, digits and hyphens, 2 to 64 characters"
-                  list="known-apps"
-                  placeholder="e.g. hr-portal…"
-                  autoComplete="off"
-                  spellCheck={false}
-                />
-                <datalist id="known-apps">
-                  {apps.map((a) => (
-                    <option key={a} value={a} />
-                  ))}
-                </datalist>
-              </label>
-              <label className={dash.field}>
-                <span>For company (the client whose people use it)</span>
+                <span>For company (linked to this app; the client whose people use it)</span>
                 <select value={company} onChange={(e) => setCompany(e.target.value)}>
                   {companies.map((c) => (
                     <option key={c.company_id} value={c.company_id}>
@@ -267,7 +259,7 @@ export function CreateKeyButton({
             <button type="button" className={dash.secondary} onClick={() => dialog.current?.close()}>
               {made ? "Done" : "Cancel"}
             </button>
-            {!made && (
+            {!made && companies.length > 0 && (
               <button type="submit" className={dash.apply} disabled={busy} aria-busy={busy}>
                 {busy ? "Creating…" : "Create key"}
               </button>
@@ -466,7 +458,7 @@ export function EditKeyButton({
 const PROFILE_FIELDS: { name: keyof Profile; label: string; long?: boolean; type?: string }[] = [
   { name: "display_name", label: "Name" },
   { name: "description", label: "What it is", long: true },
-  { name: "company", label: "Company or department" },
+  { name: "company", label: "Department or team (a note: linked companies are set on Companies)" },
   { name: "owner_name", label: "Owner" },
   { name: "owner_email", label: "Owner's email", type: "email" },
   { name: "notes", label: "Notes", long: true },
@@ -755,5 +747,54 @@ export function RemoveAppButton({ appId, keys }: { appId: string; keys: number }
         </form>
       </dialog>
     </>
+  );
+}
+
+// Step 1 of connecting a system: create the app (its id and profile). Then link it to companies (Companies page) and
+// make its keys inside its card here.
+export function CreateAppButton({ existing }: { existing: string[] }) {
+  const text = (data: FormData, name: string) => String(data.get(name) ?? "").trim();
+  return (
+    <FormDialog
+      button="New app"
+      buttonClass={dash.apply}
+      title="New app"
+      submitLabel="Create app"
+      done={(data) => `App ${text(data, "app_id")} created`}
+      onSubmit={async (data) => {
+        const appId = text(data, "app_id");
+        if (existing.includes(appId)) return `An app named ${appId} already exists: edit its profile instead.`;
+        return saveProfile(
+          appId,
+          Object.fromEntries(PROFILE_FIELDS.map((f) => [f.name, text(data, f.name) || null])) as Profile,
+        );
+      }}
+    >
+      <label className={dash.field}>
+        <span>App id (used in its keys and logs; can&apos;t be changed later)</span>
+        <input
+          name="app_id"
+          required
+          pattern="[a-z0-9\-]{2,64}"
+          title="Lowercase letters, digits and hyphens, 2 to 64 characters"
+          placeholder="e.g. hrdotnet…"
+          autoComplete="off"
+          spellCheck={false}
+        />
+      </label>
+      {PROFILE_FIELDS.map((f) => (
+        <label key={f.name} className={dash.field}>
+          <span>{f.label}</span>
+          {f.long ? (
+            <textarea name={f.name} rows={2} maxLength={f.name === "notes" ? 2000 : 500} />
+          ) : (
+            <input name={f.name} type={f.type ?? "text"} maxLength={f.name === "owner_email" ? 200 : 100} />
+          )}
+        </label>
+      ))}
+      <small className={dash.muted}>
+        Next: link it to its companies (Companies → Add company or Edit), then make its key here with New key.
+      </small>
+    </FormDialog>
   );
 }

@@ -23,7 +23,8 @@ def test_apps_list_merges_profiles_keys_and_users(client, make_key):
     assert (hr_app["active_keys"], hr_app["users"], hr_app["owner_email"]) == (2, 2, "juan@iti.example")
     assert hr_app["last_used_at"] is not None and hr_app["profile_updated_at"] is not None
     assert (apps["payroll"]["active_keys"], apps["payroll"]["notes"]) == (0, "connects in Q1")
-    assert apps["iti-admin"]["profile_updated_at"] is None
+    assert apps["iti-admin"]["company_ids"] == ["iti"]  # made with its key (make_key / create_key), linked to ITI
+    assert apps["payroll"]["company_ids"] == []
 
     replaced = client.put("/v1/admin/apps/hr-portal", headers=admin, json={"display_name": "HR"}).json()
     assert (replaced["display_name"], replaced["owner_name"]) == ("HR", None)  # PUT replaces the whole profile

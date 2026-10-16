@@ -10,3 +10,4 @@ class AppOverview(AppProfileIn):
     users: int  # distinct ITI-User-Id values that have chatted
     last_used_at: UtcDateTime | None  # the app's latest request in the request log
     profile_updated_at: UtcDateTime | None  # None = no profile written yet
+    company_ids: list[str] = []  # the companies it is linked to (its keys may be made for these only)
