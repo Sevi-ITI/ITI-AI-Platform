@@ -1934,3 +1934,42 @@ td.actionsCell:not(:has(button, a)) {
   font-weight: 700;
   line-height: 1.7;
 }
+
+/* "On this page" jump links (Tools & MCP); a card title reached by a link stops below the phone top bar */
+.jumpLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.jumpLinks a {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+.card h2[id] {
+  scroll-margin-top: calc(var(--float-gap) + 4.5rem);
+}
+
+/* Tools & MCP: the Try it panel (a question as a test employee, then its answer and the tools that ran) */
+.tryForm {
+  display: grid;
+  gap: var(--space-3);
+  max-width: 44rem;
+}
+
+.tryResult {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.tryAnswer {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  white-space: pre-wrap;
+}

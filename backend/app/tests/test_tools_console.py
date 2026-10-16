@@ -2,14 +2,18 @@
 Kill switches hide AND refuse; super admin only; changes work without a restart and are logged; secrets are never
 sent; stdio servers only from mcp_servers.py; the https rule; the SQL tool guards."""
 
+import json
+
 import pytest
 
 import app.tools.console_features as console_features
+import app.tools.host as host
 from app.auth.a_schemas.app_principal import AppPrincipal
 from app.core.a_config.get_settings import get_settings
 from app.tools import client as mcp_client
 from app.tools import store
 from app.tools.host import run_tool, tools_for
+from app.tools.mcp_servers import SERVERS
 from app.tools.sql_tools import check_sql_tool
 
 BASE = "/v1/admin/tools"
@@ -103,8 +107,8 @@ def test_connection_rules(client, admin):
     any_program = {"transport": "stdio", "server": "calc.exe", "scope": "s", "topics": ["t"]}
     r = client.put(f"{BASE}/connections/evil", headers=admin, json=any_program)
     assert r.status_code == 422 and "mcp_servers.py" in r.json()["error"]["message"]  # no free command
-    assert client.get(f"{BASE}/stdio-servers", headers=admin).json() == ["records"]
-
+    assert client.get(f"{BASE}/stdio-servers", headers=admin).json() == sorted(
+        SERVERS)  # only servers from mcp_servers.py
 
 def test_a_tool_switched_off_is_not_offered_and_refused(client, admin, records_on):
     reader = key("chat:invoke", "records:read")
@@ -166,3 +170,79 @@ def test_sql_tools_are_offered_only_with_their_switch(client, admin, records_on,
     switches(sql_tools=False)
     assert "my_leave" not in names(tools_for(reader))  # switch off = gone at once
     assert store.sql_tool_rows()[0]["name"] == "my_leave"  # kept, just not used
+
+
+# --- Try it (switch "try_it") ---------------------------------------------------------------------------------
+
+TRY = {"scopes": ["records:read"], "test_user_id": "10", "question": "How many vacation days do I have left?"}
+
+
+@pytest.fixture
+def try_on(switches, records_on, monkeypatch):
+    """Try it switched on, a fake model (asks for the 2026 leave credits, then answers) and a fake run_tool.
+    Returns {"offered": tool names the model saw on its first call, "ran": (employee_id, tool) per call}."""
+    seen = {"offered": [], "ran": []}
+    replies = [
+        {"role": "assistant", "content": "", "tool_calls": [{"function": {"name": "get_my_leave_credits", "arguments": {"year": 2026}}}]},
+        {"role": "assistant", "content": "You have 5 vacation days left."},
+    ]
+
+    def fake_model(messages, tools):
+        if not seen["offered"]:
+            seen["offered"].extend(t["function"]["name"] for t in tools or [])
+        return replies.pop(0)
+
+    def fake_run_tool(principal, employee_id, name, arguments):
+        seen["ran"].append((employee_id, name))
+        return {"year": 2026, "credits": [{"leave_name": "Vacation"}]}
+
+    switches(try_it=True)
+    monkeypatch.setattr(host, "chat_with_tools", fake_model)
+    monkeypatch.setattr(host, "run_tool", fake_run_tool)
+    return seen
+
+
+def test_try_it_is_off_by_default_and_then_refused(client, admin):
+    assert console_features.CONSOLE_FEATURES["try_it"] is False
+    for response in (client.post(f"{BASE}/try", headers=admin, json=TRY), client.get(f"{BASE}/try/scopes", headers=admin)):
+        assert (response.status_code, response.json()["error"]["code"]) == (404, "feature_off")
+
+
+def test_try_it_is_for_super_admins_only(client, make_key, try_on):
+    chat_key = make_key("hr-portal", ["chat:invoke", "records:read"])
+    assert client.post(f"{BASE}/try", headers=chat_key, json=TRY).status_code == 403
+    assert try_on["ran"] == []
+
+
+@pytest.mark.parametrize("scope", ["admin", "documents:write", "chat:invoke", "nothing:read"])
+def test_try_it_accepts_only_tool_scopes(client, admin, try_on, scope):
+    assert client.get(f"{BASE}/try/scopes", headers=admin).json() == ["records:read"]
+    r = client.post(f"{BASE}/try", headers=admin, json={**TRY, "scopes": ["records:read", scope]})
+    assert (r.status_code, r.json()["error"]["code"]) == (422, "scope_not_allowed")
+
+
+def test_try_it_answers_through_the_real_tool_loop_as_the_test_id(client, admin, try_on):
+    body = client.post(f"{BASE}/try", headers=admin, json=TRY).json()
+    assert body["answer"] == "You have 5 vacation days left." and body["found"] is True and body["documents_question"] is False
+    assert body["offered"] == ["get_my_leave_credits", "get_my_absences", "explain_my_deductions"]
+    assert [(c["tool"], c["arguments"], c["error"]) for c in body["calls"]] == [("get_my_leave_credits", {"year": 2026}, None)]
+    assert body["sources"] == [{"doc_id": "records:get_my_leave_credits", "title": "Records: leave credits 2026"}]
+    assert try_on["ran"] == [("10", "get_my_leave_credits")]  # the test ID stands in for ITI-User-Id
+
+
+def test_every_try_is_logged_without_the_question_or_the_answer(client, admin, try_on):
+    client.post(f"{BASE}/try", headers=admin, json=TRY)
+    change = client.get(f"{BASE}/changes", headers=admin).json()[0]
+    assert (change["what"], change["target"], change["old"]) == ("try_it", "user:10", None)
+    assert change["new"] == {"scopes": ["records:read"], "tools": ["get_my_leave_credits"], "outcome": "answered"}
+    assert "vacation" not in json.dumps(change).lower()
+
+
+def test_the_chosen_scopes_really_limit_the_offered_tools(client, admin, try_on):
+    payroll = {"name": "payroll", "transport": "stdio", "server": "records", "scope": "payroll:read",
+               "topics": ["payroll"], "records": False, "enabled": False}  # off: only its scope matters here
+    store.save_connection(payroll, "test")
+    assert client.get(f"{BASE}/try/scopes", headers=admin).json() == ["payroll:read", "records:read"]
+    body = client.post(f"{BASE}/try", headers=admin, json={**TRY, "scopes": ["payroll:read"]}).json()
+    assert body["offered"] == [] and body["calls"] == [] and body["documents_question"] is True
+    assert try_on == {"offered": [], "ran": []}  # no records tool offered or run: the model was not even asked

@@ -7,6 +7,7 @@ import { currentAccount } from "@/lib/session/current-account";
 import ConfirmAction from "../confirm-action";
 import styles from "../dashboard.module.css";
 import Placeholder from "../placeholder";
+import { StatusOkIcon, StatusWarnIcon } from "../icons";
 import { Problem } from "../widgets";
 import { approveTool, deleteConnection, deleteSqlTool } from "./actions";
 import {
@@ -16,6 +17,7 @@ import {
   SqlToolDialog,
   TestButton,
   ToolSwitch,
+  TryItPanel,
 } from "./controls";
 
 export const metadata = { title: "Tools & MCP" };
@@ -29,6 +31,27 @@ function whyNotInUse(t: Tool, recordsSource: string | null): string {
   if (!t.enabled) return "switched off";
   if (t.kind !== "mcp" && recordsSource === "mcp") return "records source is the MCP server";
   return "records DB not set";
+}
+
+type Fields = { [key: string]: unknown } | null | undefined;
+
+/** One value in the change log: words for on / off and empty, short text for the rest. */
+function show(v: unknown): string {
+  if (v === null || v === undefined || v === "") return "–";
+  if (v === true) return "on";
+  if (v === false) return "off";
+  const text = typeof v === "string" ? v : JSON.stringify(v);
+  return text.length > 80 ? `${text.slice(0, 79)}…` : text;
+}
+
+/** What a change did, one line per field that changed ("enabled: off → on"), instead of two JSON blobs. */
+function changeLines(before: Fields, after: Fields): string[] {
+  if (!before && !after) return ["–"];
+  if (!before) return Object.entries(after!).map(([k, v]) => `${k}: ${show(v)}`); // added
+  if (!after) return ["removed"];
+  const keys = [...new Set([...Object.keys(before), ...Object.keys(after)])];
+  const changed = keys.filter((k) => JSON.stringify(before[k]) !== JSON.stringify(after[k]));
+  return changed.length ? changed.map((k) => `${k}: ${show(before[k])} → ${show(after[k])}`) : ["no change"];
 }
 
 // Tools & MCP (super admin only, Phase 8.6d): who answers records questions, the MCP connections, which tools the
@@ -52,7 +75,7 @@ export default async function ToolsPage() {
   if (!features.ok) return <Problem message={displayMessage(features.error)} />;
   const on = features.data;
 
-  const [settings, connections, stdioServers, status, tools, sqlTools, changes] = await Promise.all([
+  const [settings, connections, stdioServers, status, tools, sqlTools, changes, tryScopes] = await Promise.all([
     on.records_source ? callApi((api) => api.GET("/v1/admin/tools/settings")) : null,
     on.mcp_connections ? callApi((api) => api.GET("/v1/admin/tools/connections")) : null,
     on.mcp_connections ? callApi((api) => api.GET("/v1/admin/tools/stdio-servers")) : null,
@@ -60,14 +83,34 @@ export default async function ToolsPage() {
     callApi((api) => api.GET("/v1/admin/tools/tools")),
     on.sql_tools ? callApi((api) => api.GET("/v1/admin/tools/sql-tools")) : null,
     callApi((api) => api.GET("/v1/admin/tools/changes", { params: { query: { limit: 30 } } })),
+    on.try_it ? callApi((api) => api.GET("/v1/admin/tools/try/scopes")) : null,
   ]);
-  for (const r of [settings, connections, stdioServers, status, tools, sqlTools, changes]) if (r) endSessionOn401(r);
+  for (const r of [settings, connections, stdioServers, status, tools, sqlTools, changes, tryScopes]) if (r) endSessionOn401(r);
+  // each connection's server check, by name (shown in its row)
+  const checks = new Map((status?.ok ? status.data : []).map((x) => [x.name, x]));
 
   return (
     <>
       <header className={styles.header}>
         <h1>Tools &amp; MCP</h1>
       </header>
+      {/* a long page: jump links to its parts (only the parts switched on in console_features.py) */}
+      <nav className={styles.jumpLinks} aria-label="On this page">
+        {[
+          settings && { id: "records-source", label: "Records source" },
+          connections && { id: "connections", label: "Connections" },
+          { id: "tools", label: "Tools" },
+          tryScopes && { id: "try-it", label: "Try it" },
+          sqlTools && { id: "sql-tools", label: "SQL tools" },
+          { id: "changes", label: "Changes" },
+        ]
+          .filter((x): x is { id: string; label: string } => Boolean(x))
+          .map((x) => (
+            <a key={x.id} href={`#${x.id}`} className={styles.smallButton}>
+              {x.label}
+            </a>
+          ))}
+      </nav>
 
       {settings && (
         <section className={styles.card} aria-labelledby="records-source">
@@ -97,6 +140,8 @@ export default async function ToolsPage() {
             <h2 id="connections">MCP connections</h2>
             {stdioServers?.ok && <ConnectionDialog stdioServers={stdioServers.data} />}
           </div>
+          {/* the server check (was its own card) is now each connection's second line under State */}
+          {status && !status.ok && <Problem message={displayMessage(status.error)} />}
           {!connections.ok ? (
             <Problem message={displayMessage(connections.error)} />
           ) : connections.data.length === 0 ? (
@@ -106,107 +151,96 @@ export default async function ToolsPage() {
               <table className={styles.table}>
                 <thead>
                   <tr>
-                    <th scope="col">Name</th>
-                    <th scope="col">Reached by</th>
+                    <th scope="col">Connection</th>
                     <th scope="col">Scope</th>
                     <th scope="col">Topics</th>
-                    <th scope="col">Secret set</th>
-                    <th scope="col">In use</th>
+                    <th scope="col">Secret</th>
+                    <th scope="col">State</th>
                     <th scope="col" className={styles.actionsCell}>{/* actions */}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {connections.data.map((c) => (
-                    <tr key={c.name} className={c.enabled ? undefined : styles.dimmed}>
-                      <td className={`mono ${styles.nowrap}`} translate="no">
-                        {c.name}
-                        {c.records && <span className={styles.muted}> (records)</span>}
-                      </td>
-                      <td className="mono" translate="no">
-                        {c.transport === "stdio" ? `stdio: ${c.server}` : c.url}
-                      </td>
-                      <td className="mono">{c.scope}</td>
-                      <td>{c.topics.join(", ")}</td>
-                      <td className={styles.nowrap}>
-                        {c.transport === "stdio" ? (
-                          <span className={styles.muted}>not needed</span>
-                        ) : c.secret_set ? (
-                          <span className={styles.ok}>● yes ({c.token_env})</span>
-                        ) : (
-                          <span className={styles.warn}>○ no: set {c.token_env} in backend\.env</span>
-                        )}
-                      </td>
-                      <td className={styles.nowrap}>
-                        {c.usable ? (
-                          <span className={styles.ok}>● Yes</span>
-                        ) : (
-                          <span className={styles.muted}>
-                            ○ No{!c.enabled ? " (disabled)" : c.records ? " (records source is built-in)" : ""}
+                  {connections.data.map((c) => {
+                    const check = checks.get(c.name);
+                    return (
+                      <tr key={c.name} className={c.enabled ? undefined : styles.dimmed}>
+                        {/* name (+ records), how it is reached, and the tools it offered at the check */}
+                        <td className={styles.toolCell}>
+                          <span className={`mono ${styles.nowrap}`} translate="no">
+                            {c.name}
                           </span>
-                        )}
-                      </td>
-                      <td className={styles.actionsCell}>
-                        <div className={styles.rowActions}>
-                          {on.server_status && <TestButton name={c.name} />}
-                          {stdioServers?.ok && <ConnectionDialog connection={c} stdioServers={stdioServers.data} />}
-                          <ConfirmAction
-                            label="Delete"
-                            title={`Delete the connection ${c.name}?`}
-                            confirmLabel="Delete"
-                            action={deleteConnection.bind(null, c.name)}
-                            done={`Connection ${c.name} deleted`}
-                          >
-                            <p>
-                              Its tools stop being offered at once. The server itself is not touched; you can add the
-                              connection again later.
-                            </p>
-                          </ConfirmAction>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                          {c.records && <span className={styles.tag}>records</span>}
+                          <div className={`${styles.kpiNote} mono`} translate="no">
+                            {c.transport === "stdio" ? `stdio: ${c.server}` : c.url}
+                          </div>
+                          {check && check.tools.length > 0 && (
+                            <div className={`${styles.kpiNote} mono ${styles.wrapAnywhere}`} translate="no">
+                              offers {check.tools.join(", ")}
+                            </div>
+                          )}
+                        </td>
+                        <td className="mono">{c.scope}</td>
+                        <td>{c.topics.join(", ")}</td>
+                        <td className={styles.nowrap}>
+                          {c.transport === "stdio" ? (
+                            <span className={styles.muted}>not needed</span>
+                          ) : c.secret_set ? (
+                            <span className={`${styles.withIcon} ${styles.ok}`}>
+                              <StatusOkIcon /> set
+                            </span>
+                          ) : (
+                            <span className={`${styles.withIcon} ${styles.warn}`}>
+                              <StatusWarnIcon /> missing
+                            </span>
+                          )}
+                          {c.token_env && <div className={`${styles.kpiNote} mono`}>{c.token_env}</div>}
+                        </td>
+                        <td className={styles.reasonCell}>
+                          {c.usable ? (
+                            <span className={`${styles.withIcon} ${styles.ok}`}>
+                              <StatusOkIcon /> In use
+                            </span>
+                          ) : (
+                            <span className={styles.muted}>
+                              ○ Not in use
+                              {!c.enabled ? " (disabled)" : c.records ? " (records source is built-in)" : ""}
+                            </span>
+                          )}
+                          {/* the check when this page opened (enabled connections only) */}
+                          {check ? (
+                            <div className={`${styles.kpiNote} ${check.ok ? "" : styles.error}`}>
+                              {check.ok ? `answers in ${check.seconds} s` : `not answering: ${check.error}`}
+                            </div>
+                          ) : (
+                            on.server_status && <div className={styles.kpiNote}>not checked (disabled)</div>
+                          )}
+                        </td>
+                        <td className={styles.actionsCell}>
+                          <div className={styles.rowActions}>
+                            {on.server_status && <TestButton name={c.name} />}
+                            {stdioServers?.ok && <ConnectionDialog connection={c} stdioServers={stdioServers.data} />}
+                            <ConfirmAction
+                              label="Delete"
+                              title={`Delete the connection ${c.name}?`}
+                              confirmLabel="Delete"
+                              action={deleteConnection.bind(null, c.name)}
+                              done={`Connection ${c.name} deleted`}
+                            >
+                              <p>
+                                Its tools stop being offered at once. The server itself is not touched; you can add
+                                the connection again later.
+                              </p>
+                            </ConfirmAction>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
           )}
-        </section>
-      )}
-
-      {status && (
-        <section className={styles.card} aria-labelledby="status">
-          <div className={styles.cardHead}>
-            <h2 id="status">Server status (checked when this page opened)</h2>
-          </div>
-          {!status.ok ? (
-            <Problem message={displayMessage(status.error)} />
-          ) : status.data.length === 0 ? (
-            <p className={styles.muted}>No enabled connections to check.</p>
-          ) : (
-            <div className={styles.tableWrap}>
-              <table className={styles.table}>
-                <thead>
-                  <tr>
-                    <th scope="col">Connection</th>
-                    <th scope="col">Answers</th>
-                    <th scope="col">Tools</th>
-                    <th scope="col">Time</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {status.data.map((s) => (
-                    <tr key={s.name}>
-                      <td className={`mono ${styles.nowrap}`}>{s.name}</td>
-                      <td className={styles.nowrap}>
-                        {s.ok ? <span className={styles.ok}>● Yes</span> : <span className={styles.warn}>✕ No: {s.error}</span>}
-                      </td>
-                      <td className="mono">{s.tools.join(", ") || "–"}</td>
-                      <td className={styles.nowrap}>{s.seconds} s</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          {status?.ok && <p className={styles.kpiNote}>Servers checked when this page opened.</p>}
         </section>
       )}
 
@@ -251,7 +285,9 @@ export default async function ToolsPage() {
                     <td className="mono">{t.scope}</td>
                     <td className={styles.reasonCell}>
                       {t.in_use ? (
-                        <span className={styles.ok}>● Yes</span>
+                        <span className={`${styles.withIcon} ${styles.ok}`}>
+                          <StatusOkIcon /> Yes
+                        </span>
                       ) : (
                         <span className={styles.muted}>○ No ({whyNotInUse(t, settings?.ok ? settings.data.records_source : null)})</span>
                       )}
@@ -300,6 +336,19 @@ export default async function ToolsPage() {
         )}
       </section>
 
+      {tryScopes && (
+        <section className={styles.card} aria-labelledby="try-it">
+          <div className={styles.cardHead}>
+            <h2 id="try-it">Try it: ask as a test employee</h2>
+          </div>
+          <p className={styles.muted}>
+            Runs the same tool loop as the real chat, with only the scopes you tick, and shows which tools the model
+            called with which arguments.
+          </p>
+          {!tryScopes.ok ? <Problem message={displayMessage(tryScopes.error)} /> : <TryItPanel scopes={tryScopes.data} />}
+        </section>
+      )}
+
       {sqlTools && (
         <section className={styles.card} aria-labelledby="sql-tools">
           <div className={styles.cardHead}>
@@ -331,7 +380,13 @@ export default async function ToolsPage() {
                       <td className={`mono ${styles.wrapAnywhere}`}>{t.sql}</td>
                       <td className="mono">{(t.parameters ?? []).map((p) => `${p.name}: ${p.type}`).join(", ") || "–"}</td>
                       <td className={styles.nowrap}>
-                        {t.enabled ? <span className={styles.ok}>● On</span> : <span className={styles.muted}>○ Off</span>}
+                        {t.enabled ? (
+                          <span className={`${styles.withIcon} ${styles.ok}`}>
+                            <StatusOkIcon /> On
+                          </span>
+                        ) : (
+                          <span className={styles.muted}>○ Off</span>
+                        )}
                       </td>
                       <td className={styles.actionsCell}>
                         <div className={styles.rowActions}>
@@ -383,8 +438,12 @@ export default async function ToolsPage() {
                     <td className={`mono ${styles.nowrap}`}>{c.who}</td>
                     <td className={`mono ${styles.nowrap}`}>{c.what}</td>
                     <td className={`mono ${styles.nowrap}`}>{c.target}</td>
-                    <td className={`mono ${styles.wrapAnywhere}`}>
-                      {c.old ? JSON.stringify(c.old) : "–"} → {c.new ? JSON.stringify(c.new) : "–"}
+                    <td className={styles.wrapAnywhere}>
+                      {changeLines(c.old, c.new).map((line, j) => (
+                        <div key={j} className="mono">
+                          {line}
+                        </div>
+                      ))}
                     </td>
                   </tr>
                 ))}

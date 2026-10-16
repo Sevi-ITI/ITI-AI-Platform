@@ -11,6 +11,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 from typing import Literal
 
+import requests
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy import text
@@ -21,9 +22,10 @@ from app.core.a_config.get_settings import get_settings
 from app.core.e_errors.app_error import AppError
 from app.core.e_errors.error_responses import ERROR_RESPONSES
 from app.core.f_types.utc_datetime import UtcDateTime
+from app.core.g_llm_slots.llm_slot import llm_slot
 from app.tools import client, store
 from app.tools.console_features import CONSOLE_FEATURES, feature_on, require_feature
-from app.tools.host import approval_of, builtin_records_on, local_tools
+from app.tools.host import answer_with_tools, approval_of, builtin_records_on, local_tools, tools_for
 from app.tools.mcp_servers import SERVERS
 from app.tools.shared import get_records_engine, read_secret
 from app.tools.sql_tools import check_sql_tool
@@ -121,6 +123,29 @@ class SqlToolCheck(BaseModel):
     ok: bool
     problems: list[str]
     columns: list[str]  # from a test run as a non-existing employee: no personal data comes back
+
+
+class TryIn(BaseModel):
+    scopes: list[str] = Field(min_length=1, max_length=5)  # tool scopes only (GET /try/scopes)
+    test_user_id: str = Field(min_length=1, max_length=100)  # stands in for the ITI-User-Id header
+    question: str = Field(min_length=1, max_length=4000)  # as in the chat
+
+
+class TryCall(BaseModel):
+    tool: str
+    arguments: dict  # what the model sent (employee_id is never among them: the host fills it in)
+    ms: int
+    error: str | None  # the refusal's code (e.g. tool_off, records_unavailable); None = it worked
+
+
+class TryOut(BaseModel):
+    answer: str | None  # None = no tool used: in the real chat this question goes to the documents (RAG, not run here)
+    found: bool
+    documents_question: bool
+    offered: list[str]  # the tools the model was offered with these scopes
+    calls: list[TryCall]
+    sources: list[dict[str, str]]  # {"doc_id", "title"}, like the chat's records citations
+    seconds: float
 
 
 class ChangeOut(BaseModel):
@@ -335,6 +360,56 @@ def delete_sql_tool(name: str, principal: AppPrincipal = Depends(super_admin), _
     return {"deleted": name}
 
 
+# --- Try it ---------------------------------------------------------------------------------------------------
+
+NOT_TOOL_SCOPES = {"admin", "documents:write", "chat:invoke"}  # never chosen in Try it, whatever a tool claims
+
+
+def tool_scopes() -> list[str]:
+    """The scopes Try it may use: those of the local tools and of every MCP connection (never admin or documents)."""
+    scopes = {tool.spec.scope for tool in local_tools().values()} | {e["scope"] for e in store.connection_entries()}
+    return sorted(scopes - NOT_TOOL_SCOPES)
+
+
+def get_try_scopes(_: AppPrincipal = Depends(super_admin), __: None = Depends(require_feature("try_it"))) -> list[str]:
+    return tool_scopes()
+
+
+def post_try(
+    body: TryIn,
+    principal: AppPrincipal = Depends(super_admin),
+    _: None = Depends(require_feature("try_it")),
+    # 8.6e-3: the security password goes here, e.g. `__: None = Depends(require_unlocked)` (this acts as a REAL employee)
+) -> TryOut:
+    """One question as a test employee, through the SAME path as the real chat (host.answer_with_tools), with only
+    the chosen tool scopes and no API key. It reads REAL records: super admin only, switch "try_it", every use is
+    logged (who, test ID, scopes, tools that ran; never the question, the arguments or the answer)."""
+    allowed = tool_scopes()
+    wrong = sorted(set(body.scopes) - set(allowed))
+    if wrong:
+        raise AppError(422, "scope_not_allowed", f"Not a tool scope: {wrong}. Choose from {allowed}.")
+    tester = AppPrincipal(key_id=None, app_id="console-try", scopes=sorted(set(body.scopes)), allowed_collections=[],
+                          console_user=principal.console_user, console_role=principal.console_role)
+    trace: list[dict] = []
+    outcome = "error"
+    start = time.perf_counter()
+    try:
+        offered = [spec.name for spec in tools_for(tester)]
+        with llm_slot():  # waits for a free model slot, like the chat
+            answer = answer_with_tools(tester, body.test_user_id, body.question, trace=trace)
+        outcome = "documents" if answer is None else "answered" if answer.found else "empty"
+    except requests.RequestException:  # Ollama down, refused or timed out
+        outcome = "llm_unavailable"
+        raise AppError(503, "llm_unavailable", "The assistant is unavailable right now. Try again later.") from None
+    finally:
+        store.log_try(who(principal), body.test_user_id, tester.scopes, [call["tool"] for call in trace], outcome)
+    calls, seconds = [TryCall(**call) for call in trace], round(time.perf_counter() - start, 2)
+    if answer is None:
+        return TryOut(answer=None, found=False, documents_question=True, offered=offered, calls=calls, sources=[], seconds=seconds)
+    return TryOut(answer=answer.answer, found=answer.found, documents_question=False, offered=offered, calls=calls,
+                  sources=answer.sources, seconds=seconds)
+
+
 # --- change log -----------------------------------------------------------------------------------------------
 
 
@@ -361,3 +436,5 @@ router.add_api_route(f"{BASE}/sql-tools/{{name}}", put_sql_tool, methods=["PUT"]
 router.add_api_route(f"{BASE}/sql-tools/{{name}}/check", post_sql_tool_check, methods=["POST"], response_model=SqlToolCheck)
 router.add_api_route(f"{BASE}/sql-tools/{{name}}", delete_sql_tool, methods=["DELETE"], response_model=dict[str, str])
 router.add_api_route(f"{BASE}/changes", get_changes, methods=["GET"], response_model=list[ChangeOut])
+router.add_api_route(f"{BASE}/try/scopes", get_try_scopes, methods=["GET"], response_model=list[str])
+router.add_api_route(f"{BASE}/try", post_try, methods=["POST"], response_model=TryOut)

@@ -221,6 +221,17 @@ def delete_sql_tool(name: str, who: str) -> bool:
         return True
 
 
+# --- Try it ---------------------------------------------------------------------------------------------------
+
+
+def log_try(who: str, test_user_id: str, scopes: list[str], tools: list[str], outcome: str) -> None:
+    """One row per use of the console's Try it: who, as which test ID, with which scopes, which tools ran, how it
+    ended. Never the question, the arguments or the answer (they can hold personal data)."""
+    with get_sessionmaker()() as db:
+        log_change(db, who, "try_it", f"user:{test_user_id}"[:100], None, {"scopes": scopes, "tools": tools, "outcome": outcome})
+        db.commit()
+
+
 # --- the change log -------------------------------------------------------------------------------------------
 
 

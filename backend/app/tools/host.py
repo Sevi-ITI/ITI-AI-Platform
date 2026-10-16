@@ -219,10 +219,11 @@ class ToolAnswer(BaseModel):
 
 
 def answer_with_tools(
-    principal: AppPrincipal, employee_id: str, question: str, history: Sequence[str] = ()
+    principal: AppPrincipal, employee_id: str, question: str, history: Sequence[str] = (), trace: list[dict] | None = None
 ) -> ToolAnswer | None:
     """None = a documents question (no tools for this key, no tool call, or a documents call): chat runs RAG.
-    Tool errors go back to the model as text; at most MAX_ROUNDS rounds, then one last call without tools."""
+    Tool errors go back to the model as text; at most MAX_ROUNDS rounds, then one last call without tools.
+    trace (only the console's Try it passes one): one {"tool", "arguments", "ms", "error"} is added per call."""
     specs = tools_for(principal)
     if not specs:
         return None
@@ -240,7 +241,7 @@ def answer_with_tools(
         messages.append(message)
         for call in calls:
             name, arguments = call["function"]["name"], call["function"].get("arguments")
-            start = time.perf_counter()
+            start, error_code = time.perf_counter(), None
             try:
                 if name == DOCUMENTS_TOOL.name:
                     raise AppError(400, "tool_unknown", "Documents can't be searched here: answer from the records.")
@@ -250,9 +251,13 @@ def answer_with_tools(
                 found = found or has_data
                 content = json.dumps(result)
             except AppError as error:
+                error_code = error.code
                 content = json.dumps({"error": error.code, "message": error.message})
-            tool_ms += int((time.perf_counter() - start) * 1000)
+            ms = int((time.perf_counter() - start) * 1000)
+            tool_ms += ms
             used.append(name)
+            if trace is not None:
+                trace.append({"tool": name, "arguments": arguments if isinstance(arguments, dict) else {}, "ms": ms, "error": error_code})
             messages.append({"role": "tool", "tool_name": name, "content": content})
     else:
         message = chat_with_tools(messages, None)  # rounds used up: the model must answer now

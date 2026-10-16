@@ -80,6 +80,15 @@ export async function checkSqlTool(name: string, body: SqlToolIn): Promise<{ ok:
   return r.ok ? { ok: true, check: r.data } : { ok: false, message: displayMessage(r.error), status: r.error.status };
 }
 
+// Try it (switch "try_it"): one question as a test employee ID with the ticked tool scopes, through the real chat's
+// tool loop. It reads REAL records; FastAPI logs every use (who, test ID, scopes, tools; never the question or answer).
+export type TryOut = components["schemas"]["TryOut"];
+
+export async function tryTools(body: components["schemas"]["TryIn"]): Promise<{ ok: true; result: TryOut } | { ok: false; message: string; status: number }> {
+  const r = await callApi((api) => api.POST("/v1/admin/tools/try", { body }));
+  return r.ok ? { ok: true, result: r.data } : { ok: false, message: displayMessage(r.error), status: r.error.status };
+}
+
 export async function deleteSqlTool(name: string): Promise<ConfirmResult> {
   return result(
     await callApi((api) => api.DELETE("/v1/admin/tools/sql-tools/{name}", { params: { path: { name } } })),

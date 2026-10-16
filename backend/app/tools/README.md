@@ -40,6 +40,13 @@ SQL tools (switch `sql_tools`, off by default) must be one SELECT on `ai.*` view
 declared arguments only, and run as the read-only `iti_ai_reader`; a check button runs them once as a non-existing
 employee and shows only the column names.
 
+Try it (switch `try_it`, off by default): one question as a test employee ID (it stands in for `ITI-User-Id`) with the
+tool scopes you tick (never `admin` / `documents:write`), through the SAME tool loop as the real chat
+(`host.answer_with_tools`, which fills a `trace`). It shows the answer, which tools ran with which arguments, the sources
+and the time. It reads REAL records, so: super admin only, and every use goes to the change log (who, test ID, scopes,
+tools that ran, outcome; never the question, the arguments or the answer). A documents question is not sent to RAG here:
+the panel says so. The 8.6e-3 security password will guard it (the hook is marked in `admin_api.post_try`).
+
 Approval (8.6e, always on, no switch): a tool from a server on another machine (http connection) is offered only after
 a super admin approves it in the console. What was approved is its fingerprint (`ToolSpec.fingerprint()`: text +
 arguments); if the server changes either, the tool waits for approval again (refused with `tool_not_approved`).

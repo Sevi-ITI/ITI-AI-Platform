@@ -7,6 +7,7 @@ import type { components } from "@/lib/api/schema";
 
 import dash from "../dashboard.module.css";
 import FormDialog from "../form-dialog";
+import { StatusOkIcon, StatusWarnIcon } from "../icons";
 import { toast } from "../toast";
 import {
   checkSqlTool,
@@ -16,6 +17,8 @@ import {
   setToolDescription,
   setToolEnabled,
   testConnection,
+  tryTools,
+  type TryOut,
 } from "./actions";
 
 // The Tools & MCP page's buttons and dialogs. Every change goes to FastAPI (super admin only, logged); a 401 means
@@ -316,5 +319,154 @@ export function SqlToolDialog({ tool }: { tool?: SqlTool }) {
       </label>
       {checkResult && <p className={dash.muted}>{checkResult}</p>}
     </FormDialog>
+  );
+}
+
+// --- Try it -------------------------------------------------------------------------------------------------
+
+// One question as a test employee ID with the ticked tool scopes, through the real chat's tool loop (switch "try_it").
+// It reads REAL records: FastAPI allows super admins only and logs every use (never the question or the answer).
+export function TryItPanel({ scopes }: { scopes: string[] }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<TryOut | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
+
+  const ask = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const data = new FormData(e.currentTarget);
+    const chosen = data.getAll("scopes").map(String);
+    if (chosen.length === 0) return setProblem("Tick at least one tool scope.");
+    setBusy(true);
+    setProblem(null);
+    setResult(null);
+    const r = await tryTools({
+      scopes: chosen,
+      test_user_id: String(data.get("test_user_id") ?? "").trim(),
+      question: String(data.get("question") ?? "").trim(),
+    });
+    setBusy(false);
+    if (r.ok) {
+      setResult(r.result);
+      router.refresh(); // the Changes card shows the new try_it row
+    } else if (r.status === 401) {
+      router.push("/login");
+    } else {
+      setProblem(r.message);
+    }
+  };
+
+  if (scopes.length === 0) {
+    return <p className={dash.muted}>No tool scopes yet: add a tool or an MCP connection first.</p>;
+  }
+  return (
+    <>
+      <p className={dash.warn}>
+        This acts as a REAL employee and reads their real records. Every use is logged (who, test ID, scopes, tools that
+        ran); the question and the answer are not.
+      </p>
+      <form className={dash.tryForm} onSubmit={(e) => void ask(e)}>
+        <fieldset className={dash.checks}>
+          <legend>Tool scopes to test with</legend>
+          {scopes.map((s) => (
+            <label key={s} className={dash.check}>
+              <input type="checkbox" name="scopes" value={s} />
+              <span className="mono">{s}</span>
+            </label>
+          ))}
+        </fieldset>
+        <label className={dash.field}>
+          <span>Test user ID (stands in for the ITI-User-Id header)</span>
+          <input name="test_user_id" required maxLength={100} className="mono" placeholder="e.g. 10…" autoComplete="off" spellCheck={false} />
+        </label>
+        <label className={dash.field}>
+          <span>Question</span>
+          <textarea name="question" required rows={2} maxLength={4000} placeholder="How many vacation days do I have left?…" />
+        </label>
+        <div>
+          <button type="submit" className={dash.apply} disabled={busy} aria-busy={busy}>
+            {busy ? "Asking…" : "Ask"}
+          </button>
+        </div>
+      </form>
+      <div aria-live="polite">
+        {problem && (
+          <p className={dash.error} role="alert">
+            {problem}
+          </p>
+        )}
+        {result && <TryResult result={result} />}
+      </div>
+    </>
+  );
+}
+
+function TryResult({ result }: { result: TryOut }) {
+  return (
+    <div className={dash.tryResult}>
+      {result.documents_question ? (
+        <p className={dash.muted}>
+          No tool used: in the real chat this question goes to the company documents (RAG). Try it tests tools only.
+          {result.offered.length === 0 && " No tool was offered with these scopes (connection off, records DB not set, or tool switched off)."}
+        </p>
+      ) : (
+        <p className={dash.tryAnswer}>{result.answer}</p>
+      )}
+      <dl className={dash.facts}>
+        <div>
+          <dt>Time</dt>
+          <dd>{result.seconds} s</dd>
+        </div>
+        <div>
+          <dt>Data found</dt>
+          <dd>{result.found ? "yes" : "no"}</dd>
+        </div>
+        <div>
+          <dt>Offered</dt>
+          <dd className={`mono ${dash.wrapAnywhere}`}>{result.offered.join(", ") || "none"}</dd>
+        </div>
+      </dl>
+      {result.calls.length > 0 && (
+        <div className={dash.tableWrap}>
+          <table className={dash.table}>
+            <thead>
+              <tr>
+                <th scope="col">Tool called</th>
+                <th scope="col">Arguments</th>
+                <th scope="col">Time</th>
+                <th scope="col">Result</th>
+              </tr>
+            </thead>
+            <tbody>
+              {result.calls.map((c, i) => (
+                <tr key={i}>
+                  <td className={`mono ${dash.nowrap}`} translate="no">
+                    {c.tool}
+                  </td>
+                  <td className={`mono ${dash.wrapAnywhere}`}>
+                    {Object.keys(c.arguments).length ? JSON.stringify(c.arguments) : "–"}
+                  </td>
+                  <td className={dash.nowrap}>{c.ms} ms</td>
+                  <td className={dash.nowrap}>
+                    {c.error ? (
+                      <span className={`${dash.withIcon} ${dash.error}`}>
+                        <StatusWarnIcon /> {c.error}
+                      </span>
+                    ) : (
+                      <span className={`${dash.withIcon} ${dash.ok}`}>
+                        <StatusOkIcon /> worked
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {result.sources.length > 0 && (
+        <p className={dash.kpiNote}>Sources: {result.sources.map((s) => s.title).join(" · ")}</p>
+      )}
+    </div>
   );
 }
