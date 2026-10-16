@@ -3,6 +3,7 @@
     <!-- Example only: how a .NET 8 web app wires Iti.AiClient. Copy the parts you need; don't deploy this project. -->
     <PropertyGroup>
         <TargetFramework>net8.0</TargetFramework>
+        <RollForward>Major</RollForward>
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
     </PropertyGroup>

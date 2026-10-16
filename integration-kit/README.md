@@ -70,6 +70,8 @@ Then ask for `ItiAiClient` in any controller's constructor (see `ChatController.
 2. **`userId` = the signed-in person's permanent id from your session** (e.g. the user's primary key).
    Never from the browser (people could read each other's chats). Not a username that can be renamed,
    and never reused for a new person. Ideally the same id in all your apps (e.g. the employee number).
+   It is **required** on every chat and history call (missing = 422 `invalid_request`), even though
+   Swagger (`/docs`) shows the `ITI-User-Id` header as optional.
 3. **Timeout of at least 150 s.** One model serves everyone; questions can wait in a queue.
 4. **Retry only `llm_busy`**, once, after a pause. Never retry anything else automatically.
 5. **Log `Code` and `RequestId`, never the question** (it may contain personal details).
@@ -126,12 +128,14 @@ Branch on `Code`, not on `Status`.
 | 422 | `invalid_request` | e.g. missing user id, question over 4,000 characters | fix the call |
 | 503 | `llm_busy` | queue full | **retry once** after a pause, or "try again in a minute" |
 | 503 | `llm_unavailable` | the model is down | "Assistant unavailable", no retry |
+| 500 | `internal_error` | a bug on the AI side | send Vince the `RequestId`, no retry |
 | 0 | any | the error arrived during a stream | same handling as above |
 | 5xx | `http_<status>` | not from the AI service (e.g. a proxy) | ops / Vince |
 
 ## Check your setup: the smoke test
 
-From `csharp\`, with your key and collection (use a test collection with a PDF you know):
+From `csharp\`, with your key and collection (use the test collection Vince gives you and a company
+policy PDF you know, never a file with personal data):
 
 ```powershell
 $env:ITI_KIT_KEY = "iti_sk_..."

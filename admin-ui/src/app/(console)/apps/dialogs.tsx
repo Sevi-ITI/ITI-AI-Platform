@@ -28,6 +28,11 @@ const PRESETS: { id: string; label: string; scopes: Scope[] }[] = [
     label: "Chat + own records (ask, and see the asker's own leave, absences and payslip)",
     scopes: ["chat:invoke", "records:read"],
   },
+  {
+    id: "chat-hrdotnet",
+    label: "Chat + own HRDotNet records (ask, and see the asker's own HRDotNet leave)",
+    scopes: ["chat:invoke", "hrdotnet:read"],
+  },
   { id: "uploader", label: "Document uploader (upload, replace, delete)", scopes: ["documents:write"] },
   { id: "admin", label: "Admin (full control of the AI system)", scopes: ["admin"] },
 ];
