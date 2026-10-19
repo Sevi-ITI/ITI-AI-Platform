@@ -11,6 +11,11 @@ with its own API key. This folder has everything you need:
 | `csharp/Iti.AiClient.Smoke/` | A test that runs every call against the real service. Run it first |
 | `openapi-v1.json` | The v1 contract (every route, field and error). The library follows it |
 
+**Interactive API docs (Swagger):** `<base URL>v1/docs`, e.g. `https://ITI-Vinas.ho.intellismartinc.com:8443/v1/docs`.
+It shows the chat routes your app uses (health, chat, stream, history). Press **Authorize**, paste your key,
+then **Try it out**; fill in `ITI-User-Id` (required, although the page marks it optional). The same
+description as JSON: `<base URL>v1/openapi.json`. These are real calls: use a test user id, never a real person's.
+
 ## How it fits
 
 ```
@@ -24,11 +29,14 @@ with its own API key. This folder has everything you need:
 
 ## What you get from Vince (ITI AI admin)
 
-- The **base URL**, e.g. `https://ai.iti.local/`
+- The **base URL**, e.g. `https://ITI-Vinas.ho.intellismartinc.com:8443/` (later a service name such as
+  `https://iti-ai-api.ho.intellismartinc.com:8443/`). Your servers must trust ITI's root certificate (pushed
+  by IT; on a machine outside the domain, install it into **Local Machine → Trusted Root Certification Authorities**).
 - **One API key per app per environment** (dev, prod). Handed over in person or through a password
   manager. It is shown once; if it's lost or leaked, Vince revokes it and issues a new one.
-- The **collections** your key may read (e.g. `iti-docs`) and its **scopes**: `chat:invoke`, plus
-  `documents:write` only if your app uploads or deletes documents.
+- The **collections** your key may read (e.g. `iti-docs`) and its **scopes**: `chat:invoke` (ask and read
+  history). `documents:write` (upload, replace, delete) only if your app manages documents itself; most apps
+  only ask, and Vince uploads the policies.
 
 ## Setup (3 steps)
 
@@ -134,18 +142,21 @@ Branch on `Code`, not on `Status`.
 
 ## Check your setup: the smoke test
 
-From `csharp\`, with your key and collection (use the test collection Vince gives you and a company
-policy PDF you know, never a file with personal data):
+From `csharp\`, with your key and the collection Vince gives you, and a question its documents answer:
 
 ```powershell
 $env:ITI_KIT_KEY = "iti_sk_..."
-$env:ITI_KIT_URL = "https://ai.iti.local/"
-$env:ITI_KIT_COLLECTION = "your-test-collection"
-dotnet run --project Iti.AiClient.Smoke -- "a question the PDF answers" "C:\path\to\that.pdf"
+$env:ITI_KIT_URL = "https://ITI-Vinas.ho.intellismartinc.com:8443/"
+$env:ITI_KIT_COLLECTION = "iti-docs"
+dotnet run --project Iti.AiClient.Smoke -- "What is the dress code?"
 ```
 
-Expected: 10 `PASS` lines and `ALL PASSED`. It uploads a copy named `kit-smoke-upload.pdf` and
-deletes it again; it needs a key with both scopes. A `FAIL` line names the field or error code.
+Expected with a chat-only key: 7 `PASS` lines, one `SKIP  upload checks: this key may not upload (chat only)`
+line and `ALL PASSED`. A `FAIL` line names the field or error code.
+
+Only if your key also has `documents:write`: add a company policy PDF you know (never a file with personal data)
+as a second argument. The test then also uploads a copy named `kit-smoke-upload.pdf`, waits for indexing and
+deletes it again: 10 `PASS` lines.
 
 ## Support and changes
 

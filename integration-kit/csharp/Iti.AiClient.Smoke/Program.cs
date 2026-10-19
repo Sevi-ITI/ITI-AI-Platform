@@ -2,16 +2,20 @@ using Iti.AiClient;
 
 // Smoke test: runs every Iti.AiClient call against a real ITI AI API and prints PASS / FAIL per check.
 // The key comes from an environment variable, so it never lands in a file or in the command history:
-//   $env:ITI_KIT_KEY = "iti_sk_..."     (an app key with chat:invoke + documents:write on the collection)
+//   $env:ITI_KIT_KEY = "iti_sk_..."     (an app key with chat:invoke on the collection)
+//   dotnet run --project Iti.AiClient.Smoke -- "a question the collection's documents answer"
+// A chat-only key runs 7 checks (chat, stream, history, errors). With documents:write AND a PDF path as a second
+// argument it also runs the 3 upload checks (10 in all):
 //   dotnet run --project Iti.AiClient.Smoke -- "a question the PDF answers" "C:\path\to\file.pdf"
 // Optional: $env:ITI_KIT_URL (default http://127.0.0.1:8000/), $env:ITI_KIT_COLLECTION (default kit-test).
 
-if (args.Length != 2)
+if (args.Length is < 1 or > 2)
 {
-    Console.WriteLine("Usage: dotnet run --project Iti.AiClient.Smoke -- \"question\" \"C:\\path\\to\\file.pdf\"");
+    Console.WriteLine("Usage: dotnet run --project Iti.AiClient.Smoke -- \"question\" [\"C:\\path\\to\\file.pdf\"]");
     return 2;
 }
-var (question, pdfPath) = (args[0], args[1]);
+var question = args[0];
+var pdfPath = args.Length == 2 ? args[1] : null;
 var key = Environment.GetEnvironmentVariable("ITI_KIT_KEY");
 if (string.IsNullOrWhiteSpace(key))
 {
@@ -35,7 +39,9 @@ var failed = 0;
 
 try
 {
-    await Refused(() => ai.DeleteDocumentAsync(collection, uploadName));  // leftover of a run that stopped halfway
+    // Also tells whether this key may upload: a chat-only key gets scope_forbidden here.
+    var cleanup = await Refused(() => ai.DeleteDocumentAsync(collection, uploadName));  // leftover of a halted run
+    var canUpload = cleanup is not { Code: "scope_forbidden" };
 
     // 1. Plain chat
     var chat = await ai.ChatAsync(user, new ChatRequest(question, collection), "smoke test");
@@ -64,27 +70,34 @@ try
     Check(string.Join(",", messages.Select(m => m.Role)) == "user,assistant,user,assistant" && messages[1].Citations is not null,
         "history: 4 messages in order, citations saved");
 
-    // 4. Upload, wait for indexing, refuse a duplicate, delete
-    await using (var pdf = File.OpenRead(pdfPath))
+    // 4. Upload, wait for indexing, refuse a duplicate, delete (only with documents:write and a PDF path)
+    if (!canUpload || pdfPath is null)
     {
-        var accepted = await ai.UploadDocumentAsync(collection, pdf, uploadName);
-        var job = await ai.GetJobAsync(accepted.JobId);
-        while (job.Status is "queued" or "running")
-        {
-            await Task.Delay(TimeSpan.FromSeconds(2));
-            job = await ai.GetJobAsync(accepted.JobId);
-        }
-        Check(job is { Status: "done", Chunks: > 0 }, $"upload: indexed ({job.Chunks} chunks) {job.Error}");
+        Console.WriteLine(canUpload ? "SKIP  upload checks: no PDF path given" : "SKIP  upload checks: this key may not upload (chat only)");
     }
-    var again = await Refused(async () =>
+    else
     {
-        await using var pdf = File.OpenRead(pdfPath);
-        await ai.UploadDocumentAsync(collection, pdf, uploadName);
-    });
-    Check(again is { Status: 409, Code: "document_exists" }, "upload again: document_exists (409)");
-    await ai.DeleteDocumentAsync(collection, uploadName);
-    var gone = await Refused(() => ai.DeleteDocumentAsync(collection, uploadName));
-    Check(gone is { Code: "document_not_found" }, "delete: file gone");
+        await using (var pdf = File.OpenRead(pdfPath))
+        {
+            var accepted = await ai.UploadDocumentAsync(collection, pdf, uploadName);
+            var job = await ai.GetJobAsync(accepted.JobId);
+            while (job.Status is "queued" or "running")
+            {
+                await Task.Delay(TimeSpan.FromSeconds(2));
+                job = await ai.GetJobAsync(accepted.JobId);
+            }
+            Check(job is { Status: "done", Chunks: > 0 }, $"upload: indexed ({job.Chunks} chunks) {job.Error}");
+        }
+        var again = await Refused(async () =>
+        {
+            await using var pdf = File.OpenRead(pdfPath);
+            await ai.UploadDocumentAsync(collection, pdf, uploadName);
+        });
+        Check(again is { Status: 409, Code: "document_exists" }, "upload again: document_exists (409)");
+        await ai.DeleteDocumentAsync(collection, uploadName);
+        var gone = await Refused(() => ai.DeleteDocumentAsync(collection, uploadName));
+        Check(gone is { Code: "document_not_found" }, "delete: file gone");
+    }
 
     // 5. A collection this key may not use
     var forbidden = await Refused(() => ai.ChatAsync(user, new ChatRequest(question, "kit-smoke-forbidden")));
