@@ -1,0 +1,51 @@
+# ITI AI Platform on the LAN (Phase 9, laptop pilot). Caddy is the ONLY thing reachable from the network:
+# the console (443) and the API (8443) themselves stay on 127.0.0.1. No secrets in this file (it is committed).
+# Run:   C:\Tools\caddy\caddy.exe run --config deploy\Caddyfile        (from the repo root)
+# Check: C:\Tools\caddy\caddy.exe validate --config deploy\Caddyfile
+# Names: the laptop's own DNS name works today; iti-ai / iti-ai-api work once the CNAMEs exist in ho.intellismartinc.com.
+{
+	auto_https disable_redirects # nothing on port 80
+	skip_install_trust # don't touch this laptop's trust store; IT pushes root.crt by GPO
+}
+
+# Console, for testers: LAN visitors reach ONLY the login, Chat and what those pages load. Every admin page is
+# redirected to /chat here, even for a super admin; admin work is done on the laptop itself (http://127.0.0.1:3000).
+# FastAPI still checks every permission; this is a second wall.
+https://ITI-Vinas.ho.intellismartinc.com, https://iti-ai.ho.intellismartinc.com {
+	tls internal
+
+	request_body {
+		max_size 60MB # the API's upload limit is 50 MB
+	}
+
+	@chat_only path /login /login/* /chat /chat/* /session-ended /api/chat /api/health /_next/* /favicon.ico
+	handle @chat_only {
+		reverse_proxy 127.0.0.1:3000 {
+			transport http {
+				read_timeout 180s # answers can queue for 120 s
+			}
+		}
+	}
+	handle {
+		redir * /chat
+	}
+}
+
+# API, for the C# apps (firewall: only their machines reach 8443). Swagger and the admin / console routes are
+# hidden: the C# apps need only the v1 contract (integration-kit/openapi-v1.json).
+https://ITI-Vinas.ho.intellismartinc.com:8443, https://iti-ai-api.ho.intellismartinc.com:8443 {
+	tls internal
+
+	request_body {
+		max_size 60MB
+	}
+
+	@not_for_apps path /docs /docs/* /redoc /openapi.json /v1/admin/* /v1/console/*
+	respond @not_for_apps 404
+
+	reverse_proxy 127.0.0.1:8000 {
+		transport http {
+			read_timeout 180s
+		}
+	}
+}

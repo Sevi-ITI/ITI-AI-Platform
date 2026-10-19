@@ -15,7 +15,7 @@ CONSOLE_FEATURES = {
     "tool_switches": True,  # each tool on or off
     "edit_descriptions": False,  # edit the text the model reads to pick a tool (a careless edit can break answers)
     "sql_tools": False,  # new tools written as one SELECT on the ai.* views (guarded, read-only login)
-    "try_it": False,  # ask a question as a test employee ID with chosen tool scopes (reads REAL records; every use logged)
+    "try_it": True,  # ask a question as a test employee ID with chosen tool scopes (reads REAL records; every use logged)
 }
 
 

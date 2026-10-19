@@ -135,7 +135,9 @@ def get_my_leave_applications(employee_id: str, date_from: date, date_to: date) 
         rows = conn.execute(HRDOTNET_LEAVE_APPLICATIONS_SQL, params)
         return {"date_from": str(date_from), "date_to": str(date_to), "applications": [dict(row._mapping) for row in rows]}
 
-
+# @hrdotnet.tool(
+#     description=""
+# )
 
 # --- the list: name -> (server, http port, env variable of its secret for --http) --------------------------------
 
