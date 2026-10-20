@@ -53,6 +53,11 @@ public sealed class ItiAiClient(HttpClient http)
         SendAsync<List<MessageOut>>(
             ForUser(HttpMethod.Get, $"v1/conversations/{Uri.EscapeDataString(conversationId)}/messages", userId), ct);
 
+    // Starter questions (chips) for a new chat, one per file, picked at random. A chip click fills the question box.
+    public Task<List<Suggestion>> GetSuggestionsAsync(string collection, int limit = 3, CancellationToken ct = default) =>
+        SendAsync<List<Suggestion>>(new HttpRequestMessage(
+            HttpMethod.Get, $"v1/suggestions?collection={Uri.EscapeDataString(collection)}&limit={limit}"), ct);
+
     // Needs documents:write. Code "document_exists" -> ask "Replace the existing file?", then call again with replace: true.
     // Indexing runs after the reply: poll GetJobAsync every few seconds until Status is "done" or "failed".
     public Task<UploadAccepted> UploadDocumentAsync(

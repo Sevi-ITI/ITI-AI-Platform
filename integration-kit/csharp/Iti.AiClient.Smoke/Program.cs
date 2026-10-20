@@ -4,8 +4,8 @@ using Iti.AiClient;
 // The key comes from an environment variable, so it never lands in a file or in the command history:
 //   $env:ITI_KIT_KEY = "iti_sk_..."     (an app key with chat:invoke on the collection)
 //   dotnet run --project Iti.AiClient.Smoke -- "a question the collection's documents answer"
-// A chat-only key runs 7 checks (chat, stream, history, errors). With documents:write AND a PDF path as a second
-// argument it also runs the 3 upload checks (10 in all):
+// A chat-only key runs 8 checks (chat, stream, history, suggestions, errors). With documents:write AND a PDF path as a second
+// argument it also runs the 3 upload checks (11 in all):
 //   dotnet run --project Iti.AiClient.Smoke -- "a question the PDF answers" "C:\path\to\file.pdf"
 // Optional: $env:ITI_KIT_URL (default http://127.0.0.1:8000/), $env:ITI_KIT_COLLECTION (default kit-test).
 
@@ -70,7 +70,12 @@ try
     Check(string.Join(",", messages.Select(m => m.Role)) == "user,assistant,user,assistant" && messages[1].Citations is not null,
         "history: 4 messages in order, citations saved");
 
-    // 4. Upload, wait for indexing, refuse a duplicate, delete (only with documents:write and a PDF path)
+    // 4. Suggestion chips: at most 3, each about a different file
+    var chips = await ai.GetSuggestionsAsync(collection);
+    Check(chips.Count is > 0 and <= 3 && chips.All(c => c.Question.EndsWith('?') && c.File.Length > 0)
+        && chips.Select(c => c.File).Distinct().Count() == chips.Count, $"suggestions: {chips.Count} chips, one per file");
+
+    // 5. Upload, wait for indexing, refuse a duplicate, delete (only with documents:write and a PDF path)
     if (!canUpload || pdfPath is null)
     {
         Console.WriteLine(canUpload ? "SKIP  upload checks: no PDF path given" : "SKIP  upload checks: this key may not upload (chat only)");
@@ -99,7 +104,7 @@ try
         Check(gone is { Code: "document_not_found" }, "delete: file gone");
     }
 
-    // 5. A collection this key may not use
+    // 6. A collection this key may not use
     var forbidden = await Refused(() => ai.ChatAsync(user, new ChatRequest(question, "kit-smoke-forbidden")));
     Check(forbidden is { Status: 403, Code: "collection_forbidden", RequestId: not null },
         "errors: collection_forbidden (403) with a request id");

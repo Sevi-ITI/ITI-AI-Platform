@@ -931,6 +931,119 @@
           }
         }
       }
+    },
+    "/v1/suggestions": {
+      "get": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Starter questions for a new chat",
+        "description": "Up to limit starter questions for a new chat, one per file, picked at random from the collection's indexed\nfiles, so they change between visits. Show them as chips; a click fills the question box and does not send.\nEmpty list when the collection has no files yet. Same key rules as chat; no ITI-User-Id needed.",
+        "operationId": "get_suggestions_v1_suggestions_get",
+        "security": [
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "ConsoleSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "collection",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "description": "The collection the chat will ask.",
+              "title": "Collection"
+            },
+            "description": "The collection the chat will ask."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 6,
+              "minimum": 1,
+              "description": "How many chips, at most (default 3).",
+              "default": 3,
+              "title": "Limit"
+            },
+            "description": "How many chips, at most (default 3)."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Suggestion"
+                  },
+                  "title": "Response Get Suggestions V1 Suggestions Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "**invalid_api_key**: key missing, wrong, revoked or expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "**scope_forbidden**: this key may not use this route\n\n**collection_forbidden**: this key may not read that collection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "**collection_not_found**: no collection with that name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "**invalid_request**: a field or header is missing or invalid (e.g. no ITI-User-Id, question over 4,000)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "**internal_error**: a bug on the AI side: quote the request_id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1273,6 +1386,26 @@
           "created_at"
         ],
         "title": "MessageOut"
+      },
+      "Suggestion": {
+        "properties": {
+          "question": {
+            "type": "string",
+            "title": "Question",
+            "description": "Show it as a chip; a click fills the question box (it does not send)."
+          },
+          "file": {
+            "type": "string",
+            "title": "File",
+            "description": "The file the question is about, as uploaded (e.g. for a 'from Leave Policy' line)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "question",
+          "file"
+        ],
+        "title": "Suggestion"
       },
       "UploadAccepted": {
         "properties": {

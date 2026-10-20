@@ -40,6 +40,21 @@ public sealed class ChatController(ItiAiClient ai, IConfiguration config, ILogge
         }
     }
 
+    // Chips for the new-chat screen. The page puts a clicked chip's Question into the box; the user sends it.
+    [HttpGet("suggestions")]
+    public async Task<IActionResult> Suggestions(CancellationToken ct)
+    {
+        try
+        {
+            return Ok(await ai.GetSuggestionsAsync(Collection, ct: ct));
+        }
+        catch (ItiAiException ex)
+        {
+            var (status, error) = Refusal(ex);
+            return StatusCode(status, error);
+        }
+    }
+
     // One JSON object per line: {"kind":"meta",...} {"kind":"token","text":"..."} ... {"kind":"done","answer":"...",...}
     // or a last {"kind":"error","message":"...","requestId":"..."}. The page appends tokens and replaces them with "answer".
     [HttpPost("ask/stream")]

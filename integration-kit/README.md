@@ -12,7 +12,7 @@ with its own API key. This folder has everything you need:
 | `openapi-v1.json` | The v1 contract (every route, field and error). The library follows it |
 
 **Interactive API docs (Swagger):** `<base URL>v1/docs`, e.g. `https://ITI-Vinas.ho.intellismartinc.com:8443/v1/docs`.
-It shows the chat routes your app uses (health, chat, stream, history). Press **Authorize**, paste your key,
+It shows the chat routes your app uses (health, chat, stream, history, suggestions). Press **Authorize**, paste your key,
 then **Try it out**; fill in `ITI-User-Id` (required). Each route lists the error codes it can return. The same
 description as JSON: `<base URL>v1/openapi.json`. These are real calls: use a test user id, never a real person's.
 
@@ -35,8 +35,8 @@ description as JSON: `<base URL>v1/openapi.json`. These are real calls: use a te
 - **One API key per app per environment** (dev, prod), and **per company** if your app serves several
   (see "Several companies in one app"). Handed over in person or through a password
   manager. It is shown once; if it's lost or leaked, Vince revokes it and issues a new one.
-- The **collections** your key may read (e.g. `iti-docs`) and its **scopes**: `chat:invoke` (ask and read
-  history). `documents:write` (upload, replace, delete) only if your app manages documents itself; most apps
+- The **collections** your key may read (e.g. `iti-docs`) and its **scopes**: `chat:invoke` (ask, read
+  history, get suggestion chips). `documents:write` (upload, replace, delete) only if your app manages documents itself; most apps
   only ask, and Vince uploads the policies.
 
 ## Setup (3 steps)
@@ -188,7 +188,15 @@ A failure during the stream throws `ItiAiException` like any other call. `ChatCo
 how to pass the stream to the browser (one JSON object per line). If you host on IIS, make sure
 response buffering/compression doesn't hold the stream back, or tokens arrive all at once.
 
-**Documents** (only with `documents:write`): see step 4 of `Iti.AiClient.Smoke/Program.cs`:
+**Suggestion chips** (starter questions on a new chat): `GetSuggestionsAsync(collection)` returns up to 3
+(`limit` 1 to 6) `Suggestion(Question, File)`, one per file, picked at random from the collection's indexed
+files, so they change between visits. Show them as chips on the new-chat screen only; a click **fills the
+question box and does not send**. Reload them when the user picks another collection; an empty list means the
+collection has no files yet (show no chips). Same key rules as chat, no `userId` needed. `ChatController.cs`
+has a `GET api/assistant/suggestions` example. Today each question reads "What does <file title> cover?";
+better generated questions may come later in the same shape, so your code won't change.
+
+**Documents** (only with `documents:write`): see step 5 of `Iti.AiClient.Smoke/Program.cs`:
 `UploadDocumentAsync` returns at once, then poll `GetJobAsync` every few seconds until `done` or `failed`.
 On `document_exists`, ask the user "Replace the existing file?" and upload again with `replace: true`.
 `DeleteDocumentAsync` removes a file and all its versions. PDF only, up to 50 MB.
@@ -225,12 +233,12 @@ $env:ITI_KIT_COLLECTION = "iti-docs"
 dotnet run --project Iti.AiClient.Smoke -- "What is the dress code?"
 ```
 
-Expected with a chat-only key: 7 `PASS` lines, one `SKIP  upload checks: this key may not upload (chat only)`
+Expected with a chat-only key: 8 `PASS` lines, one `SKIP  upload checks: this key may not upload (chat only)`
 line and `ALL PASSED`. A `FAIL` line names the field or error code.
 
 Only if your key also has `documents:write`: add a company policy PDF you know (never a file with personal data)
 as a second argument. The test then also uploads a copy named `kit-smoke-upload.pdf`, waits for indexing and
-deletes it again: 10 `PASS` lines.
+deletes it again: 11 `PASS` lines.
 
 ## Support and changes
 

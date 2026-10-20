@@ -13,6 +13,7 @@ CHAT_PATHS = (
     "/v1/chat/stream",
     "/v1/conversations",
     "/v1/conversations/{conversation_id}/messages",
+    "/v1/suggestions",
 )
 DESCRIPTION = (
     "Ask questions answered only from ITI's uploaded documents, with file and page citations. "

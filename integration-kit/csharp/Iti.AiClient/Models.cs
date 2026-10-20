@@ -43,6 +43,10 @@ public sealed record MessageOut(
     List<Citation>? Citations
     );
     
+public sealed record Suggestion(
+    string Question,
+    string File);
+
 public sealed record UploadAccepted(
     string JobId, 
     string DocumentId,
