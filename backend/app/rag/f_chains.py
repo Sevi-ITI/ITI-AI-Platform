@@ -111,7 +111,7 @@ def renumber_citations(answer: str, chunks: list[Passage]) -> tuple[str, list[Ci
 
     return CITATION_MARK.sub(rewrite, answer), citations
 
-LIST_MARKER = re.compile(r"^\s*\d+[.)]\s", re.MULTILINE)  # "1. " or "2) " at the start of a line
+LIST_MARKER = re.compile(r"^[\s#*]*\d+[.)]\s", re.MULTILINE)  # "1. ", "2) ", "### 3. ", "**4. " at the start of a line
 NUMBER = re.compile(r"\d+(?:[.,:/-]\d+)*")  # 90, 6.1.2, 27001:2022, 1,000, 2026-10-12
 ORDINAL_WORDS = ["first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth"]
 OCR_ZEROS = re.compile(r"(?<=\d[.,:])[oO0]{2}(?!\d)")  # OCR reads 0 as o: "P100.oo", "250.o0", "2:ooPM"
@@ -132,8 +132,12 @@ def unsupported_numbers(answer: str, chunks: list[Passage]) -> list[str]:
     allowed = OCR_ZEROS.sub("00", allowed)  # the model reads "P100.oo" as P100.00: so should the check
     missing = []
     for number in NUMBER.findall(answer):
-        if not re.search(rf"(?<!\d){re.escape(number)}(?!\d)", allowed) and number not in missing:
-            missing.append(number)
+        if re.search(rf"(?<!\d){re.escape(number)}(?!\d)", allowed) or number in missing:
+            continue
+        # "P100" in the source written as P100.00: same amount. Not when the source has 100.50.
+        if number.endswith(".00") and re.search(rf"(?<!\d){re.escape(number[:-3])}(?!\d|[.,]\d)", allowed):
+            continue
+        missing.append(number)
     return missing
 
 def search_text(question: str, history: Sequence[str]) -> str:

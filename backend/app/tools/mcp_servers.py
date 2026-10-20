@@ -10,7 +10,8 @@ model never sees it); read-only; errors as ToolError("what was wrong"), never wi
 import hmac
 import inspect
 import sys
-from datetime import date  # new
+from datetime import date, timedelta  # new
+from decimal import Decimal
 from functools import lru_cache  # new
 from typing import Annotated
 
@@ -91,7 +92,7 @@ HRDOTNET_LEAVE_SQL = text("""
 """)
 
 @hrdotnet.tool(
-    description="GET the CURRENT USER's own leave credits per leave type for a year: days earned, days USED, days0"
+    description="GET the CURRENT USER's own leave credits per leave type for a year: days earned, days USED, days "
                 "PENDING approval (already counted in used) and days remaining. Not for leave without pay or compensatory time off."
 )
 
@@ -135,9 +136,245 @@ def get_my_leave_applications(employee_id: str, date_from: date, date_to: date) 
         rows = conn.execute(HRDOTNET_LEAVE_APPLICATIONS_SQL, params)
         return {"date_from": str(date_from), "date_to": str(date_to), "applications": [dict(row._mapping) for row in rows]}
 
-# @hrdotnet.tool(
-#     description=""
-# )
+# --- get_my_attendance: lates, undertime, absences, leave and overtime between two dates (ai.v_attendance) -----
+
+HRDOTNET_ATTENDANCE_SQL = text("""
+    SELECT CONVERT(char(10), work_date, 23) AS work_date, day_type, schedule, time_in, time_out,
+           late_minutes, undertime_minutes, absent_days, leave_code, leave_days, overtime_hours
+    FROM ai.v_attendance
+    WHERE employee_id = :employee_id AND work_date BETWEEN :date_from AND :date_to
+    ORDER BY work_date
+""")
+
+LEAVE_CODES = ("VL = vacation leave, SL = sick leave, LWP = leave without pay, CTO = compensatory time off, PL = paternity "
+               "leave; -W = whole day, -1 = first half, -2 = second half")
+
+
+def as_text(value) -> str:
+    """A number as the model should quote it: 15, 7.5 (never 15.0000)."""
+    return format(Decimal(value or 0).normalize(), "f")
+
+
+@hrdotnet.tool(
+    description="Get the CURRENT USER's own ATTENDANCE between two dates (at most 3 months): totals of days late and "
+    "minutes late, undertime, absences, leave days and overtime hours, plus each day worth noting (late, undertime, "
+    "absent, on leave, or no time in / out) with its times. Use it for questions about being late, absent or tardy. "
+    "Not for leave balances (get_my_leave_credits) or leave applications (get_my_leave_applications)."
+)
+def get_my_attendance(employee_id: str, date_from: date, date_to: date) -> dict:
+    if not employee_id:
+        raise ToolError("employee_id is missing")
+    if date_from > date_to:
+        raise ToolError("date_from is after date_to")
+    if (date_to - date_from).days > 92:
+        raise ToolError("the range is longer than 3 months: ask for a shorter period")
+    with get_hrdotnet_engine().connect() as conn:
+        params = {"employee_id": employee_id, "date_from": date_from, "date_to": date_to}
+        rows = [dict(row._mapping) for row in conn.execute(HRDOTNET_ATTENDANCE_SQL, params)]
+    result = {"date_from": str(date_from), "date_to": str(date_to)}
+    if not rows:
+        return {**result, "days_on_record": 0,
+                "note": "No processed attendance in this period yet (attendance is processed per cut-off)."}
+
+    def total(column: str) -> str:
+        return as_text(sum(row[column] or 0 for row in rows))
+
+    def days_with(column: str) -> int:
+        return sum(1 for row in rows if (row[column] or 0) > 0)
+
+    noted = [
+        row for row in rows
+        if (row["late_minutes"] or 0) > 0 or (row["undertime_minutes"] or 0) > 0 or (row["absent_days"] or 0) > 0
+        or row["leave_code"] or (row["day_type"] == "regular day" and not (row["time_in"] and row["time_out"]))
+    ]
+    result.update(
+        days_on_record=len(rows),
+        regular_days=sum(1 for row in rows if row["day_type"] == "regular day"),
+        days_late=days_with("late_minutes"), late_minutes=total("late_minutes"),
+        days_undertime=days_with("undertime_minutes"), undertime_minutes=total("undertime_minutes"),
+        days_absent=total("absent_days"), leave_days=total("leave_days"), overtime_hours=total("overtime_hours"),
+        days_to_note=[
+            {"date": row["work_date"], "day_type": row["day_type"], "schedule": row["schedule"],
+             "time_in": row["time_in"] or "no log", "time_out": row["time_out"] or "no log",
+             "late_minutes": as_text(row["late_minutes"]), "undertime_minutes": as_text(row["undertime_minutes"]),
+             "absent": (row["absent_days"] or 0) > 0, "leave": row["leave_code"]}
+            for row in noted
+        ],
+    )
+    if any(row["leave_code"] for row in noted):
+        result["leave_codes"] = LEAVE_CODES
+    return result
+
+# --- get_my_schedule: the shift per day between two dates (a change, else the weekly schedule, else the usual) ---
+# Three views, one rule per date (checked against processed attendance, 97 % match): a Posted / Approved schedule
+# change (the newest), else the weekly schedule, else the usual weekday shift from the employment record.
+
+HRDOTNET_SCHEDULE_CHANGES_SQL = text("""
+    SELECT change_id, document_no, date_from, date_to, status, shift, time_in, time_out, is_rest_day
+    FROM ai.v_schedule_changes
+    WHERE employee_id = :employee_id AND date_from <= :date_to AND date_to >= :date_from
+""")
+
+HRDOTNET_WEEKLY_SCHEDULE_SQL = text("""
+    SELECT work_date, shift, time_in, time_out, is_rest_day
+    FROM ai.v_weekly_schedule
+    WHERE employee_id = :employee_id AND work_date BETWEEN :date_from AND :date_to
+""")
+
+HRDOTNET_DEFAULT_SCHEDULE_SQL = text("""
+    SELECT weekday, shift, time_in, time_out, is_rest_day
+    FROM ai.v_default_schedule
+    WHERE employee_id = :employee_id
+""")
+
+
+def hhmm(value: str | None) -> str | None:
+    """A shift time as people say it: "08:00:00" -> "08:00"."""
+    return value[:5] if value else None
+
+
+def shift_of(row: dict, source: str) -> dict | None:
+    """One day's shift as the model should read it; None = this source has nothing usable for the day."""
+    if row["is_rest_day"]:
+        return {"shift": "rest day", "source": source}
+    if not row["shift"]:
+        return None
+    return {"shift": row["shift"], "time_in": hhmm(row["time_in"]), "time_out": hhmm(row["time_out"]), "source": source}
+
+
+@hrdotnet.tool(
+    description="Get the CURRENT USER's own work SCHEDULE for each day between two dates (at most 31 days): the shift "
+    "with its start and end time, or rest day, with approved schedule changes applied. Use it for questions like "
+    "'what is my shift tomorrow', 'am I off on Saturday' or 'my schedule next week'. "
+    "Not for attendance, lates or absences (get_my_attendance)."
+)
+def get_my_schedule(employee_id: str, date_from: date, date_to: date) -> dict:
+    if not employee_id:
+        raise ToolError("employee_id is missing")
+    if date_from > date_to:
+        raise ToolError("date_from is after date_to")
+    if (date_to - date_from).days > 31:
+        raise ToolError("the range is longer than 31 days: ask for a shorter period")
+    params = {"employee_id": employee_id, "date_from": date_from, "date_to": date_to}
+    with get_hrdotnet_engine().connect() as conn:
+        changes = [dict(row._mapping) for row in conn.execute(HRDOTNET_SCHEDULE_CHANGES_SQL, params)]
+        weekly = {row.work_date: dict(row._mapping) for row in conn.execute(HRDOTNET_WEEKLY_SCHEDULE_SQL, params)}
+        usual = {row.weekday: dict(row._mapping) for row in conn.execute(HRDOTNET_DEFAULT_SCHEDULE_SQL, params)}
+    days = []
+    for offset in range((date_to - date_from).days + 1):
+        day = date_from + timedelta(days=offset)
+        covering = [c for c in changes if c["date_from"] <= day <= c["date_to"]]
+        change = max(covering, key=lambda c: c["change_id"]) if covering else None
+        entry = (
+            (change and shift_of(change, f"schedule change {change['document_no']} ({change['status'].lower()})"))
+            or (day in weekly and shift_of(weekly[day], "weekly schedule"))
+            or (day.isoweekday() in usual and shift_of(usual[day.isoweekday()], "usual weekly shift"))
+            or {"shift": "no schedule on record", "source": "none"}
+        )
+        days.append({"date": str(day), "weekday": day.strftime("%A"), **entry})
+    result = {"date_from": str(date_from), "date_to": str(date_to), "days": days}
+    if all(d["source"] == "none" for d in days):
+        result["note"] = "No schedule on record for this period."
+    return result
+
+# --- get_my_overtime: overtime applications between two dates, with hours filed per status (ai.v_overtime) ------
+
+HRDOTNET_OVERTIME_SQL = text("""
+    SELECT document_no, CONVERT(char(10), ot_date, 23) AS ot_date, shift, time_start, time_end, hours_filed, status,
+           CONVERT(char(10), filed_on, 23) AS filed_on, CONVERT(char(10), approved_on, 23) AS approved_on
+    FROM ai.v_overtime
+    WHERE employee_id = :employee_id AND ot_date BETWEEN :date_from AND :date_to
+    ORDER BY ot_date
+""")
+
+OVERTIME_STATUS_GROUP = {"Posted": "approved", "Approved": "approved", "Filed": "waiting", "Reviewed": "waiting",
+                         "Cancelled": "cancelled"}
+
+
+@hrdotnet.tool(
+    description="Get the CURRENT USER's own OVERTIME applications between two dates (at most 3 months): each with its "
+    "date, start and end time, hours filed and status (filed, reviewed, approved, posted, cancelled), plus the hours "
+    "approved, waiting and cancelled in total. Use it for questions like 'was my overtime approved'. The overtime "
+    "hours actually paid after processing come from get_my_attendance."
+)
+def get_my_overtime(employee_id: str, date_from: date, date_to: date) -> dict:
+    if not employee_id:
+        raise ToolError("employee_id is missing")
+    if date_from > date_to:
+        raise ToolError("date_from is after date_to")
+    if (date_to - date_from).days > 92:
+        raise ToolError("the range is longer than 3 months: ask for a shorter period")
+    with get_hrdotnet_engine().connect() as conn:
+        params = {"employee_id": employee_id, "date_from": date_from, "date_to": date_to}
+        rows = [dict(row._mapping) for row in conn.execute(HRDOTNET_OVERTIME_SQL, params)]
+    hours = {"approved": Decimal(0), "waiting": Decimal(0), "cancelled": Decimal(0)}
+    for row in rows:
+        hours[OVERTIME_STATUS_GROUP.get(row["status"], "waiting")] += row["hours_filed"] or 0
+    return {
+        "date_from": str(date_from), "date_to": str(date_to), "applications_filed": len(rows),
+        "hours_approved": as_text(hours["approved"]), "hours_waiting_for_approval": as_text(hours["waiting"]),
+        "hours_cancelled": as_text(hours["cancelled"]),
+        "applications": [
+            {"document_no": row["document_no"], "date": row["ot_date"], "shift": row["shift"],
+             "time_start": hhmm(row["time_start"]), "time_end": hhmm(row["time_end"]),
+             "hours_filed": as_text(row["hours_filed"]), "status": (row["status"] or "").lower(),
+             "filed_on": row["filed_on"], "approved_on": row["approved_on"]}
+            for row in rows
+        ],
+    }
+
+# --- get_my_time_logs: the raw clock punches per day between two dates (ai.v_time_logs) --------------------------
+
+HRDOTNET_TIME_LOGS_SQL = text("""
+    SELECT log_date, log_time, is_manual
+    FROM ai.v_time_logs
+    WHERE employee_id = :employee_id AND log_date BETWEEN :date_from AND :date_to
+    ORDER BY log_date, log_time
+""")
+
+HRDOTNET_LATEST_PUNCH_SQL = text("SELECT MAX(log_date) FROM ai.v_time_logs WHERE employee_id = :employee_id")
+
+TIME_LOGS_NOTE = ("Punches are not marked as in or out: the first of a day is usually the time in and the last the time "
+                  "out; a night shift's time out falls on the next date.")
+
+
+@hrdotnet.tool(
+    description="Get the CURRENT USER's own raw clock PUNCHES (biometric time logs) per day between two dates (at most "
+    "31 days), and the dates without any punch. Use it for questions like 'what time did I clock in on Monday' or "
+    "'did my log register'. Not for lates or absences after processing (get_my_attendance)."
+)
+def get_my_time_logs(employee_id: str, date_from: date, date_to: date) -> dict:
+    if not employee_id:
+        raise ToolError("employee_id is missing")
+    if date_from > date_to:
+        raise ToolError("date_from is after date_to")
+    if (date_to - date_from).days > 31:
+        raise ToolError("the range is longer than 31 days: ask for a shorter period")
+    with get_hrdotnet_engine().connect() as conn:
+        params = {"employee_id": employee_id, "date_from": date_from, "date_to": date_to}
+        rows = [dict(row._mapping) for row in conn.execute(HRDOTNET_TIME_LOGS_SQL, params)]
+        latest = conn.execute(HRDOTNET_LATEST_PUNCH_SQL, {"employee_id": employee_id}).scalar()
+    by_day: dict[date, list[dict]] = {}
+    for row in rows:
+        by_day.setdefault(row["log_date"], []).append(row)
+    days = []
+    for day, punches in sorted(by_day.items()):
+        entry = {"date": str(day), "weekday": day.strftime("%A"), "punches": [hhmm(p["log_time"]) for p in punches]}
+        manual = [hhmm(p["log_time"]) for p in punches if p["is_manual"]]
+        if manual:
+            entry["entered_by_hand"] = manual
+        days.append(entry)
+    # A date after the latest punch on record may simply not be loaded yet: never call it "no punch".
+    every_day = [date_from + timedelta(days=n) for n in range((date_to - date_from).days + 1)]
+    result = {
+        "date_from": str(date_from), "date_to": str(date_to), "days": days,
+        "dates_without_punches": [str(day) for day in every_day if day not in by_day and latest and day <= latest],
+        "note": TIME_LOGS_NOTE,
+    }
+    if not latest or date_to > latest:
+        result["not_loaded_yet"] = (f"No punches on record after {latest}: later dates may not be loaded yet."
+                                    if latest else "No punches on record at all for this employee.")
+    return result
 
 # --- the list: name -> (server, http port, env variable of its secret for --http) --------------------------------
 

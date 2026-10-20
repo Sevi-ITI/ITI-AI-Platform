@@ -301,6 +301,7 @@ def test_drop_model_sources(reply, expected):
         ("The office closes at 18:00 [2].", ["18:00"]),
         ("The office closes at 16 PM [2].", ["16"]),
         ("1. Every 90 days [1]\n2. At 6 PM [2]", []),
+        ("### 3. Expiry\nEvery 90 days [1]\n**4. Office** at 6 PM [2]\n*   **5. Note** [1]", []),  # the model's own headings
         ("See page 2 and page 5 [1, 2].", []),
         ("As asked about clause 6.1.2: every 90 days [1].", ["6.1.2"]),  # F-A: the question doesn't count as a source
     ],
@@ -321,6 +322,12 @@ def test_zeros_that_ocr_read_as_the_letter_o_are_allowed():
     meal = _chunk("Meal Allowance (OCR).pdf", 1, 0, "P100.oo meal allowance. Php 250.o0 parking. File on or before 2:ooPM.")
     answer = "P100.00 meal, Php 250.00 parking, before 2:00 PM [1]. Not P150.00 [1]."
     assert unsupported_numbers(answer, [meal]) == ["150.00"]
+
+
+def test_a_whole_amount_written_with_00_is_allowed():
+    fees = _chunk("fees.pdf", 1, 0, "P100 per bond. Rate P250.50.")
+    answer = "P100.00 per bond [1]. Not P250.00 [1]."
+    assert unsupported_numbers(answer, [fees]) == ["250.00"]  # 250.50 in the source is not 250.00
 
 
 OFFENSES = _chunk("dress.pdf", 3, 0, "First Offense: verbal warning. Second Offense: written warning. "
