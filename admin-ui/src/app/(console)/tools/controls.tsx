@@ -1,16 +1,17 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import type { components } from "@/lib/api/schema";
 
 import dash from "../dashboard.module.css";
-import FormDialog from "../form-dialog";
-import { StatusOkIcon, StatusWarnIcon } from "../icons";
+import FormDialog, { LOCKED_HINT } from "../form-dialog";
+import { LockIcon, StatusOkIcon, StatusWarnIcon } from "../icons";
 import { toast } from "../toast";
 import {
   checkSqlTool,
+  getToolCode,
   saveConnection,
   saveSqlTool,
   setRecordsSource,
@@ -18,11 +19,14 @@ import {
   setToolEnabled,
   testConnection,
   tryTools,
+  type ToolCode,
   type TryOut,
 } from "./actions";
 
 // The Tools & MCP page's buttons and dialogs. Every change goes to FastAPI (super admin only, logged); a 401 means
 // the session is over. Secrets are never typed here: a connection names the backend\.env variable that holds one.
+// `locked` (8.6e-3): the risky ones are greyed out with a padlock until the security password is unlocked (the gate
+// bar at the top of the page); FastAPI refuses them anyway.
 
 type Connection = components["schemas"]["ConnectionOut"];
 type SqlTool = components["schemas"]["SqlToolOut"];
@@ -80,7 +84,7 @@ export function RecordsSourceSwitch({ current, dbConfigured }: { current: "built
 
 // --- connections --------------------------------------------------------------------------------------------
 
-export function ConnectionDialog({ connection, stdioServers }: { connection?: Connection; stdioServers: string[] }) {
+export function ConnectionDialog({ connection, stdioServers, locked }: { connection?: Connection; stdioServers: string[]; locked: boolean }) {
   const [transport, setTransport] = useState<"stdio" | "http">(connection?.transport ?? "stdio");
   const editing = Boolean(connection);
   return (
@@ -89,6 +93,7 @@ export function ConnectionDialog({ connection, stdioServers }: { connection?: Co
       buttonClass={editing ? dash.smallButton : dash.apply}
       title={editing ? `Edit ${connection!.name}` : "Add an MCP connection"}
       submitLabel="Save"
+      locked={locked}
       done={(data) => `Connection ${editing ? connection!.name : String(data.get("name") ?? "")} saved`}
       onSubmit={(data) => {
         const name = editing ? connection!.name : String(data.get("name") ?? "").trim();
@@ -207,13 +212,14 @@ export function ToolSwitch({ name, enabled }: { name: string; enabled: boolean }
   );
 }
 
-export function DescriptionDialog({ name, description, codeDescription, changed }: { name: string; description: string; codeDescription: string; changed: boolean }) {
+export function DescriptionDialog({ name, description, codeDescription, changed, locked }: { name: string; description: string; codeDescription: string; changed: boolean; locked: boolean }) {
   return (
     <FormDialog
       button="Edit text"
       buttonClass={dash.smallButton}
       title={`What the model reads for ${name}`}
       submitLabel="Save"
+      locked={locked}
       done={(data) => (data.get("reset") === "on" ? `${name}: back to the code's text` : `${name}: text saved`)}
       onSubmit={(data) =>
         setToolDescription(name, data.get("reset") === "on" ? null : String(data.get("description") ?? "").trim())
@@ -237,6 +243,63 @@ export function DescriptionDialog({ name, description, codeDescription, changed 
   );
 }
 
+// 8.6e-3: what a tool really runs, read only (no editing in the browser: that would be remote code execution).
+// Fetched when opened, so every view is a row in the change log.
+const CODE_KIND = { "built-in": "its section of tools.py", sql: "its SQL", mcp: "as its MCP server describes it" } as const;
+
+export function CodeButton({ name, locked }: { name: string; locked: boolean }) {
+  const router = useRouter();
+  const dialog = useRef<HTMLDialogElement>(null);
+  const [busy, setBusy] = useState(false);
+  const [code, setCode] = useState<ToolCode | null>(null);
+  return (
+    <>
+      <button
+        type="button"
+        className={locked ? `${dash.smallButton} ${dash.lockedButton}` : dash.smallButton}
+        disabled={busy || locked}
+        aria-busy={busy}
+        title={locked ? LOCKED_HINT : undefined}
+        onClick={async () => {
+          setBusy(true);
+          const r = await getToolCode(name);
+          setBusy(false);
+          if (r.ok) {
+            setCode(r.code);
+            dialog.current?.showModal();
+            router.refresh(); // the Changes card shows the code.view row
+          } else if (r.status === 401) {
+            router.push("/login");
+          } else {
+            toast("error", r.message);
+          }
+        }}
+      >
+        {locked && <LockIcon />}
+        {busy ? "Opening…" : "View code"}
+      </button>
+      <dialog ref={dialog} className={`${dash.dialog} ${dash.codeDialog}`} aria-label={`Code of ${name}`}>
+        <form method="dialog" className={dash.dialogForm}>
+          <h2>
+            <span className="mono" translate="no">
+              {name}
+            </span>
+            : {code ? CODE_KIND[code.kind] : ""} (read only)
+          </h2>
+          <pre className={dash.codeView} tabIndex={0} aria-label={`Code of ${name}`} translate="no">
+            {code?.code}
+          </pre>
+          <div className={dash.dialogActions}>
+            <button type="submit" className={dash.secondary}>
+              Close
+            </button>
+          </div>
+        </form>
+      </dialog>
+    </>
+  );
+}
+
 // --- SQL tools ----------------------------------------------------------------------------------------------
 
 type Parameter = components["schemas"]["SqlParameter"];
@@ -255,7 +318,7 @@ const parseParameters = (value: string): Parameter[] =>
 const formatParameters = (parameters: Parameter[]) =>
   parameters.map((p) => [p.name, p.type, p.description ?? "", p.required ? "required" : ""].join(" | ")).join("\n");
 
-export function SqlToolDialog({ tool }: { tool?: SqlTool }) {
+export function SqlToolDialog({ tool, locked }: { tool?: SqlTool; locked: boolean }) {
   const editing = Boolean(tool);
   const [checkResult, setCheckResult] = useState<string | null>(null);
   const bodyOf = (data: FormData) => ({
@@ -272,6 +335,7 @@ export function SqlToolDialog({ tool }: { tool?: SqlTool }) {
       buttonClass={editing ? dash.smallButton : dash.apply}
       title={editing ? `Edit ${tool!.name}` : "Add a SQL tool"}
       submitLabel="Check and save"
+      locked={locked}
       done={(data) => `SQL tool ${editing ? tool!.name : String(data.get("name") ?? "")} saved`}
       onSubmit={async (data) => {
         const name = editing ? tool!.name : String(data.get("name") ?? "").trim();
@@ -326,7 +390,7 @@ export function SqlToolDialog({ tool }: { tool?: SqlTool }) {
 
 // One question as a test employee ID with the ticked tool scopes, through the real chat's tool loop (switch "try_it").
 // It reads REAL records: FastAPI allows super admins only and logs every use (never the question or the answer).
-export function TryItPanel({ scopes }: { scopes: string[] }) {
+export function TryItPanel({ scopes, locked }: { scopes: string[]; locked: boolean }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<TryOut | null>(null);
@@ -384,7 +448,14 @@ export function TryItPanel({ scopes }: { scopes: string[] }) {
           <textarea name="question" required rows={2} maxLength={4000} placeholder="How many vacation days do I have left?…" />
         </label>
         <div>
-          <button type="submit" className={dash.apply} disabled={busy} aria-busy={busy}>
+          <button
+            type="submit"
+            className={locked ? `${dash.apply} ${dash.lockedButton}` : dash.apply}
+            disabled={busy || locked}
+            aria-busy={busy}
+            title={locked ? LOCKED_HINT : undefined}
+          >
+            {locked && <LockIcon />}
             {busy ? "Asking…" : "Ask"}
           </button>
         </div>

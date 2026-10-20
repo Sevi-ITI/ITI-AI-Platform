@@ -1978,3 +1978,83 @@ td.actionsCell:not(:has(button, a)) {
   background: var(--surface-sunken);
   white-space: pre-wrap;
 }
+
+/* 8.6e-3 security password gate: the bar under the page title, locked buttons, the read-only code view */
+.gateBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-nested);
+}
+
+.gateBar p {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.gateBar svg {
+  flex: none;
+}
+
+.gateOpen {
+  border-color: var(--accent);
+}
+
+.gateActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.lockedButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.lockedButton:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.smallButton.lockedButton:disabled:hover,
+.dangerSmall.lockedButton:disabled:hover {
+  border-color: var(--border);
+  background: transparent;
+}
+
+.smallButton.lockedButton:disabled:hover {
+  color: var(--text-muted);
+}
+
+.dangerSmall.lockedButton:disabled:hover {
+  color: var(--error);
+}
+
+.codeDialog {
+  width: min(56rem, calc(100vw - 2 * var(--float-gap)));
+}
+
+.codeView {
+  max-height: 60vh;
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  overflow: auto;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  white-space: pre;
+  tab-size: 4;
+}

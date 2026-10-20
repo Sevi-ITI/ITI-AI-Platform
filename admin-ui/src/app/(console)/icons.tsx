@@ -49,3 +49,6 @@ export const StatusOkIcon = () => <Icon size={14} d="M12 21a9 9 0 1 0 0-18 9 9 0
 export const StatusWarnIcon = () => <Icon size={14} d="M12 3.5l9.5 16.5h-19z M12 10v4 M12 17h.01" />;
 export const StatusErrorIcon = () => <Icon size={14} d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M9 9l6 6 M15 9l-6 6" />;
 export const CopyIcon = () => <Icon size={14} d="M9 9h11v11H9z M5 15H4V4h11v1" />;
+// 8.6e-3: the security password gate (closed / open padlock)
+export const LockIcon = () => <Icon size={14} d="M6 11h12v10H6z M8.5 11V7.5a3.5 3.5 0 0 1 7 0V11" />;
+export const UnlockIcon = () => <Icon size={14} d="M6 11h12v10H6z M8.5 11V7.5a3.5 3.5 0 0 1 6.8-1.2" />;

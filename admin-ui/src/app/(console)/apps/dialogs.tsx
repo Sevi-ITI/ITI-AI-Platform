@@ -808,11 +808,13 @@ export function EditToolsButton({
   tools,
   checked,
   missing,
+  locked,
 }: {
   appId: string;
   tools: ToolOption[];
   checked: string[];
   missing: string[];
+  locked: boolean; // 8.6e-3: a tool list decides who may read records, so it needs the security password
 }) {
   return (
     <FormDialog
@@ -820,6 +822,7 @@ export function EditToolsButton({
       buttonClass={dash.smallButton}
       title={`Tools ${appId} may use`}
       submitLabel="Save tools"
+      locked={locked}
       done={() => `Tools of ${appId} saved`}
       onSubmit={(data) => saveAppTools(appId, data.getAll("tools").map(String))}
     >

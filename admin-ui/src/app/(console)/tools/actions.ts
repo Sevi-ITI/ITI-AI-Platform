@@ -94,3 +94,12 @@ export async function deleteSqlTool(name: string): Promise<ConfirmResult> {
     await callApi((api) => api.DELETE("/v1/admin/tools/sql-tools/{name}", { params: { path: { name } } })),
   );
 }
+
+// 8.6e-3 read-only code view (switch "code_view", needs the security password unlocked): built-in = its section of
+// tools.py, SQL tool = its SELECT, MCP = the tool as its server describes it. FastAPI logs every view.
+export type ToolCode = components["schemas"]["ToolCode"];
+
+export async function getToolCode(name: string): Promise<{ ok: true; code: ToolCode } | { ok: false; message: string; status: number }> {
+  const r = await callApi((api) => api.GET("/v1/admin/tools/tools/{name}/code", { params: { path: { name } } }));
+  return r.ok ? { ok: true, code: r.data } : { ok: false, message: displayMessage(r.error), status: r.error.status };
+}

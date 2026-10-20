@@ -11,7 +11,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Health */
+        /**
+         * Get Health
+         * @description Is the service up? Replies {"status": "ok"}. No key needed; checks neither the database nor the model.
+         */
         get: operations["get_health_health_get"];
         put?: never;
         post?: never;
@@ -30,7 +33,13 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Post Chat */
+        /**
+         * Ask a question
+         * @description The answer comes only from the collection's documents, with file and page citations. found = false is the
+         *     "I don't know" reply (a normal 200: show it like any answer). Leave conversation_id out, null or empty to start a
+         *     new conversation; send the previous reply's conversation_id for a follow-up.
+         *     Answers can queue: use a timeout of at least 150 s.
+         */
         post: operations["post_chat_v1_chat_post"];
         delete?: never;
         options?: never;
@@ -47,7 +56,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Post Chat Stream */
+        /**
+         * Ask a question, answer streamed
+         * @description Same body and rules as POST /v1/chat, but the answer arrives word by word. A refused call (bad key, unknown
+         *     collection or conversation, missing ITI-User-Id) gets a normal JSON error before any event is sent.
+         */
         post: operations["post_chat_stream_v1_chat_stream_post"];
         delete?: never;
         options?: never;
@@ -62,7 +75,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Conversations */
+        /**
+         * List the user's conversations
+         * @description The ITI-User-Id's own conversations in this app, newest first (limit: default 30, max 100). For a history list.
+         */
         get: operations["get_conversations_v1_conversations_get"];
         put?: never;
         post?: never;
@@ -79,7 +95,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Conversation Messages */
+        /**
+         * Read one conversation
+         * @description Every message of one conversation, oldest first: the user's questions and the assistant's answers with their
+         *     citations. Someone else's conversation is a 404, the same as a missing one.
+         */
         get: operations["get_conversation_messages_v1_conversations__conversation_id__messages_get"];
         put?: never;
         post?: never;
@@ -116,6 +136,28 @@ export interface paths {
         };
         /** Get Job */
         get: operations["get_job_v1_documents_jobs__job_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/suggestions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Starter questions for a new chat
+         * @description Up to limit starter questions for a new chat, one per file, picked at random from the collection's indexed
+         *     files, so they change between visits. Show them as chips; a click fills the question box and does not send.
+         *     Empty list when the collection has no files yet. Same key rules as chat; no ITI-User-Id needed.
+         */
+        get: operations["get_suggestions_v1_suggestions_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -596,6 +638,61 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/tools/gate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Gate */
+        get: operations["get_gate_v1_admin_tools_gate_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/tools/gate/unlock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Unlock
+         * @description The right security password unlocks the risky actions for 15 minutes. 403 wrong_security_password,
+         *     423 gate_locked (5 wrong in a row), 409 security_password_not_set. Never 401 (that would log the person out).
+         */
+        post: operations["post_unlock_v1_admin_tools_gate_unlock_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/tools/gate/lock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Post Lock */
+        post: operations["post_lock_v1_admin_tools_gate_lock_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/tools/settings": {
         parameters: {
             query?: never;
@@ -733,6 +830,26 @@ export interface paths {
         get?: never;
         /** Put Tool */
         put: operations["put_tool_v1_admin_tools_tools__name__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/tools/tools/{name}/code": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Tool Code
+         * @description What a tool really runs, to read (never to edit: no Python in the browser). Every view is logged.
+         */
+        get: operations["get_tool_code_v1_admin_tools_tools__name__code_get"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -1138,26 +1255,56 @@ export interface components {
             /** Recent Files */
             recent_files: string[];
         };
-        /** ChatRequest */
+        /**
+         * ChatRequest
+         * @example {
+         *       "collection": "iti-docs",
+         *       "question": "How many leave days do new employees get?"
+         *     }
+         */
         ChatRequest: {
-            /** Question */
+            /**
+             * Question
+             * @description The user's question, as typed.
+             */
             question: string;
-            /** Collection */
+            /**
+             * Collection
+             * @description Which document set to answer from (given with your key, e.g. iti-docs).
+             */
             collection: string;
-            /** Conversation Id */
+            /**
+             * Conversation Id
+             * @description Leave it out, null or empty for a new conversation; the previous reply's id for a follow-up.
+             */
             conversation_id?: string | null;
         };
         /** ChatResponse */
         ChatResponse: {
-            /** Answer */
+            /**
+             * Answer
+             * @description Markdown (lists, bold, tables): render it as Markdown.
+             */
             answer: string;
-            /** Found */
+            /**
+             * Found
+             * @description False = the documents don't contain the answer (the "I don't know" reply).
+             */
             found: boolean;
-            /** Citations */
+            /**
+             * Citations
+             * @description The sources behind the answer; empty when found is false.
+             */
             citations: components["schemas"]["Citation"][];
-            /** Conversation Id */
+            /**
+             * Conversation Id
+             * @description Send it back in the next question to continue this conversation.
+             */
             conversation_id: string;
-            /** Request Id */
+            /**
+             * Request Id
+             * @description Quote it to the ITI AI admin when reporting a problem.
+             */
             request_id: string;
         };
         /** ChatsDeleted */
@@ -1175,13 +1322,25 @@ export interface components {
         };
         /** Citation */
         Citation: {
-            /** Doc Id */
+            /**
+             * Doc Id
+             * @description The document's id (today its file name).
+             */
             doc_id: string;
-            /** Title */
+            /**
+             * Title
+             * @description The file name to show the user.
+             */
             title: string;
-            /** Page */
+            /**
+             * Page
+             * @description The PDF page (1 = first); null when unknown.
+             */
             page?: number | null;
-            /** Snippet */
+            /**
+             * Snippet
+             * @description The start of the cited passage, not an exact quote.
+             */
             snippet: string;
         };
         /** CollectionCreate */
@@ -1372,15 +1531,25 @@ export interface components {
         };
         /** ConversationSummary */
         ConversationSummary: {
-            /** Conversation Id */
+            /**
+             * Conversation Id
+             * @description Use it to read the messages or to continue the conversation.
+             */
             conversation_id: string;
-            /** Collection */
+            /**
+             * Collection
+             * @description The document set this conversation asks.
+             */
             collection: string;
-            /** First Question */
+            /**
+             * First Question
+             * @description The conversation's first question: a title for the list.
+             */
             first_question: string;
             /**
              * Created At
              * Format: date-time
+             * @description When it started, UTC.
              */
             created_at: string;
         };
@@ -1426,6 +1595,15 @@ export interface components {
             error: components["schemas"]["ErrorDetail"];
             /** Request Id */
             request_id: string;
+        };
+        /** GateOut */
+        GateOut: {
+            /** Password Set */
+            password_set: boolean;
+            /** Unlocked Until */
+            unlocked_until: string | null;
+            /** Locked Until */
+            locked_until: string | null;
         };
         /** GpuInfo */
         GpuInfo: {
@@ -1617,19 +1795,30 @@ export interface components {
         MessageOut: {
             /**
              * Role
+             * @description user = a question, assistant = an answer.
              * @enum {string}
              */
             role: "user" | "assistant";
-            /** Content */
+            /**
+             * Content
+             * @description The question, or the answer in Markdown.
+             */
             content: string;
-            /** Request Id */
+            /**
+             * Request Id
+             * @description The call that wrote this message.
+             */
             request_id: string;
             /**
              * Created At
              * Format: date-time
+             * @description When it was written, UTC.
              */
             created_at: string;
-            /** Citations */
+            /**
+             * Citations
+             * @description An answer's sources; null for questions.
+             */
             citations?: components["schemas"]["Citation"][] | null;
         };
         /** MetricsSummary */
@@ -1837,6 +2026,19 @@ export interface components {
             /** Name */
             name: string;
         };
+        /** Suggestion */
+        Suggestion: {
+            /**
+             * Question
+             * @description Show it as a chip; a click fills the question box (it does not send).
+             */
+            question: string;
+            /**
+             * File
+             * @description The file the question is about, as uploaded (e.g. for a 'from Leave Policy' line).
+             */
+            file: string;
+        };
         /** TimeseriesPoint */
         TimeseriesPoint: {
             /**
@@ -1871,6 +2073,23 @@ export interface components {
              * @default false
              */
             approve: boolean;
+        };
+        /** ToolCode */
+        ToolCode: {
+            /** Name */
+            name: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "built-in" | "sql" | "mcp";
+            /**
+             * Language
+             * @enum {string}
+             */
+            language: "python" | "sql" | "json";
+            /** Code */
+            code: string;
         };
         /** ToolOut */
         ToolOut: {
@@ -1945,6 +2164,14 @@ export interface components {
             /** Seconds */
             seconds: number;
         };
+        /** UnlockIn */
+        UnlockIn: {
+            /**
+             * Password
+             * Format: password
+             */
+            password: string;
+        };
         /** UploadAccepted */
         UploadAccepted: {
             /** Job Id */
@@ -2009,7 +2236,9 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                /** @description Required: the signed-in person's permanent id from your server's session. */
                 "ITI-User-Id"?: string | null;
+                /** @description Optional label (e.g. 'hr staff') shown in the console; doesn't change access. */
                 "ITI-User-Role"?: string | null;
             };
             path?: never;
@@ -2030,7 +2259,7 @@ export interface operations {
                     "application/json": components["schemas"]["ChatResponse"];
                 };
             };
-            /** @description Unauthorized */
+            /** @description **invalid_api_key**: key missing, wrong, revoked or expired */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -2039,7 +2268,11 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Forbidden */
+            /**
+             * @description **scope_forbidden**: this key may not use this route
+             *
+             *     **collection_forbidden**: this key may not read that collection
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -2048,7 +2281,11 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Not Found */
+            /**
+             * @description **collection_not_found**: no collection with that name
+             *
+             *     **conversation_not_found**: no such conversation for this user (or it is someone else's)
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -2057,34 +2294,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Request Entity Too Large */
-            413: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unsupported Media Type */
-            415: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unprocessable Entity */
+            /** @description **invalid_request**: a field or header is missing or invalid (e.g. no ITI-User-Id, question over 4,000) */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -2093,7 +2303,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Internal Server Error */
+            /** @description **internal_error**: a bug on the AI side: quote the request_id */
             500: {
                 headers: {
                     [name: string]: unknown;
@@ -2102,7 +2312,11 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Service Unavailable */
+            /**
+             * @description **llm_busy**: queue full: retry once after a pause
+             *
+             *     **llm_unavailable**: the model is down: no retry
+             */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -2117,7 +2331,9 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                /** @description Required: the signed-in person's permanent id from your server's session. */
                 "ITI-User-Id"?: string | null;
+                /** @description Optional label (e.g. 'hr staff') shown in the console; doesn't change access. */
                 "ITI-User-Role"?: string | null;
             };
             path?: never;
@@ -2129,7 +2345,15 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful Response */
+            /**
+             * @description A stream of Server-Sent Events, in this order:
+             *
+             *     1. **meta** {conversation_id, request_id}
+             *     2. **token** {text}, many: append each to the screen
+             *     3. **done** {answer, found, citations}: replace the shown text with answer (it can differ from the tokens)
+             *
+             *     or, if it fails after it started, **error** {code, message}: llm_busy, llm_unavailable or internal_error.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -2138,7 +2362,7 @@ export interface operations {
                     "text/event-stream": unknown;
                 };
             };
-            /** @description Unauthorized */
+            /** @description **invalid_api_key**: key missing, wrong, revoked or expired */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -2147,7 +2371,11 @@ export interface operations {
                     "text/event-stream": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Forbidden */
+            /**
+             * @description **scope_forbidden**: this key may not use this route
+             *
+             *     **collection_forbidden**: this key may not read that collection
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -2156,7 +2384,11 @@ export interface operations {
                     "text/event-stream": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Not Found */
+            /**
+             * @description **collection_not_found**: no collection with that name
+             *
+             *     **conversation_not_found**: no such conversation for this user (or it is someone else's)
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -2165,34 +2397,7 @@ export interface operations {
                     "text/event-stream": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/event-stream": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Request Entity Too Large */
-            413: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/event-stream": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unsupported Media Type */
-            415: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/event-stream": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unprocessable Entity */
+            /** @description **invalid_request**: a field or header is missing or invalid (e.g. no ITI-User-Id, question over 4,000) */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -2201,17 +2406,8 @@ export interface operations {
                     "text/event-stream": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Internal Server Error */
+            /** @description **internal_error**: a bug on the AI side: quote the request_id */
             500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/event-stream": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2227,7 +2423,9 @@ export interface operations {
                 limit?: number;
             };
             header?: {
+                /** @description Required: the signed-in person's permanent id from your server's session. */
                 "ITI-User-Id"?: string | null;
+                /** @description Optional label (e.g. 'hr staff') shown in the console; doesn't change access. */
                 "ITI-User-Role"?: string | null;
             };
             path?: never;
@@ -2244,7 +2442,7 @@ export interface operations {
                     "application/json": components["schemas"]["ConversationSummary"][];
                 };
             };
-            /** @description Unauthorized */
+            /** @description **invalid_api_key**: key missing, wrong, revoked or expired */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -2253,7 +2451,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Forbidden */
+            /** @description **scope_forbidden**: this key may not use this route */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -2262,43 +2460,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Request Entity Too Large */
-            413: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unsupported Media Type */
-            415: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unprocessable Entity */
+            /** @description **invalid_request**: a field or header is missing or invalid (e.g. no ITI-User-Id, question over 4,000) */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -2307,17 +2469,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Internal Server Error */
+            /** @description **internal_error**: a bug on the AI side: quote the request_id */
             500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2331,7 +2484,9 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                /** @description Required: the signed-in person's permanent id from your server's session. */
                 "ITI-User-Id"?: string | null;
+                /** @description Optional label (e.g. 'hr staff') shown in the console; doesn't change access. */
                 "ITI-User-Role"?: string | null;
             };
             path: {
@@ -2350,7 +2505,7 @@ export interface operations {
                     "application/json": components["schemas"]["MessageOut"][];
                 };
             };
-            /** @description Unauthorized */
+            /** @description **invalid_api_key**: key missing, wrong, revoked or expired */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -2359,7 +2514,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Forbidden */
+            /** @description **scope_forbidden**: this key may not use this route */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -2368,7 +2523,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Not Found */
+            /** @description **conversation_not_found**: no such conversation for this user (or it is someone else's) */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -2377,34 +2532,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Request Entity Too Large */
-            413: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unsupported Media Type */
-            415: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unprocessable Entity */
+            /** @description **invalid_request**: a field or header is missing or invalid (e.g. no ITI-User-Id, question over 4,000) */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -2413,17 +2541,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Internal Server Error */
+            /** @description **internal_error**: a bug on the AI side: quote the request_id */
             500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2734,6 +2853,80 @@ export interface operations {
             };
             /** @description Service Unavailable */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_suggestions_v1_suggestions_get: {
+        parameters: {
+            query: {
+                /** @description The collection the chat will ask. */
+                collection: string;
+                /** @description How many chips, at most (default 3). */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Suggestion"][];
+                };
+            };
+            /** @description **invalid_api_key**: key missing, wrong, revoked or expired */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /**
+             * @description **scope_forbidden**: this key may not use this route
+             *
+             *     **collection_forbidden**: this key may not read that collection
+             */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description **collection_not_found**: no collection with that name */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description **invalid_request**: a field or header is missing or invalid (e.g. no ITI-User-Id, question over 4,000) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description **internal_error**: a bug on the AI side: quote the request_id */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -6591,6 +6784,313 @@ export interface operations {
             };
         };
     };
+    get_gate_v1_admin_tools_gate_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GateOut"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unsupported Media Type */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    post_unlock_v1_admin_tools_gate_unlock_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UnlockIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GateOut"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unsupported Media Type */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    post_lock_v1_admin_tools_gate_lock_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GateOut"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unsupported Media Type */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     get_records_settings_v1_admin_tools_settings_get: {
         parameters: {
             query?: never;
@@ -7538,6 +8038,109 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ToolOut"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unsupported Media Type */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_tool_code_v1_admin_tools_tools__name__code_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ToolCode"];
                 };
             };
             /** @description Unauthorized */

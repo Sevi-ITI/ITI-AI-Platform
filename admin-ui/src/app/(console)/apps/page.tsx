@@ -7,6 +7,7 @@ import { testersGoToChat } from "@/lib/session/testers-go-to-chat";
 
 import ConfirmAction from "../confirm-action";
 import styles from "../dashboard.module.css";
+import GateBar from "../gate-bar";
 import { StatusErrorIcon, StatusOkIcon, StatusWarnIcon } from "../icons";
 import { Problem } from "../widgets";
 import { revokeKey } from "./actions";
@@ -41,7 +42,7 @@ export default async function AppsPage({
 }) {
   await testersGoToChat(); // testers have only the Chat page
   const { q } = await searchParams;
-  const [apps, keys, collections, companies, toolLists, allTools, me] = await Promise.all([
+  const [apps, keys, collections, companies, toolLists, allTools, gate, me] = await Promise.all([
     callApi((api) => api.GET("/v1/admin/apps")),
     callApi((api) => api.GET("/v1/admin/keys")),
     callApi((api) => api.GET("/v1/admin/collections")),
@@ -49,9 +50,10 @@ export default async function AppsPage({
     // super admin only (supervisors get 403: the tools row is then left out)
     callApi((api) => api.GET("/v1/admin/tools/apps")),
     callApi((api) => api.GET("/v1/admin/tools/tools")),
+    callApi((api) => api.GET("/v1/admin/tools/gate")), // 8.6e-3: a tool list needs the security password unlocked
     currentAccount(),
   ]);
-  endSessionOn401(apps, keys, collections, companies, toolLists, allTools, me);
+  endSessionOn401(apps, keys, collections, companies, toolLists, allTools, gate, me);
 
   const canEdit = me.ok && me.data.role === "super_admin";
   const collectionOptions: CollectionOption[] = collections.ok
@@ -63,6 +65,7 @@ export default async function AppsPage({
   const toolOptions: ToolOption[] | null = allTools.ok
     ? allTools.data.map((t) => ({ name: t.name, scope: t.scope, in_use: t.in_use }))
     : null;
+  const toolsLocked = !(gate.ok && gate.data.unlocked_until); // FastAPI decides; this only greys out Edit tools
   const now = new Date().getTime(); // a server component: rendered once per request
 
   // Each card with the text it can be searched by (lowercase): app id, profile fields, key ids.
@@ -94,6 +97,7 @@ export default async function AppsPage({
           companyNames={companyNames}
           tools={appTools ? (appTools.get(app.app_id) ?? []) : null}
           toolOptions={toolOptions}
+          toolsLocked={toolsLocked}
           canEdit={canEdit}
           now={now}
         />
@@ -107,6 +111,7 @@ export default async function AppsPage({
         <h1>Apps &amp; keys</h1>
         {canEdit && apps.ok && <CreateAppButton existing={apps.data.map((a) => a.app_id)} />}
       </header>
+      {canEdit && gate.ok && <GateBar gate={gate.data} />}
 
       {!apps.ok ? (
         <Problem message={displayMessage(apps.error)} />
@@ -150,6 +155,7 @@ function AppCard({
   companyNames,
   tools,
   toolOptions,
+  toolsLocked,
   canEdit,
   now,
 }: {
@@ -160,6 +166,7 @@ function AppCard({
   companyNames: Map<string, string>;
   tools: { name: string; missing: boolean }[] | null; // its tool list; null = not shown
   toolOptions: ToolOption[] | null;
+  toolsLocked: boolean;
   canEdit: boolean;
   now: number;
 }) {
@@ -259,6 +266,7 @@ function AppCard({
                   tools={toolOptions}
                   checked={tools.map((t) => t.name)}
                   missing={tools.filter((t) => t.missing).map((t) => t.name)}
+                  locked={toolsLocked}
                 />
               )}
               <EditProfileButton appId={app.app_id} profile={app} />

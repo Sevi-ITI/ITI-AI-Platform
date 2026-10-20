@@ -4,12 +4,15 @@ import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 
 import dash from "./dashboard.module.css";
+import { LOCKED_HINT } from "./form-dialog";
+import { LockIcon } from "./icons";
 import { toast } from "./toast";
 
 // A red button that asks before it acts: delete a document, revoke a key, deactivate an account.
 // `quiet` makes both buttons neutral, for an undoable change (reactivate an account).
 // `action` is a server action already bound to its arguments (e.g. deleteDocument.bind(null, collection, name));
-// it returns FastAPI's message on failure. On success the page refreshes.
+// it returns FastAPI's message on failure. On success the page refreshes. `locked` (8.6e-3): greyed out with a padlock
+// until the security password is unlocked.
 
 export type ConfirmResult = { ok: true } | { ok: false; message: string; status: number };
 
@@ -21,6 +24,7 @@ export default function ConfirmAction({
   action,
   quiet = false,
   done,
+  locked = false,
 }: {
   label: string;
   title: string;
@@ -29,6 +33,7 @@ export default function ConfirmAction({
   action: () => Promise<ConfirmResult>;
   quiet?: boolean;
   done: string; // the toast after it worked, e.g. "Key 3f2a… revoked"
+  locked?: boolean;
 }) {
   const router = useRouter();
   const dialog = useRef<HTMLDialogElement>(null);
@@ -54,12 +59,15 @@ export default function ConfirmAction({
     <>
       <button
         type="button"
-        className={quiet ? dash.smallButton : dash.dangerSmall}
+        className={`${quiet ? dash.smallButton : dash.dangerSmall}${locked ? ` ${dash.lockedButton}` : ""}`}
+        disabled={locked}
+        title={locked ? LOCKED_HINT : undefined}
         onClick={() => {
           setError(null);
           dialog.current?.showModal();
         }}
       >
+        {locked && <LockIcon />}
         {label}
       </button>
       <dialog ref={dialog} className={dash.dialog} aria-label={title}>

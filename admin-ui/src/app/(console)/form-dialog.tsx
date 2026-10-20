@@ -5,11 +5,16 @@ import { useRef, useState } from "react";
 
 import type { ConfirmResult } from "./confirm-action";
 import dash from "./dashboard.module.css";
+import { LockIcon } from "./icons";
 import { toast } from "./toast";
+
+// 8.6e-3: what a locked button says on hover (the gate bar at the top of the page explains it too)
+export const LOCKED_HINT = "Locked: unlock with your security password first (the bar at the top of this page).";
 
 // A button that opens a small form in a dialog (add an account, add a company, edit a name...). onSubmit gets the
 // form's data and returns the server action's result, or a string for the form's own complaint; `done` is the
-// toast after it worked. Used by Accounts and Companies.
+// toast after it worked. Used by Accounts and Companies. `locked` (8.6e-3): the button is greyed out with a padlock
+// until the security password is unlocked (FastAPI refuses the change anyway).
 
 export default function FormDialog({
   button,
@@ -19,6 +24,7 @@ export default function FormDialog({
   children,
   onSubmit,
   done,
+  locked = false,
 }: {
   button: string;
   buttonClass: string;
@@ -27,6 +33,7 @@ export default function FormDialog({
   children: React.ReactNode;
   onSubmit: (data: FormData) => Promise<ConfirmResult | string>; // a string = the form's own complaint
   done: (data: FormData) => string; // the toast after it worked
+  locked?: boolean;
 }) {
   const router = useRouter();
   const dialog = useRef<HTMLDialogElement>(null);
@@ -56,13 +63,16 @@ export default function FormDialog({
     <>
       <button
         type="button"
-        className={buttonClass}
+        className={locked ? `${buttonClass} ${dash.lockedButton}` : buttonClass}
+        disabled={locked}
+        title={locked ? LOCKED_HINT : undefined}
         onClick={() => {
           setError(null);
           dialog.current?.querySelector("form")?.reset();
           dialog.current?.showModal();
         }}
       >
+        {locked && <LockIcon />}
         {button}
       </button>
       <dialog ref={dialog} className={dash.dialog} aria-label={title}>

@@ -7,11 +7,13 @@ import { testersGoToChat } from "@/lib/session/testers-go-to-chat";
 
 import ConfirmAction from "../confirm-action";
 import styles from "../dashboard.module.css";
+import GateBar from "../gate-bar";
 import Placeholder from "../placeholder";
 import { StatusOkIcon, StatusWarnIcon } from "../icons";
 import { Problem } from "../widgets";
 import { approveTool, deleteConnection, deleteSqlTool } from "./actions";
 import {
+  CodeButton,
   ConnectionDialog,
   DescriptionDialog,
   RecordsSourceSwitch,
@@ -59,6 +61,8 @@ function changeLines(before: Fields, after: Fields): string[] {
 // model is offered, and every change made here. Each section exists only while its kill switch in
 // backend/app/tools/console_features.py is True; FastAPI refuses a switched-off part too. Secrets are never shown:
 // a connection names its backend\.env variable and the page says whether it is set.
+// 8.6e-3: the risky changes (connections, approvals, descriptions, SQL tools, Try it, the code view) need the security
+// password unlocked (the gate bar under the title); while locked they are greyed out with a padlock.
 export default async function ToolsPage() {
   await testersGoToChat(); // testers have only the Chat page
   const me = await currentAccount();
@@ -77,7 +81,8 @@ export default async function ToolsPage() {
   if (!features.ok) return <Problem message={displayMessage(features.error)} />;
   const on = features.data;
 
-  const [settings, connections, stdioServers, status, tools, sqlTools, changes, tryScopes] = await Promise.all([
+  const [gate, settings, connections, stdioServers, status, tools, sqlTools, changes, tryScopes] = await Promise.all([
+    callApi((api) => api.GET("/v1/admin/tools/gate")),
     on.records_source ? callApi((api) => api.GET("/v1/admin/tools/settings")) : null,
     on.mcp_connections ? callApi((api) => api.GET("/v1/admin/tools/connections")) : null,
     on.mcp_connections ? callApi((api) => api.GET("/v1/admin/tools/stdio-servers")) : null,
@@ -87,7 +92,8 @@ export default async function ToolsPage() {
     callApi((api) => api.GET("/v1/admin/tools/changes", { params: { query: { limit: 30 } } })),
     on.try_it ? callApi((api) => api.GET("/v1/admin/tools/try/scopes")) : null,
   ]);
-  for (const r of [settings, connections, stdioServers, status, tools, sqlTools, changes, tryScopes]) if (r) endSessionOn401(r);
+  for (const r of [gate, settings, connections, stdioServers, status, tools, sqlTools, changes, tryScopes]) if (r) endSessionOn401(r);
+  const locked = !(gate.ok && gate.data.unlocked_until); // FastAPI decides; this only greys out the buttons
   // each connection's server check, by name (shown in its row)
   const checks = new Map((status?.ok ? status.data : []).map((x) => [x.name, x]));
 
@@ -96,6 +102,7 @@ export default async function ToolsPage() {
       <header className={styles.header}>
         <h1>Tools &amp; MCP</h1>
       </header>
+      {gate.ok ? <GateBar gate={gate.data} /> : <Problem message={displayMessage(gate.error)} />}
       {/* a long page: jump links to its parts (only the parts switched on in console_features.py) */}
       <nav className={styles.jumpLinks} aria-label="On this page">
         {[
@@ -140,7 +147,7 @@ export default async function ToolsPage() {
         <section className={styles.card} aria-labelledby="connections">
           <div className={styles.cardHead}>
             <h2 id="connections">MCP connections</h2>
-            {stdioServers?.ok && <ConnectionDialog stdioServers={stdioServers.data} />}
+            {stdioServers?.ok && <ConnectionDialog stdioServers={stdioServers.data} locked={locked} />}
           </div>
           {/* the server check (was its own card) is now each connection's second line under State */}
           {status && !status.ok && <Problem message={displayMessage(status.error)} />}
@@ -220,8 +227,9 @@ export default async function ToolsPage() {
                         <td className={styles.actionsCell}>
                           <div className={styles.rowActions}>
                             {on.server_status && <TestButton name={c.name} />}
-                            {stdioServers?.ok && <ConnectionDialog connection={c} stdioServers={stdioServers.data} />}
+                            {stdioServers?.ok && <ConnectionDialog connection={c} stdioServers={stdioServers.data} locked={locked} />}
                             <ConfirmAction
+                              locked={locked}
                               label="Delete"
                               title={`Delete the connection ${c.name}?`}
                               confirmLabel="Delete"
@@ -311,6 +319,7 @@ export default async function ToolsPage() {
                         {(t.approval === "pending" || t.approval === "changed") && (
                           <ConfirmAction
                             quiet
+                            locked={locked}
                             label={t.approval === "pending" ? "Approve" : "Approve again"}
                             title={`Approve ${t.name}?`}
                             confirmLabel="Approve"
@@ -333,8 +342,10 @@ export default async function ToolsPage() {
                             description={t.description}
                             codeDescription={t.code_description}
                             changed={t.description_changed}
+                            locked={locked}
                           />
                         )}
+                        {on.code_view && <CodeButton name={t.name} locked={locked} />}
                       </div>
                     </td>
                   </tr>
@@ -354,7 +365,7 @@ export default async function ToolsPage() {
             Runs the same tool loop as the real chat, with only the scopes you tick, and shows which tools the model
             called with which arguments.
           </p>
-          {!tryScopes.ok ? <Problem message={displayMessage(tryScopes.error)} /> : <TryItPanel scopes={tryScopes.data} />}
+          {!tryScopes.ok ? <Problem message={displayMessage(tryScopes.error)} /> : <TryItPanel scopes={tryScopes.data} locked={locked} />}
         </section>
       )}
 
@@ -362,7 +373,7 @@ export default async function ToolsPage() {
         <section className={styles.card} aria-labelledby="sql-tools">
           <div className={styles.cardHead}>
             <h2 id="sql-tools">SQL tools</h2>
-            <SqlToolDialog />
+            <SqlToolDialog locked={locked} />
           </div>
           {!sqlTools.ok ? (
             <Problem message={displayMessage(sqlTools.error)} />
@@ -399,8 +410,9 @@ export default async function ToolsPage() {
                       </td>
                       <td className={styles.actionsCell}>
                         <div className={styles.rowActions}>
-                          <SqlToolDialog tool={t} />
+                          <SqlToolDialog tool={t} locked={locked} />
                           <ConfirmAction
+                            locked={locked}
                             label="Delete"
                             title={`Delete the SQL tool ${t.name}?`}
                             confirmLabel="Delete"
