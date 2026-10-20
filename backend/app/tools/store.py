@@ -6,6 +6,7 @@ Tables: tools_settings (records_source, ...), mcp_connections (the servers the A
 from servers.py, then managed in the console), tool_overrides (a tool switched off / its description changed),
 sql_tools (tools written as SQL in the console; tool_overrides also keeps
 which tools from other machines were approved), app_tools (which tools each app's keys may use, 8.6e-2),
+company_databases (where each client company's database is, per system, 8.6M),
 tools_changes (who changed what, when, old and new value).
 Every read opens a short session: a few small queries per chat question, no cache to go stale."""
 
@@ -81,6 +82,23 @@ class AppTool(Base):
     tool: Mapped[str] = mapped_column(String(100), primary_key=True)  # a built-in, SQL or "<server>__<tool>" name
     added_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     added_by: Mapped[str] = mapped_column(String(64))
+
+
+class CompanyDatabase(Base):
+    """Where one client company's database for one system is (8.6M). No row (or switched off) = that company gets
+    none of the system's tools. Like a connection, only the NAMES of .env variables are kept, never a secret."""
+
+    __tablename__ = "company_databases"
+
+    company_id: Mapped[str] = mapped_column(String(64), ForeignKey("companies.company_id", ondelete="CASCADE"), primary_key=True)
+    system: Mapped[str] = mapped_column(String(32), primary_key=True)  # a server in shared.COMPANY_DATABASES
+    mode: Mapped[str] = mapped_column(String(8))  # direct: we reach their DB | relay: our server runs at the company
+    url_env: Mapped[str | None] = mapped_column(String(64))  # direct: the .env variable with the DB address
+    relay_url: Mapped[str | None] = mapped_column(String(300))  # relay: https url of our server at the company
+    token_env: Mapped[str | None] = mapped_column(String(64))  # relay: the .env variable with its shared secret
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_by: Mapped[str] = mapped_column(String(64))
 
 
 class ToolsChange(Base):
@@ -271,6 +289,59 @@ def save_app_tools(app_id: str, tools: list[str], who: str) -> None:
 def delete_app_tools(db, app_id: str) -> None:
     """In the caller's session: the app is being disconnected or removed, its list goes with it."""
     db.execute(delete(AppTool).where(AppTool.app_id == app_id))
+
+
+# --- one database per company (8.6M) ---------------------------------------------------------------------------
+
+COMPANY_DATABASE_FIELDS = ("company_id", "system", "mode", "url_env", "relay_url", "token_env", "enabled")
+
+
+def company_databases() -> list[dict]:
+    with get_sessionmaker()() as db:
+        rows = db.scalars(select(CompanyDatabase).order_by(CompanyDatabase.company_id, CompanyDatabase.system)).all()
+        return [_as_dict(row, COMPANY_DATABASE_FIELDS) for row in rows]
+
+
+def company_database(company_id: str, system: str) -> dict | None:
+    """The switched-on row for this company and system, else None."""
+    with get_sessionmaker()() as db:
+        row = db.get(CompanyDatabase, (company_id, system))
+        return _as_dict(row, COMPANY_DATABASE_FIELDS) if row and row.enabled else None
+
+
+def company_systems(company_id: str) -> set[str]:
+    """The systems this company has a switched-on database for."""
+    with get_sessionmaker()() as db:
+        query = select(CompanyDatabase.system).where(CompanyDatabase.company_id == company_id, CompanyDatabase.enabled)
+        return set(db.scalars(query))
+
+
+def company_exists(company_id: str) -> bool:
+    """Read by name, the same way as app_exists."""
+    with get_sessionmaker()() as db:
+        return db.execute(text("SELECT 1 FROM companies WHERE company_id = :c"), {"c": company_id}).first() is not None
+
+
+def save_company_database(entry: dict, who: str) -> None:
+    """Adds or replaces one row (already checked by the caller)."""
+    with get_sessionmaker()() as db:
+        row = db.get(CompanyDatabase, (entry["company_id"], entry["system"]))
+        old = _as_dict(row, COMPANY_DATABASE_FIELDS) if row else None
+        new = {f: entry.get(f) for f in COMPANY_DATABASE_FIELDS}
+        db.merge(CompanyDatabase(**new, updated_at=utcnow(), updated_by=who))
+        log_change(db, who, "company_database.save", f"{entry['company_id']}/{entry['system']}", old, new)
+        db.commit()
+
+
+def delete_company_database(company_id: str, system: str, who: str) -> bool:
+    with get_sessionmaker()() as db:
+        row = db.get(CompanyDatabase, (company_id, system))
+        if row is None:
+            return False
+        log_change(db, who, "company_database.delete", f"{company_id}/{system}", _as_dict(row, COMPANY_DATABASE_FIELDS), None)
+        db.delete(row)
+        db.commit()
+        return True
 
 
 # --- Try it ---------------------------------------------------------------------------------------------------

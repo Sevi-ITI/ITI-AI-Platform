@@ -2,6 +2,7 @@
 
 import { displayMessage } from "@/lib/api/api-error";
 import { callApi } from "@/lib/api/client";
+import type { components } from "@/lib/api/schema";
 
 import type { ConfirmResult } from "../confirm-action";
 
@@ -32,6 +33,30 @@ export async function linkApps(companyId: string, appIds: string[]) {
       }),
     ),
   );
+}
+
+// 8.6M: where a company's database is for one system (direct or relay). Only .env variable NAMES are sent, never
+// a secret. Changes need the security password (FastAPI refuses them otherwise).
+type DatabaseIn = components["schemas"]["CompanyDatabaseIn"];
+type ConnectionTest = components["schemas"]["ConnectionTest"];
+const where = (companyId: string, system: string) => ({ params: { path: { company_id: companyId, system } } });
+
+export async function saveCompanyDatabase(companyId: string, system: string, body: DatabaseIn): Promise<ConfirmResult> {
+  return result(
+    await callApi((api) => api.PUT("/v1/admin/tools/company-databases/{company_id}/{system}", { ...where(companyId, system), body })),
+  );
+}
+
+export async function deleteCompanyDatabase(companyId: string, system: string): Promise<ConfirmResult> {
+  return result(await callApi((api) => api.DELETE("/v1/admin/tools/company-databases/{company_id}/{system}", where(companyId, system))));
+}
+
+export async function testCompanyDatabase(
+  companyId: string,
+  system: string,
+): Promise<{ ok: true; test: ConnectionTest } | { ok: false; message: string; status: number }> {
+  const r = await callApi((api) => api.POST("/v1/admin/tools/company-databases/{company_id}/{system}/test", where(companyId, system)));
+  return r.ok ? { ok: true, test: r.data } : { ok: false, message: displayMessage(r.error), status: r.error.status };
 }
 
 // Only a company that owns nothing (no collections, no keys of any state) can be deleted; FastAPI says what's left.

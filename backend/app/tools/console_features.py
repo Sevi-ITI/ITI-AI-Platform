@@ -16,6 +16,7 @@ CONSOLE_FEATURES = {
     "edit_descriptions": False,  # edit the text the model reads to pick a tool (a careless edit can break answers)
     "sql_tools": False,  # new tools written as one SELECT on the ai.* views (guarded, read-only login)
     "code_view": True,  # read a tool's code (tools.py section / SELECT / server schema), behind the security password
+    "company_databases": True,  # each client company's database per system (direct or relay), on the Companies page
     "try_it": False,  # ask a question as a test employee ID with chosen tool scopes (reads REAL records; every use logged)
 }
 

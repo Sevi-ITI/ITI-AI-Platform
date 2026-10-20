@@ -74,7 +74,7 @@ def servers(monkeypatch):
 
     def use(*entries, connect_to=hr, secrets=True, approved=True):
         @asynccontextmanager
-        async def in_process(server):
+        async def in_process(server, extra_env=None):
             listed.append(server.name)
             async with Client(connect_to) as session:
                 yield session
@@ -205,7 +205,7 @@ def test_a_call_to_a_server_that_went_down_is_a_503(servers, monkeypatch):
     monkeypatch.undo()  # the real open_mcp_client again
     monkeypatch.setenv("ITI_MCP_HR_TOKEN", TOKEN)
     with pytest.raises(AppError) as caught:
-        client.call_mcp_tool(gone, "E-1001", {"year": 2026})
+        client.call_mcp_tool(gone, "E-1001", {"year": 2026}, "iti")
     assert (caught.value.status, caught.value.code) == (503, "tool_unavailable")
 
 

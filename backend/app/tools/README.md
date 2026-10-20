@@ -57,6 +57,18 @@ keys → the app's card → Tools it may use; table `app_tools` in `store.py`). 
 `tool_not_allowed`. A ticked tool that disappears (its MCP server removed) stays on the list as "missing" and offers
 nothing until it comes back. Console sessions have no app: Try it tests any switched-on tool.
 
+One database per company (8.6M, always on): a system listed in `shared.COMPANY_DATABASES` (today `hrdotnet`) reads
+each client company's OWN database. Console → Companies → the company's card → its hrdotnet database (table
+`company_databases` in `store.py`; changes need the security password):
+- **direct** (their DB is reachable from the AI server): the NAME of the `.env` variable with its address, e.g.
+  `ITI_DB_ACME_HRDOTNET`. For each call the host starts our server with that address as `ITI_HRDOTNET_DB_URL`.
+- **relay** (their DB stays inside their network): our same server runs there
+  (`python -m app.tools.mcp_servers hrdotnet --http` behind https), plus the NAME of the `.env` variable with its
+  secret. Its tools must match ours exactly (fingerprint), else `relay_outdated` until it is updated.
+The company comes only from the key. No row, switched off, or an empty `.env` variable = the company is not offered
+the tools and a call gets `company_database_missing`, never another company's data. Tool names stay
+`hrdotnet__*` for every company, so each app's tool list (Apps & keys) works as before.
+
 ## Common changes
 
 | I want to... | Do this, then restart uvicorn |

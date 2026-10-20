@@ -9,10 +9,11 @@ import { testersGoToChat } from "@/lib/session/testers-go-to-chat";
 
 import ConfirmAction from "../confirm-action";
 import styles from "../dashboard.module.css";
+import GateBar from "../gate-bar";
 import { Problem } from "../widgets";
-import { deleteCompany } from "./actions";
+import { deleteCompany, deleteCompanyDatabase } from "./actions";
 import CompanyList from "./company-list";
-import { type AppOption, AddCompanyButton, EditCompanyButton } from "./dialogs";
+import { type AppOption, AddCompanyButton, DatabaseDialog, DatabaseTestButton, EditCompanyButton } from "./dialogs";
 
 export const metadata = { title: "Companies" };
 
@@ -20,15 +21,19 @@ export const metadata = { title: "Companies" };
 // A company's collections are private to it; Global collections are listed once, at the bottom.
 export default async function CompaniesPage() {
   await testersGoToChat(); // testers have only the Chat page
-  const [companies, collections, apps, me] = await Promise.all([
+  const [companies, collections, apps, databases, gate, me] = await Promise.all([
     callApi((api) => api.GET("/v1/admin/companies")),
     callApi((api) => api.GET("/v1/admin/collections")),
     callApi((api) => api.GET("/v1/admin/apps")),
+    callApi((api) => api.GET("/v1/admin/tools/company-databases")), // 8.6M, super admin only (supervisors: 403)
+    callApi((api) => api.GET("/v1/admin/tools/gate")), // changing a database needs the security password
     currentAccount(),
   ]);
-  endSessionOn401(companies, collections, apps, me);
+  endSessionOn401(companies, collections, apps, databases, gate, me);
 
   const canEdit = me.ok && me.data.role === "super_admin";
+  const locked = !(gate.ok && gate.data.unlocked_until); // FastAPI decides; this only greys out the buttons
+  const databasesOf = (companyId: string) => (databases.ok ? databases.data.filter((d) => d.company_id === companyId) : null);
   // apps that can be linked: every app except the console (people log in to it; it has no keys)
   const appOptions: AppOption[] = (apps.ok ? apps.data : [])
     .filter((a) => a.app_id !== "iti-console")
@@ -42,6 +47,7 @@ export default async function CompaniesPage() {
         <h1>Companies</h1>
         {canEdit && <AddCompanyButton apps={appOptions} />}
       </header>
+      {canEdit && gate.ok && <GateBar gate={gate.data} />}
       <p className={styles.muted}>
         Each client company has its own collections; its people reach them only through keys made for that company.
       </p>
@@ -65,7 +71,16 @@ export default async function CompaniesPage() {
                 .filter(Boolean)
                 .join(" ")
                 .toLowerCase(),
-              card: <CompanyCard c={c} canEdit={canEdit} apps={appOptions} appNames={appNames} />,
+              card: (
+                <CompanyCard
+                  c={c}
+                  canEdit={canEdit}
+                  apps={appOptions}
+                  appNames={appNames}
+                  databases={databasesOf(c.company_id)}
+                  locked={locked}
+                />
+              ),
             }))}
         />
       )}
@@ -93,6 +108,11 @@ export default async function CompaniesPage() {
 }
 
 type Company = components["schemas"]["CompanyInfo"];
+type Database = components["schemas"]["CompanyDatabaseOut"];
+
+// The systems whose database is per company (backend: app/tools/shared.py COMPANY_DATABASES).
+// ponytail: listed here too; serve it from FastAPI when a second system comes.
+const SYSTEMS = ["hrdotnet"];
 
 // A company at a glance: who (tile, name, id, added, notes), what it reaches (its collections, those shared with it,
 // active keys), and where to look next (its keys, users, requests: the filters that already exist).
@@ -101,11 +121,15 @@ function CompanyCard({
   canEdit,
   apps,
   appNames,
+  databases,
+  locked,
 }: {
   c: Company;
   canEdit: boolean;
   apps: AppOption[];
   appNames: Map<string, string>;
+  databases: Database[] | null; // null = not readable (supervisors)
+  locked: boolean;
 }) {
   const id = encodeURIComponent(c.company_id);
   return (
@@ -197,6 +221,48 @@ function CompanyCard({
             {c.active_keys === 0 && <span className={styles.muted}> (its people can&apos;t reach the AI yet)</span>}
           </dd>
         </div>
+        {databases &&
+          SYSTEMS.map((system) => {
+            const d = databases.find((x) => x.system === system);
+            return (
+              <div key={system}>
+                <dt>
+                  Its <span className="mono">{system}</span> database
+                </dt>
+                <dd>
+                  {!d ? (
+                    <span className={styles.muted}>not set: its people get none of the {system} tools</span>
+                  ) : (
+                    <>
+                      <span className="mono" translate="no">
+                        {d.mode === "direct" ? `direct · ${d.url_env}` : `relay · ${d.relay_url} · ${d.token_env}`}
+                      </span>
+                      {!d.secret_set && <span className={styles.warn}> · not set in backend\.env</span>}
+                      {!d.enabled && <span className={styles.muted}> · switched off</span>}
+                    </>
+                  )}
+                  {canEdit && (
+                    <span className={styles.rowActions}>
+                      <DatabaseDialog companyId={c.company_id} system={system} database={d} locked={locked} />
+                      {d && <DatabaseTestButton companyId={c.company_id} system={system} />}
+                      {d && (
+                        <ConfirmAction
+                          locked={locked}
+                          label="Remove"
+                          title={`Remove the ${system} database of ${c.name}?`}
+                          confirmLabel="Remove"
+                          action={deleteCompanyDatabase.bind(null, c.company_id, system)}
+                          done={`${c.name}: ${system} database removed`}
+                        >
+                          <p>Its people then get none of the {system} tools. The secret stays in backend\.env.</p>
+                        </ConfirmAction>
+                      )}
+                    </span>
+                  )}
+                </dd>
+              </div>
+            );
+          })}
       </dl>
 
       {/* the filters that already exist, opened on this company */}

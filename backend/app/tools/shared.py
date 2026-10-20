@@ -91,6 +91,15 @@ def get_records_engine():
     return engine
 
 
+# --- one database per client company (8.6M) --------------------------------------------------------------------
+
+# Our stdio servers whose database is different for each client company, and the env variable the server reads
+# its address from. For each call the host starts the server with THAT company's address in this variable
+# (direct), or calls our same server running at the company (relay); see store.CompanyDatabase.
+# ponytail: records stays one shared (fake) database; add a server here when its data is per company.
+COMPANY_DATABASES = {"hrdotnet": "ITI_HRDOTNET_DB_URL"}
+
+
 # --- secrets --------------------------------------------------------------------------------------------------
 
 

@@ -21,11 +21,11 @@ from app.core.d_metrics.record_metric import record_metric
 from app.core.e_errors.app_error import AppError
 from app.rag.c_embeddings import OLLAMA_URL
 from app.rag.f_chains import CHAT_MODEL, NUM_CTX, TEMPERATURE, TIMEOUT_SECONDS
-from app.tools.client import McpTool, call_mcp_tool, mcp_tools
+from app.tools.client import McpTool, call_mcp_tool, company_system, mcp_tools
 from app.tools.console_features import feature_on
 from app.tools.shared import RECORDS_OF, Tool, ToolSpec, get_records_engine
 from app.tools.sql_tools import tool_from_row
-from app.tools.store import app_tool_names, records_source, sql_tool_rows, tool_overrides
+from app.tools.store import app_tool_names, company_systems, records_source, sql_tool_rows, tool_overrides
 from app.tools.tools import TOOL_REGISTRY
 
 MAX_ROUNDS = 3
@@ -147,7 +147,13 @@ def tools_for(principal: AppPrincipal) -> list[ToolSpec]:
     Console sessions get none in chat: they have no "records:read" and their user id is a username."""
     specs = [tool.spec for tool in local_tools().values()] if builtin_records_on() else []
     overrides = tool_overrides()
-    specs += [tool.spec for tool in mcp_tools().values() if approval_of(tool, overrides) in ("not_needed", "approved")]
+    systems = company_systems(principal.company_id)  # 8.6M: a per-company system only with this company's database
+    specs += [
+        tool.spec
+        for tool in mcp_tools().values()
+        if approval_of(tool, overrides) in ("not_needed", "approved")
+        and company_system(tool.server) in (None, *systems)
+    ]
     offered = [apply_overrides(spec, overrides) for spec in specs]
     allowed = app_list_of(principal)
     return [
@@ -182,7 +188,7 @@ def run_tool(principal: AppPrincipal, employee_id: str, name: str, arguments: di
     if allowed is not None and name not in allowed:
         raise AppError(403, "tool_not_allowed", f"The tool '{name}' is not on this app's tool list.")
     if remote:
-        result = call_mcp_tool(remote, employee_id, arguments if isinstance(arguments, dict) else None)
+        result = call_mcp_tool(remote, employee_id, arguments if isinstance(arguments, dict) else None, principal.company_id)
         return {"records_of": RECORDS_OF, **result} if remote.per_employee else result
     try:
         args = tool.args.model_validate(arguments or {})

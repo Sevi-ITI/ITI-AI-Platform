@@ -35,7 +35,7 @@ from app.tools.console_features import CONSOLE_FEATURES, feature_on, require_fea
 from app.tools.gate import require_unlocked
 from app.tools.host import answer_with_tools, approval_of, builtin_records_on, local_tools, tools_for
 from app.tools.mcp_servers import SERVERS
-from app.tools.shared import get_records_engine, read_secret
+from app.tools.shared import COMPANY_DATABASES, get_records_engine, read_secret
 from app.tools.sql_tools import check_sql_tool
 from app.tools.tools import TOOL_REGISTRY
 
@@ -199,6 +199,23 @@ class ToolCode(BaseModel):
     code: str  # read only: built-in = its section of tools.py, sql = its SELECT, mcp = what the server sends us
 
 
+class CompanyDatabaseIn(BaseModel):
+    """direct: url_env = the .env variable with the DB address. relay: our server runs at the company; relay_url
+    (https) + token_env = the .env variable with its shared secret. Only variable NAMES, never a secret."""
+
+    mode: Literal["direct", "relay"]
+    url_env: str | None = Field(default=None, pattern=r"^ITI_[A-Z0-9_]+$", max_length=64)
+    relay_url: str | None = Field(default=None, max_length=300)
+    token_env: str | None = Field(default=None, max_length=64)
+    enabled: bool = True
+
+
+class CompanyDatabaseOut(CompanyDatabaseIn):
+    company_id: str
+    system: str
+    secret_set: bool  # direct: its address is set in .env; relay: its secret is set (never sent)
+
+
 class ChangeOut(BaseModel):
     at: UtcDateTime
     who: str
@@ -314,8 +331,11 @@ DATABASE_CHECK_TIMEOUT_S = 5
 
 def database_of(entry: dict) -> DatabaseInfo | None:
     env = DATABASE_URLS.get(entry.get("server") or "") if entry.get("transport") == "stdio" else None
-    if env is None:
-        return None
+    return None if env is None else database_check(env)
+
+
+def database_check(env: str) -> DatabaseInfo:
+    """Logs in once (SELECT 1) with the address in this .env variable. Never sends the password."""
     raw = read_secret(env)
     if not raw:
         return DatabaseInfo(host=None, port=None, database=None, user=None, reachable=False, error="not configured")
@@ -361,6 +381,74 @@ def get_status(_: AppPrincipal = Depends(super_admin), __: None = Depends(requir
         return []
     with ThreadPoolExecutor(max_workers=len(entries)) as pool:
         return list(pool.map(test_one, entries))
+
+
+# --- one database per company (8.6M) ---------------------------------------------------------------------------
+
+
+def company_database_out(row: dict) -> CompanyDatabaseOut:
+    env = row["url_env"] if row["mode"] == "direct" else row["token_env"]
+    return CompanyDatabaseOut(**row, secret_set=bool(read_secret(env or "")))
+
+
+def relay_entry(row: dict) -> dict:
+    """A relay as a connection entry, so it is checked (https, ITI_MCP_ secret) and tested like one."""
+    return {"name": row["system"], "transport": "http", "url": row["relay_url"], "token_env": row["token_env"],
+            "scope": "records:read", "topics": [row["system"]]}
+
+
+def get_company_databases(
+    _: AppPrincipal = Depends(super_admin), __: None = Depends(require_feature("company_databases"))
+) -> list[CompanyDatabaseOut]:
+    return [company_database_out(row) for row in store.company_databases()]
+
+
+def put_company_database(
+    company_id: str, system: str, body: CompanyDatabaseIn,
+    principal: AppPrincipal = Depends(require_unlocked), _: None = Depends(require_feature("company_databases")),
+) -> CompanyDatabaseOut:
+    if system not in COMPANY_DATABASES:
+        raise AppError(422, "company_database_invalid", f"system: choose one of {sorted(COMPANY_DATABASES)}")
+    if not store.company_exists(company_id):
+        raise AppError(404, "company_not_found", f"No company named '{company_id}'.")
+    row = {"company_id": company_id, "system": system, **body.model_dump()}
+    if body.mode == "direct":
+        if not body.url_env:
+            raise AppError(422, "company_database_invalid", "url_env: the .env variable with the database address")
+        row.update(relay_url=None, token_env=None)
+    else:
+        try:
+            client.McpServerConfig.model_validate(relay_entry(row))
+        except ValidationError as error:
+            raise AppError(422, "company_database_invalid", problems_of(error)) from error
+        row.update(url_env=None)
+    store.save_company_database(row, who(principal))
+    return company_database_out(row)
+
+
+def delete_company_database(
+    company_id: str, system: str,
+    principal: AppPrincipal = Depends(require_unlocked), _: None = Depends(require_feature("company_databases")),
+) -> dict:
+    if not store.delete_company_database(company_id, system, who(principal)):
+        raise AppError(404, "company_database_not_found", f"'{company_id}' has no {system} database set.")
+    return {"deleted": f"{company_id}/{system}"}
+
+
+def post_company_database_test(
+    company_id: str, system: str,
+    _: AppPrincipal = Depends(super_admin), __: None = Depends(require_feature("company_databases")),
+) -> ConnectionTest:
+    """direct: logs in once (SELECT 1); relay: lists the tools of our server at the company."""
+    row = next((r for r in store.company_databases() if (r["company_id"], r["system"]) == (company_id, system)), None)
+    if row is None:
+        raise AppError(404, "company_database_not_found", f"'{company_id}' has no {system} database set.")
+    if row["mode"] == "relay":
+        return test_one(relay_entry(row))
+    start = time.perf_counter()
+    database = database_check(row["url_env"])
+    return ConnectionTest(name=system, ok=database.reachable, tools=[], error=database.error, database=database,
+                          seconds=round(time.perf_counter() - start, 2))
 
 
 # --- tools ----------------------------------------------------------------------------------------------------
@@ -606,6 +694,10 @@ router.add_api_route(f"{BASE}/connections/{{name}}", put_connection, methods=["P
 router.add_api_route(f"{BASE}/connections/{{name}}", delete_connection, methods=["DELETE"], response_model=dict[str, str])
 router.add_api_route(f"{BASE}/connections/{{name}}/test", post_connection_test, methods=["POST"], response_model=ConnectionTest)
 router.add_api_route(f"{BASE}/status", get_status, methods=["GET"], response_model=list[ConnectionTest])
+router.add_api_route(f"{BASE}/company-databases", get_company_databases, methods=["GET"], response_model=list[CompanyDatabaseOut])
+router.add_api_route(f"{BASE}/company-databases/{{company_id}}/{{system}}", put_company_database, methods=["PUT"], response_model=CompanyDatabaseOut)
+router.add_api_route(f"{BASE}/company-databases/{{company_id}}/{{system}}", delete_company_database, methods=["DELETE"], response_model=dict[str, str])
+router.add_api_route(f"{BASE}/company-databases/{{company_id}}/{{system}}/test", post_company_database_test, methods=["POST"], response_model=ConnectionTest)
 router.add_api_route(f"{BASE}/tools", get_tools, methods=["GET"], response_model=list[ToolOut])
 router.add_api_route(f"{BASE}/tools/{{name}}", put_tool, methods=["PUT"], response_model=ToolOut)
 router.add_api_route(f"{BASE}/tools/{{name}}/code", get_tool_code, methods=["GET"], response_model=ToolCode)

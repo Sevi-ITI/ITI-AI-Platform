@@ -25,7 +25,7 @@ def test_unknown_url_uses_the_one_error_shape(client):
 
 def test_contract_lists_all_65_endpoints_and_both_auth_headers(client):
     spec = client.get("/openapi.json").json()
-    assert sum(len(methods) for methods in spec["paths"].values()) == 69  # 42 + 16 Tools & MCP (8.6d) + 2 Try it + 1 company apps + 2 app tools + 1 console collections + 1 suggestions + 4 security gate and code view (8.6e-3)
+    assert sum(len(methods) for methods in spec["paths"].values()) == 73  # 42 + 16 Tools & MCP (8.6d) + 2 Try it + 1 company apps + 2 app tools + 1 console collections + 1 suggestions + 4 security gate and code view (8.6e-3) + 4 company databases (8.6M)
     assert spec["components"]["securitySchemes"]["APIKeyHeader"] == {
         "type": "apiKey",
         "in": "header",

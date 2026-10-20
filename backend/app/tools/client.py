@@ -29,8 +29,8 @@ from mcp.client.streamable_http import streamable_http_client
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 from app.core.e_errors.app_error import AppError
-from app.tools.shared import ToolSpec, read_secret
-from app.tools.store import connection_entries, records_source
+from app.tools.shared import COMPANY_DATABASES, ToolSpec, read_secret
+from app.tools.store import company_database, connection_entries, records_source
 
 log = logging.getLogger(__name__)
 BACKEND = Path(__file__).resolve().parents[2]  # stdio servers start here: python -m app.tools.mcp_servers <name>
@@ -98,12 +98,14 @@ def usable(server: McpServerConfig) -> bool:
 
 
 @asynccontextmanager
-async def open_mcp_client(server: McpServerConfig) -> AsyncIterator[Client]:
-    """One MCP session. Tests replace this with an in-process connection to a test server."""
+async def open_mcp_client(server: McpServerConfig, extra_env: dict | None = None) -> AsyncIterator[Client]:
+    """One MCP session. Tests replace this with an in-process connection to a test server.
+    extra_env (stdio): set in the child only, e.g. this company's database address (8.6M)."""
     if server.transport == "stdio":
         # The host starts the server as a child process; it gets the host's environment (incl. ITI_IGNORE_ENV_FILE in tests)
         args = ["-m", "app.tools.mcp_servers", server.server]
-        params = StdioServerParameters(command=sys.executable, args=args, env=dict(os.environ), cwd=str(BACKEND))
+        env = {**os.environ, **(extra_env or {})}
+        params = StdioServerParameters(command=sys.executable, args=args, env=env, cwd=str(BACKEND))
         async with Client(params, read_timeout_seconds=READ_TIMEOUT_S) as client:
             yield client
         return
@@ -123,15 +125,17 @@ def list_mcp_tools(server: McpServerConfig) -> list[McpTool]:
         async with open_mcp_client(server) as client:
             return (await client.list_tools()).tools
 
-    found = []
-    for tool in anyio.run(fetch):
-        schema = copy.deepcopy(tool.input_schema or {"type": "object", "properties": {}})
-        per_employee = "employee_id" in schema.get("properties", {})
-        schema.get("properties", {}).pop("employee_id", None)
-        schema["required"] = [name for name in schema.get("required", []) if name != "employee_id"]
-        spec = ToolSpec(name=f"{server.name}__{tool.name}", description=tool.description or tool.name, parameters=schema, scope=server.scope)
-        found.append(McpTool(server=server, remote_name=tool.name, spec=spec, per_employee=per_employee))
-    return found
+    return [as_mcp_tool(server, tool) for tool in anyio.run(fetch)]
+
+
+def as_mcp_tool(server: McpServerConfig, tool) -> McpTool:
+    """One tool a server listed, as the model will see it."""
+    schema = copy.deepcopy(tool.input_schema or {"type": "object", "properties": {}})
+    per_employee = "employee_id" in schema.get("properties", {})
+    schema.get("properties", {}).pop("employee_id", None)
+    schema["required"] = [name for name in schema.get("required", []) if name != "employee_id"]
+    spec = ToolSpec(name=f"{server.name}__{tool.name}", description=tool.description or tool.name, parameters=schema, scope=server.scope)
+    return McpTool(server=server, remote_name=tool.name, spec=spec, per_employee=per_employee)
 
 
 def mcp_tools() -> dict[str, McpTool]:
@@ -169,15 +173,58 @@ def mcp_tools() -> dict[str, McpTool]:
 # --- calling --------------------------------------------------------------------------------------------------
 
 
-def call_mcp_tool(tool: McpTool, employee_id: str, arguments: dict | None) -> dict:
-    """Runs one tool on its server. 422 tool_failed = the tool refused (its message goes back to the model);
-    503 tool_unavailable = the server can't be reached or broke."""
+# --- one database per company (8.6M) ---------------------------------------------------------------------------
+
+
+def company_system(server: McpServerConfig) -> str | None:
+    """The system name when this server's database is per company (shared.COMPANY_DATABASES), else None."""
+    return server.server if server.transport == "stdio" and server.server in COMPANY_DATABASES else None
+
+
+def target_for(tool: McpTool, company_id: str) -> tuple[McpServerConfig, dict | None]:
+    """Where this company's call goes: (server, extra env for the child). Fails closed: a company without a
+    switched-on database, or whose .env variable is empty, gets 503 company_database_missing, never another's."""
+    system = company_system(tool.server)
+    if system is None:
+        return tool.server, None  # one database for everyone (e.g. records)
+    row = company_database(company_id, system)
+    missing = AppError(503, "company_database_missing", f"No {system} database is set up for this company.")
+    if row is None:
+        raise missing
+    if row["mode"] == "relay":
+        if not read_secret(row["token_env"]):
+            raise missing
+        relay = {"transport": "http", "server": None, "url": row["relay_url"], "token_env": row["token_env"]}
+        return tool.server.model_copy(update=relay), None
+    url = read_secret(row["url_env"])
+    if not url:
+        raise missing
+    return tool.server, {COMPANY_DATABASES[system]: url}
+
+
+async def relay_matches(session: Client, tool: McpTool) -> bool:
+    """A relay runs OUR server at the company: its tool must be exactly ours (same fingerprint), else it is an
+    older or changed version and is refused until it is updated."""
+    listed = next((t for t in (await session.list_tools()).tools if t.name == tool.remote_name), None)
+    return listed is not None and as_mcp_tool(tool.server, listed).spec.fingerprint() == tool.spec.fingerprint()
+
+
+# --- calling --------------------------------------------------------------------------------------------------
+
+
+def call_mcp_tool(tool: McpTool, employee_id: str, arguments: dict | None, company_id: str) -> dict:
+    """Runs one tool on its server, for the caller's company. 422 tool_failed = the tool refused (its message goes
+    back to the model); 503 tool_unavailable = the server can't be reached or broke; 503 company_database_missing,
+    relay_outdated (8.6M)."""
     arguments = dict(arguments or {})
     if tool.per_employee:
         arguments["employee_id"] = employee_id  # ALWAYS the caller's, whatever the model sent
+    server, extra_env = target_for(tool, company_id)
 
     async def call():
-        async with open_mcp_client(tool.server) as client:
+        async with open_mcp_client(server, extra_env) as client:
+            if server.transport != tool.server.transport and not await relay_matches(client, tool):
+                return None
             return await client.call_tool(tool.remote_name, arguments)
 
     try:
@@ -185,6 +232,8 @@ def call_mcp_tool(tool: McpTool, employee_id: str, arguments: dict | None) -> di
     except Exception as error:
         log.warning("MCP server %s did not answer: %s", tool.server.name, type(error).__name__)
         raise AppError(503, "tool_unavailable", f"The {tool.server.name} system did not answer. Try again later.") from error
+    if result is None:
+        raise AppError(503, "relay_outdated", f"The company's {tool.server.name} server is a different version: update it.")
     text = "".join(getattr(part, "text", "") for part in result.content)
     if result.is_error:
         raise AppError(422, "tool_failed", f"{tool.spec.name}: {text[:300]}")
