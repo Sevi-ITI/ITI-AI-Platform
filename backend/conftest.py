@@ -129,6 +129,27 @@ def make_key(db_engine):
     return make
 
 
+GATE_PASSWORD = "the-security-password"  # tests only (8.6e-3)
+
+
+@pytest.fixture
+def unlocked_admin(client):
+    """A super admin "gatekeeper" logged in to the console with the security password UNLOCKED (8.6e-3):
+    {"ITI-Console-Session": "iti_cs_..."}, ready as headers for the guarded Tools & MCP routes."""
+    from app.console.a_schemas.account_create import AccountCreate
+    from app.console.d_service.create_account import create_account
+    from app.core.c_database.get_sessionmaker import get_sessionmaker
+    from app.tools.gate import set_password
+
+    with get_sessionmaker()() as db:
+        create_account(db, AccountCreate(username="gatekeeper", role="super_admin", password="the-login-password"))
+    set_password("gatekeeper", GATE_PASSWORD)
+    login = client.post("/v1/console/login", json={"username": "gatekeeper", "password": "the-login-password"})
+    headers = {"ITI-Console-Session": login.json()["session"]}
+    assert client.post("/v1/admin/tools/gate/unlock", headers=headers, json={"password": GATE_PASSWORD}).status_code == 200
+    return headers
+
+
 @pytest.fixture
 def link_app(db_engine):
     """link_app("hr-portal", "acme", "beta") creates the app if missing and links it to those companies (which must

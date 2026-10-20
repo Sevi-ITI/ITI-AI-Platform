@@ -29,8 +29,9 @@ def no_app_tool_lists(monkeypatch):
 
 
 @pytest.fixture
-def admin(make_key):
-    return make_key("iti-admin", ["admin"], [])
+def admin(unlocked_admin):
+    """A super admin's console session with the security password unlocked (8.6e-3): API keys never pass the gate."""
+    return unlocked_admin
 
 
 @pytest.fixture
@@ -88,7 +89,7 @@ def test_records_source_switches_without_a_restart_and_is_logged(client, admin, 
     assert r.status_code == 200 and r.json()["records_source"] == "mcp"
     assert all(name.startswith("records__") for name in names(tools_for(reader)))  # built-in off at once: the MCP server answers
     change = client.get(f"{BASE}/changes", headers=admin).json()[0]
-    assert change["what"] == "records_source" and change["who"].startswith("key:")
+    assert change["what"] == "records_source" and change["who"] == "gatekeeper"
     assert (change["old"], change["new"]) == ({"value": "builtin"}, {"value": "mcp"})
     in_use = {t["name"]: t["in_use"] for t in client.get(f"{BASE}/tools", headers=admin).json()}
     assert in_use["get_my_absences"] is False and in_use["records__get_my_absences"] is True  # 8.6e: what is offered now

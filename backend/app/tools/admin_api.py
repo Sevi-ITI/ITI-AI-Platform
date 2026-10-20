@@ -4,8 +4,13 @@ console uses to see and change tools and MCP connections is here.
 - Super admin only (scope "admin": a super admin's session or an admin key). Supervisors are refused.
 - Each part checks its kill switch (console_features.py): switched off = 404 feature_off.
 - Every change is logged (store.tools_changes); the MCP tool cache is cleared, so changes work without a restart.
-- Secrets are never sent or stored: a connection shows only whether its .env variable is set."""
+- Secrets are never sent or stored: a connection shows only whether its .env variable is set.
+- Risky actions also need the SECURITY PASSWORD (8.6e-3, gate.py): `Depends(require_unlocked)` instead of
+  `Depends(super_admin)`. Guarded: connections add / edit / remove, descriptions, approvals, per-app tool lists,
+  SQL tools, Try it, the code view. Not guarded: reading the lists, tool on / off, the records source."""
 
+import inspect
+import json
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date
@@ -13,18 +18,20 @@ from typing import Literal
 
 import requests
 from fastapi import APIRouter, Depends, Query
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, SecretStr, ValidationError
 from sqlalchemy import text
 
 from app.auth.a_schemas.app_principal import AppPrincipal
 from app.auth.e_dependencies.require_scope import require_scope
 from app.core.a_config.get_settings import get_settings
+from app.core.c_database.get_sessionmaker import get_sessionmaker
 from app.core.e_errors.app_error import AppError
 from app.core.e_errors.error_responses import ERROR_RESPONSES
 from app.core.f_types.utc_datetime import UtcDateTime
 from app.core.g_llm_slots.llm_slot import llm_slot
-from app.tools import client, store
+from app.tools import client, gate, store
 from app.tools.console_features import CONSOLE_FEATURES, feature_on, require_feature
+from app.tools.gate import require_unlocked
 from app.tools.host import answer_with_tools, approval_of, builtin_records_on, local_tools, tools_for
 from app.tools.mcp_servers import SERVERS
 from app.tools.shared import get_records_engine, read_secret
@@ -163,6 +170,23 @@ class TryOut(BaseModel):
     seconds: float
 
 
+class GateOut(BaseModel):
+    password_set: bool  # False = set it on the server first (python -m scripts.set_security_password)
+    unlocked_until: UtcDateTime | None  # None = locked
+    locked_until: UtcDateTime | None  # after 5 wrong passwords
+
+
+class UnlockIn(BaseModel):
+    password: SecretStr = Field(min_length=1, max_length=200)
+
+
+class ToolCode(BaseModel):
+    name: str
+    kind: Literal["built-in", "sql", "mcp"]
+    language: Literal["python", "sql", "json"]
+    code: str  # read only: built-in = its section of tools.py, sql = its SELECT, mcp = what the server sends us
+
+
 class ChangeOut(BaseModel):
     at: UtcDateTime
     who: str
@@ -178,6 +202,32 @@ class ChangeOut(BaseModel):
 def get_features(_: AppPrincipal = Depends(super_admin)) -> dict[str, bool]:
     """The kill switches: the console shows only what is True."""
     return dict(CONSOLE_FEATURES)
+
+
+# --- the security password (8.6e-3) --------------------------------------------------------------------------
+
+
+def gate_out(principal: AppPrincipal) -> GateOut:
+    return GateOut(**gate.status(principal.console_user or ""))
+
+
+def get_gate(principal: AppPrincipal = Depends(super_admin)) -> GateOut:
+    return gate_out(principal)
+
+
+def post_unlock(body: UnlockIn, principal: AppPrincipal = Depends(super_admin)) -> GateOut:
+    """The right security password unlocks the risky actions for 15 minutes. 403 wrong_security_password,
+    423 gate_locked (5 wrong in a row), 409 security_password_not_set. Never 401 (that would log the person out)."""
+    if principal.console_user is None:
+        raise AppError(403, "gate_closed", "Only a person logged in to the console can unlock, not an API key.")
+    gate.unlock(principal.console_user, body.password.get_secret_value())
+    return gate_out(principal)
+
+
+def post_lock(principal: AppPrincipal = Depends(super_admin)) -> GateOut:
+    if principal.console_user is not None:
+        gate.lock(principal.console_user)
+    return gate_out(principal)
 
 
 # --- records source -------------------------------------------------------------------------------------------
@@ -214,7 +264,7 @@ def get_stdio_servers(_: AppPrincipal = Depends(super_admin), __: None = Depends
 
 
 def put_connection(
-    name: str, body: ConnectionIn, principal: AppPrincipal = Depends(super_admin), _: None = Depends(require_feature("mcp_connections"))
+    name: str, body: ConnectionIn, principal: AppPrincipal = Depends(require_unlocked), _: None = Depends(require_feature("mcp_connections"))
 ) -> ConnectionOut:
     entry = {"name": name, **body.model_dump()}
     try:
@@ -233,7 +283,7 @@ def put_connection(
 
 
 def delete_connection(
-    name: str, principal: AppPrincipal = Depends(super_admin), _: None = Depends(require_feature("mcp_connections"))
+    name: str, principal: AppPrincipal = Depends(require_unlocked), _: None = Depends(require_feature("mcp_connections"))
 ) -> dict:
     if not store.delete_connection(name, who(principal)):
         raise AppError(404, "connection_not_found", f"There is no connection called '{name}'.")
@@ -311,6 +361,8 @@ def put_tool(name: str, body: ToolChangeIn, principal: AppPrincipal = Depends(su
         raise AppError(404, "feature_off", "'tool_switches' is switched off in console_features.py.")
     if (body.description is not None or body.reset_description) and not feature_on("edit_descriptions"):
         raise AppError(404, "feature_off", "'edit_descriptions' is switched off in console_features.py.")
+    if body.description is not None or body.reset_description or body.approve:
+        require_unlocked(principal)  # switching a tool on or off needs no security password; the rest does
     current = next((t for t in all_tools_out() if t.name == name), None)
     if current is None:
         raise AppError(404, "tool_not_found", f"There is no tool called '{name}'.")
@@ -347,10 +399,9 @@ def get_app_tools(_: AppPrincipal = Depends(super_admin)) -> list[AppToolsOut]:
     return [app_tools_out(app_id, names, known) for app_id, names in sorted(store.app_tool_lists().items())]
 
 
-def put_app_tools(app_id: str, body: AppToolsIn, principal: AppPrincipal = Depends(super_admin)) -> AppToolsOut:
+def put_app_tools(app_id: str, body: AppToolsIn, principal: AppPrincipal = Depends(require_unlocked)) -> AppToolsOut:
     """Replaces an app's tool list. 404 app_not_found; 422 tool_not_found (a name that is not a tool now; names
     already on the list may stay while their tool is missing)."""
-    # 8.6e-3: the security password goes here too (per-app lists decide who may read records)
     if not store.app_exists(app_id):
         raise AppError(404, "app_not_found", f"No app named '{app_id}'. Create the app first.")
     known = {t.name for t in all_tools_out()}
@@ -376,7 +427,7 @@ def checked(name: str, body: SqlToolIn) -> tuple[dict, list[str]]:
 
 
 def put_sql_tool(
-    name: str, body: SqlToolIn, principal: AppPrincipal = Depends(super_admin), _: None = Depends(require_feature("sql_tools"))
+    name: str, body: SqlToolIn, principal: AppPrincipal = Depends(require_unlocked), _: None = Depends(require_feature("sql_tools"))
 ) -> SqlToolOut:
     entry, problems = checked(name, body)
     if problems:
@@ -385,7 +436,7 @@ def put_sql_tool(
     return SqlToolOut(**entry)
 
 
-def post_sql_tool_check(name: str, body: SqlToolIn, _: AppPrincipal = Depends(super_admin), __: None = Depends(require_feature("sql_tools"))) -> SqlToolCheck:
+def post_sql_tool_check(name: str, body: SqlToolIn, _: AppPrincipal = Depends(require_unlocked), __: None = Depends(require_feature("sql_tools"))) -> SqlToolCheck:
     """Checks the guards, then runs the query once as an employee that does not exist: shows the columns, never data."""
     entry, problems = checked(name, body)
     if problems:
@@ -403,7 +454,7 @@ def post_sql_tool_check(name: str, body: SqlToolIn, _: AppPrincipal = Depends(su
         return SqlToolCheck(ok=False, problems=[f"the records DB refused it: {message}"], columns=[])
 
 
-def delete_sql_tool(name: str, principal: AppPrincipal = Depends(super_admin), _: None = Depends(require_feature("sql_tools"))) -> dict:
+def delete_sql_tool(name: str, principal: AppPrincipal = Depends(require_unlocked), _: None = Depends(require_feature("sql_tools"))) -> dict:
     if not store.delete_sql_tool(name, who(principal)):
         raise AppError(404, "sql_tool_not_found", f"There is no SQL tool called '{name}'.")
     return {"deleted": name}
@@ -426,9 +477,8 @@ def get_try_scopes(_: AppPrincipal = Depends(super_admin), __: None = Depends(re
 
 def post_try(
     body: TryIn,
-    principal: AppPrincipal = Depends(super_admin),
+    principal: AppPrincipal = Depends(require_unlocked),  # it acts as a REAL employee
     _: None = Depends(require_feature("try_it")),
-    # 8.6e-3: the security password goes here, e.g. `__: None = Depends(require_unlocked)` (this acts as a REAL employee)
 ) -> TryOut:
     """One question as a test employee, through the SAME path as the real chat (host.answer_with_tools), with only
     the chosen tool scopes and no API key. It reads REAL records: super admin only, switch "try_it", every use is
@@ -459,6 +509,41 @@ def post_try(
                   sources=answer.sources, seconds=seconds)
 
 
+# --- code view (8.6e-3, read only) -----------------------------------------------------------------------------
+
+
+def builtin_section(name: str) -> str:
+    """The tool's own section of tools.py: from its "# --- <name>:" line to the next "# --- " line. Only names from
+    TOOL_REGISTRY get here, and the file is tools.py itself: no path ever comes from the request."""
+    with open(inspect.getsourcefile(TOOL_REGISTRY[name].run), encoding="utf-8") as file:
+        lines = file.read().splitlines()
+    start = next((i for i, line in enumerate(lines) if line.startswith(f"# --- {name}:")), None)
+    if start is None:
+        return inspect.getsource(TOOL_REGISTRY[name].run)
+    end = next((i for i in range(start + 1, len(lines)) if lines[i].startswith("# --- ")), len(lines))
+    return "\n".join(lines[start:end]).rstrip() + "\n"
+
+
+def get_tool_code(
+    name: str, principal: AppPrincipal = Depends(require_unlocked), _: None = Depends(require_feature("code_view"))
+) -> ToolCode:
+    """What a tool really runs, to read (never to edit: no Python in the browser). Every view is logged."""
+    sql_rows = {row["name"]: row for row in store.sql_tool_rows()}
+    if name in TOOL_REGISTRY:
+        out = ToolCode(name=name, kind="built-in", language="python", code=builtin_section(name))
+    elif name in sql_rows:
+        out = ToolCode(name=name, kind="sql", language="sql", code=sql_rows[name]["sql"])
+    elif (remote := client.mcp_tools().get(name)) is not None:
+        spec = {"name": remote.spec.name, "description": remote.spec.description, "parameters": remote.spec.parameters}
+        out = ToolCode(name=name, kind="mcp", language="json", code=json.dumps(spec, indent=2))
+    else:
+        raise AppError(404, "tool_not_found", f"There is no tool called '{name}'.")
+    with get_sessionmaker()() as db:
+        store.log_change(db, who(principal), "code.view", name, None, None)
+        db.commit()
+    return out
+
+
 # --- change log -----------------------------------------------------------------------------------------------
 
 
@@ -470,6 +555,9 @@ def get_changes(limit: int = Query(default=100, ge=1, le=500), _: AppPrincipal =
 
 BASE = "/v1/admin/tools"
 router.add_api_route(f"{BASE}/features", get_features, methods=["GET"], response_model=dict[str, bool])
+router.add_api_route(f"{BASE}/gate", get_gate, methods=["GET"], response_model=GateOut)
+router.add_api_route(f"{BASE}/gate/unlock", post_unlock, methods=["POST"], response_model=GateOut)
+router.add_api_route(f"{BASE}/gate/lock", post_lock, methods=["POST"], response_model=GateOut)
 router.add_api_route(f"{BASE}/settings", get_records_settings, methods=["GET"], response_model=RecordsSettings)
 router.add_api_route(f"{BASE}/settings", put_records_settings, methods=["PUT"], response_model=RecordsSettings)
 router.add_api_route(f"{BASE}/connections", get_connections, methods=["GET"], response_model=list[ConnectionOut])
@@ -480,6 +568,7 @@ router.add_api_route(f"{BASE}/connections/{{name}}/test", post_connection_test, 
 router.add_api_route(f"{BASE}/status", get_status, methods=["GET"], response_model=list[ConnectionTest])
 router.add_api_route(f"{BASE}/tools", get_tools, methods=["GET"], response_model=list[ToolOut])
 router.add_api_route(f"{BASE}/tools/{{name}}", put_tool, methods=["PUT"], response_model=ToolOut)
+router.add_api_route(f"{BASE}/tools/{{name}}/code", get_tool_code, methods=["GET"], response_model=ToolCode)
 router.add_api_route(f"{BASE}/apps", get_app_tools, methods=["GET"], response_model=list[AppToolsOut])
 router.add_api_route(f"{BASE}/apps/{{app_id}}", put_app_tools, methods=["PUT"], response_model=AppToolsOut)
 router.add_api_route(f"{BASE}/sql-tools", get_sql_tools, methods=["GET"], response_model=list[SqlToolOut])

@@ -265,14 +265,14 @@ def echo_employee_changed(employee_id: str, note: str = "") -> dict:
 
 
 
-def test_a_new_tool_from_another_machine_is_not_offered_until_approved(servers, request, make_key):
+def test_a_new_tool_from_another_machine_is_not_offered_until_approved(servers, request):
     servers(entry(), approved=False)
     reader = key("chat:invoke", "records:read")
     assert tools_for(reader) == []
     with pytest.raises(AppError) as refused:
         run_tool(reader, "E-1001", "hr__holidays", {"year": 2026})
     assert refused.value.code == "tool_not_approved"
-    api, admin = request.getfixturevalue("client"), make_key("iti-admin", ["admin"], [])
+    api, admin = request.getfixturevalue("client"), request.getfixturevalue("unlocked_admin")
     listed = {t["name"]: t for t in api.get("/v1/admin/tools/tools", headers=admin).json()}
     assert (listed["hr__holidays"]["approval"], listed["hr__holidays"]["in_use"]) == ("pending", False)
     r = api.put("/v1/admin/tools/tools/hr__holidays", headers=admin, json={"approve": True})
@@ -292,9 +292,9 @@ def test_a_tool_whose_text_changed_on_the_server_needs_approval_again(servers):
     assert refused.value.code == "tool_not_approved"
 
 
-def test_our_own_tools_need_no_approval(request, make_key, monkeypatch):
+def test_our_own_tools_need_no_approval(request, monkeypatch):
     monkeypatch.setattr(get_settings(), "records_db_url", "mssql+mssqlpython://nobody:x@127.0.0.1:1/none")
-    api, admin = request.getfixturevalue("client"), make_key("iti-admin", ["admin"], [])
+    api, admin = request.getfixturevalue("client"), request.getfixturevalue("unlocked_admin")
     listed = {t["name"]: t for t in api.get("/v1/admin/tools/tools", headers=admin).json()}
     assert (listed["get_my_absences"]["approval"], listed["get_my_absences"]["in_use"]) == ("not_needed", True)
     r = api.put("/v1/admin/tools/tools/get_my_absences", headers=admin, json={"approve": True})

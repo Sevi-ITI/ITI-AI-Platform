@@ -25,7 +25,8 @@ TOOLS_FILES = {
     "client": {"shared", "store"},
     "host": {"tools", "client", "shared", "store", "sql_tools", "console_features"},
     "mcp_servers": {"tools", "shared"},
-    "admin_api": {"client", "store", "console_features", "host", "mcp_servers", "shared", "sql_tools", "tools"},
+    "admin_api": {"client", "store", "console_features", "gate", "host", "mcp_servers", "shared", "sql_tools", "tools"},
+    "gate": {"store"},
 }
 
 

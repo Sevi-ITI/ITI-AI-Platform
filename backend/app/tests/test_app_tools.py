@@ -17,12 +17,12 @@ FIRST, SECOND = sorted(TOOL_REGISTRY)[:2]  # two built-in records tools
 
 
 @pytest.fixture
-def admin(make_key, link_app, monkeypatch):
-    """The admin key, the app hr-portal (created, no tools) and the built-in records tools switched on."""
+def admin(unlocked_admin, link_app, monkeypatch):
+    """An unlocked super admin session (8.6e-3), the app hr-portal (created, no tools) and the built-in records tools switched on."""
     monkeypatch.setattr(get_settings(), "records_db_url", "mssql+mssqlpython://nobody:x@127.0.0.1:1/none")
     mcp_client.CACHE.clear()
     link_app("hr-portal", "iti")
-    yield make_key("iti-admin", ["admin"], [])
+    yield unlocked_admin
     mcp_client.CACHE.clear()
 
 
