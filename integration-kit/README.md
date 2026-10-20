@@ -32,7 +32,8 @@ description as JSON: `<base URL>v1/openapi.json`. These are real calls: use a te
 - The **base URL**, e.g. `https://ITI-Vinas.ho.intellismartinc.com:8443/` (later a service name such as
   `https://iti-ai-api.ho.intellismartinc.com:8443/`). Your servers must trust ITI's root certificate (pushed
   by IT; on a machine outside the domain, install it into **Local Machine → Trusted Root Certification Authorities**).
-- **One API key per app per environment** (dev, prod). Handed over in person or through a password
+- **One API key per app per environment** (dev, prod), and **per company** if your app serves several
+  (see "Several companies in one app"). Handed over in person or through a password
   manager. It is shown once; if it's lost or leaked, Vince revokes it and issues a new one.
 - The **collections** your key may read (e.g. `iti-docs`) and its **scopes**: `chat:invoke` (ask and read
   history). `documents:write` (upload, replace, delete) only if your app manages documents itself; most apps
@@ -71,6 +72,78 @@ builder.Services.AddHttpClient<ItiAiClient>(http =>
 ```
 
 Then ask for `ItiAiClient` in any controller's constructor (see `ChatController.cs`).
+
+## Several companies in one app
+
+**The API key decides the company.** Each key belongs to one app and one company, and only reads that
+company's collections. There is no company field or header: if your app serves several companies, you get
+**one key per company**, and your server picks the key from the signed-in person's company.
+
+What the key separates for you: the documents (another company's collection = 403 `collection_forbidden`),
+the chats and history (the same user id at two companies is two different people), and the request log.
+A conversation id from company A sent with company B's key is a 404 `conversation_not_found`.
+
+**Configuration:** one entry per company, keys again only in environment variables:
+
+```json
+"ItiAi": {
+  "BaseUrl": "https://ITI-Vinas.ho.intellismartinc.com:8443/",
+  "Companies": { "iti": { "Collection": "iti-docs" }, "mayon": { "Collection": "mayon-docs" } }
+}
+```
+
+```powershell
+$env:ItiAi__Keys__iti = "iti_sk_..."
+$env:ItiAi__Keys__mayon = "iti_sk_..."
+```
+
+**`Program.cs`:** one named client per company, instead of the single `AddHttpClient<ItiAiClient>` above:
+
+```csharp
+foreach (var company in builder.Configuration.GetSection("ItiAi:Companies").GetChildren())
+{
+    builder.Services.AddHttpClient($"iti-ai:{company.Key}", http =>
+    {
+        http.BaseAddress = new Uri(builder.Configuration["ItiAi:BaseUrl"]!);
+        http.Timeout = TimeSpan.FromSeconds(150);
+        http.DefaultRequestHeaders.Add("ITI-Api-Key", builder.Configuration[$"ItiAi:Keys:{company.Key}"]);
+    });
+}
+```
+
+**Controller:** take `IHttpClientFactory` instead of `ItiAiClient`, and build the client for each request:
+
+```csharp
+public sealed class ChatController(IHttpClientFactory clients, IConfiguration config) : ControllerBase
+{
+    private string UserId => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+    private string CompanyId => User.FindFirstValue("company_id")!;   // from YOUR login, never from the browser
+
+    // The client and collection for the signed-in person's company. Unknown company = stop, never fall back.
+    private (ItiAiClient Ai, string Collection) ForCompany()
+    {
+        var collection = config[$"ItiAi:Companies:{CompanyId}:Collection"]
+            ?? throw new InvalidOperationException($"No ITI AI settings for company '{CompanyId}'.");
+        return (new ItiAiClient(clients.CreateClient($"iti-ai:{CompanyId}")), collection);
+    }
+
+    [HttpPost("ask")]
+    public async Task<IActionResult> Ask(AskBody body, CancellationToken ct)
+    {
+        var (ai, collection) = ForCompany();
+        return Ok(await ai.ChatAsync(UserId, new ChatRequest(body.Question, collection, body.ConversationId), ct: ct));
+    }
+}
+```
+
+Rules for this setup:
+
+- **The company comes from your server's session** (the logged-in person's record), like the user id. Never from
+  the browser, a query string or a form field: whoever could change it would read another company's documents.
+- **Never fall back to another company's key** when one is missing. Fail and fix the configuration.
+- **Store the company with a saved `ConversationId`** if you keep one: a follow-up must use the same company's key.
+- Adding a company later: Vince issues its key and collection; you add one `Companies` entry and one environment
+  variable. No code change.
 
 ## Rules (please read)
 
