@@ -114,6 +114,7 @@ def renumber_citations(answer: str, chunks: list[Passage]) -> tuple[str, list[Ci
 LIST_MARKER = re.compile(r"^\s*\d+[.)]\s", re.MULTILINE)  # "1. " or "2) " at the start of a line
 NUMBER = re.compile(r"\d+(?:[.,:/-]\d+)*")  # 90, 6.1.2, 27001:2022, 1,000, 2026-10-12
 ORDINAL_WORDS = ["first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth"]
+OCR_ZEROS = re.compile(r"(?<=\d[.,:])[oO0]{2}(?!\d)")  # OCR reads 0 as o: "P100.oo", "250.o0", "2:ooPM"
 
 
 def unsupported_numbers(answer: str, chunks: list[Passage]) -> list[str]:
@@ -128,6 +129,7 @@ def unsupported_numbers(answer: str, chunks: list[Passage]) -> list[str]:
     # Not the question: a number that only the question has, e.g. "30 days?" when the source says 15, is unsupported (F-A).
     allowed = "\n".join([chunk.text for chunk in chunks] + [str(chunk.page) for chunk in chunks]
                         + [chunk.source for chunk in chunks])
+    allowed = OCR_ZEROS.sub("00", allowed)  # the model reads "P100.oo" as P100.00: so should the check
     missing = []
     for number in NUMBER.findall(answer):
         if not re.search(rf"(?<!\d){re.escape(number)}(?!\d)", allowed) and number not in missing:

@@ -22,4 +22,6 @@ def post_chat_stream(
     user_id: str = Depends(user_id_for),
     db: Session = Depends(get_db),
 ) -> Iterable[ServerSentEvent]:
+    """Same body and rules as POST /v1/chat, but the answer arrives word by word. A refused call (bad key, unknown
+    collection or conversation, missing ITI-User-Id) gets a normal JSON error before any event is sent."""
     yield from stream_answer(db, principal, user_id, conversation_id, req)

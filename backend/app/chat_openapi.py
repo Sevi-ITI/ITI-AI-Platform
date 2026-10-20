@@ -15,11 +15,14 @@ CHAT_PATHS = (
     "/v1/conversations/{conversation_id}/messages",
 )
 DESCRIPTION = (
-    "Ask questions answered only from ITI's uploaded documents, with file and page citations; "
-    '"found": false is the "I don\'t know" reply, not an error.\n\n'
-    "**Every call** sends `ITI-Api-Key` (press Authorize). Chat and history calls also send **`ITI-User-Id`**: "
-    "the signed-in person's permanent id from your server's session. It is required, although this page marks it "
-    "optional. Errors have one shape: `{\"error\": {\"code\", \"message\"}, \"request_id\"}`.\n\n"
+    "Ask questions answered only from ITI's uploaded documents, with file and page citations. "
+    'A reply with "found": false is the "I don\'t know" answer, not an error.\n\n'
+    "**Every call** sends the ITI-Api-Key header (press Authorize). Chat and history calls also send the "
+    "ITI-User-Id header: the signed-in person's permanent id from your server's session.\n\n"
+    "**New conversation:** leave conversation_id out, or send it as null or empty. "
+    "**Follow-up:** send the conversation_id of the previous reply.\n\n"
+    '**Errors** all have one shape: {"error": {"code", "message"}, "request_id"}. Each route lists the codes it can '
+    "return; branch on the code, not on the status.\n\n"
     "The .NET client library, example and smoke test are in the integration kit (README.md)."
 )
 

@@ -11,6 +11,7 @@
           "ops"
         ],
         "summary": "Get Health",
+        "description": "Is the service up? Replies {\"status\": \"ok\"}. No key needed; checks neither the database nor the model.",
         "operationId": "get_health_health_get",
         "responses": {
           "200": {
@@ -35,7 +36,8 @@
         "tags": [
           "chat"
         ],
-        "summary": "Post Chat",
+        "summary": "Ask a question",
+        "description": "The answer comes only from the collection's documents, with file and page citations. found = false is the\n\"I don't know\" reply (a normal 200: show it like any answer). Leave conversation_id out, null or empty to start a\nnew conversation; send the previous reply's conversation_id for a follow-up.\nAnswers can queue: use a timeout of at least 150 s.",
         "operationId": "post_chat_v1_chat_post",
         "security": [
           {
@@ -49,19 +51,13 @@
           {
             "name": "ITI-User-Id",
             "in": "header",
-            "required": false,
+            "required": true,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "maxLength": 100
-                },
-                {
-                  "type": "null"
-                }
-              ],
+              "type": "string",
+              "maxLength": 100,
               "title": "Iti-User-Id"
-            }
+            },
+            "description": "Required: the signed-in person's permanent id from your server's session."
           },
           {
             "name": "ITI-User-Role",
@@ -77,8 +73,10 @@
                   "type": "null"
                 }
               ],
+              "description": "Optional label (e.g. 'hr staff') shown in the console; doesn't change access.",
               "title": "Iti-User-Role"
-            }
+            },
+            "description": "Optional label (e.g. 'hr staff') shown in the console; doesn't change access."
           }
         ],
         "requestBody": {
@@ -103,94 +101,64 @@
             }
           },
           "401": {
+            "description": "**invalid_api_key**: key missing, wrong, revoked or expired",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Unauthorized"
+            }
           },
           "403": {
+            "description": "**scope_forbidden**: this key may not use this route\n\n**collection_forbidden**: this key may not read that collection",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Forbidden"
+            }
           },
           "404": {
+            "description": "**collection_not_found**: no collection with that name\n\n**conversation_not_found**: no such conversation for this user (or it is someone else's)",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Not Found"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Conflict"
-          },
-          "413": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Request Entity Too Large"
-          },
-          "415": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Unsupported Media Type"
+            }
           },
           "422": {
+            "description": "**invalid_request**: a field or header is missing or invalid (e.g. no ITI-User-Id, question over 4,000)",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Unprocessable Entity"
+            }
           },
           "500": {
+            "description": "**internal_error**: a bug on the AI side: quote the request_id",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Internal Server Error"
+            }
           },
           "503": {
+            "description": "**llm_busy**: queue full: retry once after a pause\n\n**llm_unavailable**: the model is down: no retry",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Service Unavailable"
+            }
           }
         }
       }
@@ -200,7 +168,8 @@
         "tags": [
           "chat"
         ],
-        "summary": "Post Chat Stream",
+        "summary": "Ask a question, answer streamed",
+        "description": "Same body and rules as POST /v1/chat, but the answer arrives word by word. A refused call (bad key, unknown\ncollection or conversation, missing ITI-User-Id) gets a normal JSON error before any event is sent.",
         "operationId": "post_chat_stream_v1_chat_stream_post",
         "security": [
           {
@@ -214,19 +183,13 @@
           {
             "name": "ITI-User-Id",
             "in": "header",
-            "required": false,
+            "required": true,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "maxLength": 100
-                },
-                {
-                  "type": "null"
-                }
-              ],
+              "type": "string",
+              "maxLength": 100,
               "title": "Iti-User-Id"
-            }
+            },
+            "description": "Required: the signed-in person's permanent id from your server's session."
           },
           {
             "name": "ITI-User-Role",
@@ -242,8 +205,10 @@
                   "type": "null"
                 }
               ],
+              "description": "Optional label (e.g. 'hr staff') shown in the console; doesn't change access.",
               "title": "Iti-User-Role"
-            }
+            },
+            "description": "Optional label (e.g. 'hr staff') shown in the console; doesn't change access."
           }
         ],
         "requestBody": {
@@ -258,7 +223,7 @@
         },
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "A stream of Server-Sent Events, in this order:\n\n1. **meta** {conversation_id, request_id}\n2. **token** {text}, many: append each to the screen\n3. **done** {answer, found, citations}: replace the shown text with answer (it can differ from the tokens)\n\nor, if it fails after it started, **error** {code, message}: llm_busy, llm_unavailable or internal_error.",
             "content": {
               "text/event-stream": {
                 "itemSchema": {
@@ -283,94 +248,54 @@
             }
           },
           "401": {
+            "description": "**invalid_api_key**: key missing, wrong, revoked or expired",
             "content": {
-              "text/event-stream": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Unauthorized"
+            }
           },
           "403": {
+            "description": "**scope_forbidden**: this key may not use this route\n\n**collection_forbidden**: this key may not read that collection",
             "content": {
-              "text/event-stream": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Forbidden"
+            }
           },
           "404": {
+            "description": "**collection_not_found**: no collection with that name\n\n**conversation_not_found**: no such conversation for this user (or it is someone else's)",
             "content": {
-              "text/event-stream": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Not Found"
-          },
-          "409": {
-            "content": {
-              "text/event-stream": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Conflict"
-          },
-          "413": {
-            "content": {
-              "text/event-stream": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Request Entity Too Large"
-          },
-          "415": {
-            "content": {
-              "text/event-stream": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Unsupported Media Type"
+            }
           },
           "422": {
+            "description": "**invalid_request**: a field or header is missing or invalid (e.g. no ITI-User-Id, question over 4,000)",
             "content": {
-              "text/event-stream": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Unprocessable Entity"
+            }
           },
           "500": {
+            "description": "**internal_error**: a bug on the AI side: quote the request_id",
             "content": {
-              "text/event-stream": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Internal Server Error"
-          },
-          "503": {
-            "content": {
-              "text/event-stream": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Service Unavailable"
+            }
           }
         }
       }
@@ -380,7 +305,8 @@
         "tags": [
           "chat"
         ],
-        "summary": "Get Conversations",
+        "summary": "List the user's conversations",
+        "description": "The ITI-User-Id's own conversations in this app, newest first (limit: default 30, max 100). For a history list.",
         "operationId": "get_conversations_v1_conversations_get",
         "security": [
           {
@@ -406,19 +332,13 @@
           {
             "name": "ITI-User-Id",
             "in": "header",
-            "required": false,
+            "required": true,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "maxLength": 100
-                },
-                {
-                  "type": "null"
-                }
-              ],
+              "type": "string",
+              "maxLength": 100,
               "title": "Iti-User-Id"
-            }
+            },
+            "description": "Required: the signed-in person's permanent id from your server's session."
           },
           {
             "name": "ITI-User-Role",
@@ -434,8 +354,10 @@
                   "type": "null"
                 }
               ],
+              "description": "Optional label (e.g. 'hr staff') shown in the console; doesn't change access.",
               "title": "Iti-User-Role"
-            }
+            },
+            "description": "Optional label (e.g. 'hr staff') shown in the console; doesn't change access."
           }
         ],
         "responses": {
@@ -454,94 +376,44 @@
             }
           },
           "401": {
+            "description": "**invalid_api_key**: key missing, wrong, revoked or expired",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Unauthorized"
+            }
           },
           "403": {
+            "description": "**scope_forbidden**: this key may not use this route",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Forbidden"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Not Found"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Conflict"
-          },
-          "413": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Request Entity Too Large"
-          },
-          "415": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Unsupported Media Type"
+            }
           },
           "422": {
+            "description": "**invalid_request**: a field or header is missing or invalid (e.g. no ITI-User-Id, question over 4,000)",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Unprocessable Entity"
+            }
           },
           "500": {
+            "description": "**internal_error**: a bug on the AI side: quote the request_id",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Internal Server Error"
-          },
-          "503": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Service Unavailable"
+            }
           }
         }
       }
@@ -551,7 +423,8 @@
         "tags": [
           "chat"
         ],
-        "summary": "Get Conversation Messages",
+        "summary": "Read one conversation",
+        "description": "Every message of one conversation, oldest first: the user's questions and the assistant's answers with their\ncitations. Someone else's conversation is a 404, the same as a missing one.",
         "operationId": "get_conversation_messages_v1_conversations__conversation_id__messages_get",
         "security": [
           {
@@ -574,19 +447,13 @@
           {
             "name": "ITI-User-Id",
             "in": "header",
-            "required": false,
+            "required": true,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "maxLength": 100
-                },
-                {
-                  "type": "null"
-                }
-              ],
+              "type": "string",
+              "maxLength": 100,
               "title": "Iti-User-Id"
-            }
+            },
+            "description": "Required: the signed-in person's permanent id from your server's session."
           },
           {
             "name": "ITI-User-Role",
@@ -602,8 +469,10 @@
                   "type": "null"
                 }
               ],
+              "description": "Optional label (e.g. 'hr staff') shown in the console; doesn't change access.",
               "title": "Iti-User-Role"
-            }
+            },
+            "description": "Optional label (e.g. 'hr staff') shown in the console; doesn't change access."
           }
         ],
         "responses": {
@@ -622,94 +491,54 @@
             }
           },
           "401": {
+            "description": "**invalid_api_key**: key missing, wrong, revoked or expired",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Unauthorized"
+            }
           },
           "403": {
+            "description": "**scope_forbidden**: this key may not use this route",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Forbidden"
+            }
           },
           "404": {
+            "description": "**conversation_not_found**: no such conversation for this user (or it is someone else's)",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Not Found"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Conflict"
-          },
-          "413": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Request Entity Too Large"
-          },
-          "415": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Unsupported Media Type"
+            }
           },
           "422": {
+            "description": "**invalid_request**: a field or header is missing or invalid (e.g. no ITI-User-Id, question over 4,000)",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Unprocessable Entity"
+            }
           },
           "500": {
+            "description": "**internal_error**: a bug on the AI side: quote the request_id",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Internal Server Error"
-          },
-          "503": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Service Unavailable"
+            }
           }
         }
       }
@@ -1136,13 +965,15 @@
             "type": "string",
             "maxLength": 4000,
             "minLength": 1,
-            "title": "Question"
+            "title": "Question",
+            "description": "The user's question, as typed."
           },
           "collection": {
             "type": "string",
             "maxLength": 64,
             "minLength": 1,
-            "title": "Collection"
+            "title": "Collection",
+            "description": "Which document set to answer from (given with your key, e.g. iti-docs)."
           },
           "conversation_id": {
             "anyOf": [
@@ -1153,7 +984,8 @@
                 "type": "null"
               }
             ],
-            "title": "Conversation Id"
+            "title": "Conversation Id",
+            "description": "Leave it out, null or empty for a new conversation; the previous reply's id for a follow-up."
           }
         },
         "type": "object",
@@ -1161,32 +993,43 @@
           "question",
           "collection"
         ],
-        "title": "ChatRequest"
+        "title": "ChatRequest",
+        "examples": [
+          {
+            "collection": "iti-docs",
+            "question": "How many leave days do new employees get?"
+          }
+        ]
       },
       "ChatResponse": {
         "properties": {
           "answer": {
             "type": "string",
-            "title": "Answer"
+            "title": "Answer",
+            "description": "Markdown (lists, bold, tables): render it as Markdown."
           },
           "found": {
             "type": "boolean",
-            "title": "Found"
+            "title": "Found",
+            "description": "False = the documents don't contain the answer (the \"I don't know\" reply)."
           },
           "citations": {
             "items": {
               "$ref": "#/components/schemas/Citation"
             },
             "type": "array",
-            "title": "Citations"
+            "title": "Citations",
+            "description": "The sources behind the answer; empty when found is false."
           },
           "conversation_id": {
             "type": "string",
-            "title": "Conversation Id"
+            "title": "Conversation Id",
+            "description": "Send it back in the next question to continue this conversation."
           },
           "request_id": {
             "type": "string",
-            "title": "Request Id"
+            "title": "Request Id",
+            "description": "Quote it to the ITI AI admin when reporting a problem."
           }
         },
         "type": "object",
@@ -1203,11 +1046,13 @@
         "properties": {
           "doc_id": {
             "type": "string",
-            "title": "Doc Id"
+            "title": "Doc Id",
+            "description": "The document's id (today its file name)."
           },
           "title": {
             "type": "string",
-            "title": "Title"
+            "title": "Title",
+            "description": "The file name to show the user."
           },
           "page": {
             "anyOf": [
@@ -1218,11 +1063,13 @@
                 "type": "null"
               }
             ],
-            "title": "Page"
+            "title": "Page",
+            "description": "The PDF page (1 = first); null when unknown."
           },
           "snippet": {
             "type": "string",
-            "title": "Snippet"
+            "title": "Snippet",
+            "description": "The start of the cited passage, not an exact quote."
           }
         },
         "type": "object",
@@ -1237,20 +1084,24 @@
         "properties": {
           "conversation_id": {
             "type": "string",
-            "title": "Conversation Id"
+            "title": "Conversation Id",
+            "description": "Use it to read the messages or to continue the conversation."
           },
           "collection": {
             "type": "string",
-            "title": "Collection"
+            "title": "Collection",
+            "description": "The document set this conversation asks."
           },
           "first_question": {
             "type": "string",
-            "title": "First Question"
+            "title": "First Question",
+            "description": "The conversation's first question: a title for the list."
           },
           "created_at": {
             "type": "string",
             "format": "date-time",
-            "title": "Created At"
+            "title": "Created At",
+            "description": "When it started, UTC."
           }
         },
         "type": "object",
@@ -1379,20 +1230,24 @@
               "user",
               "assistant"
             ],
-            "title": "Role"
+            "title": "Role",
+            "description": "user = a question, assistant = an answer."
           },
           "content": {
             "type": "string",
-            "title": "Content"
+            "title": "Content",
+            "description": "The question, or the answer in Markdown."
           },
           "request_id": {
             "type": "string",
-            "title": "Request Id"
+            "title": "Request Id",
+            "description": "The call that wrote this message."
           },
           "created_at": {
             "type": "string",
             "format": "date-time",
-            "title": "Created At"
+            "title": "Created At",
+            "description": "When it was written, UTC."
           },
           "citations": {
             "anyOf": [
@@ -1406,7 +1261,8 @@
                 "type": "null"
               }
             ],
-            "title": "Citations"
+            "title": "Citations",
+            "description": "An answer's sources; null for questions."
           }
         },
         "type": "object",

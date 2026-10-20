@@ -43,6 +43,12 @@ def test_refusal_is_found_false_with_no_citations(client, hr):
     assert body["found"] is False and body["citations"] == []
 
 
+def test_a_blank_conversation_id_starts_a_new_conversation_like_null(client, hr):
+    for blank in ("", None):
+        r = client.post("/v1/chat", headers=hr["1042"], json=Q | {"conversation_id": blank})
+        assert r.status_code == 200 and r.json()["conversation_id"].startswith("iti_conv_"), blank
+
+
 def test_follow_ups_send_the_earlier_questions_to_rag(client, hr, fake_rag):
     conv = client.post("/v1/chat", headers=hr["1042"], json=Q).json()["conversation_id"]
     client.post("/v1/chat", headers=hr["1042"], json=Q | {"question": "And part-timers?", "conversation_id": conv})

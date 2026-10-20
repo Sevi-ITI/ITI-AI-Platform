@@ -316,6 +316,13 @@ def test_numbers_in_a_source_file_name_are_allowed():
     assert unsupported_numbers(answer, [dress_code]) == []
 
 
+def test_zeros_that_ocr_read_as_the_letter_o_are_allowed():
+    # Scanned PDFs: OCR wrote "P100.oo", "Php 250.o0" and "2:ooPM"; the model correctly writes 100.00, 250.00, 2:00.
+    meal = _chunk("Meal Allowance (OCR).pdf", 1, 0, "P100.oo meal allowance. Php 250.o0 parking. File on or before 2:ooPM.")
+    answer = "P100.00 meal, Php 250.00 parking, before 2:00 PM [1]. Not P150.00 [1]."
+    assert unsupported_numbers(answer, [meal]) == ["150.00"]
+
+
 OFFENSES = _chunk("dress.pdf", 3, 0, "First Offense: verbal warning. Second Offense: written warning. "
                                      "Third Offense: final warning. Fifth Offense: suspension of up to two (2) days.")
 

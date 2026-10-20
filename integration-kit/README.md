@@ -13,7 +13,7 @@ with its own API key. This folder has everything you need:
 
 **Interactive API docs (Swagger):** `<base URL>v1/docs`, e.g. `https://ITI-Vinas.ho.intellismartinc.com:8443/v1/docs`.
 It shows the chat routes your app uses (health, chat, stream, history). Press **Authorize**, paste your key,
-then **Try it out**; fill in `ITI-User-Id` (required, although the page marks it optional). The same
+then **Try it out**; fill in `ITI-User-Id` (required). Each route lists the error codes it can return. The same
 description as JSON: `<base URL>v1/openapi.json`. These are real calls: use a test user id, never a real person's.
 
 ## How it fits
@@ -49,7 +49,7 @@ description as JSON: `<base URL>v1/openapi.json`. These are real calls: use a te
 **2. Configuration.** In `appsettings.json` (no secrets here):
 
 ```json
-"ItiAi": { "BaseUrl": "https://ai.iti.local/", "Collection": "iti-docs" }
+"ItiAi": { "BaseUrl": "https://ITI-Vinas.ho.intellismartinc.com:8443/", "Collection": "iti-docs" }
 ```
 
 The **key** goes only in an environment variable on the server (or your secret store), never in
@@ -78,8 +78,7 @@ Then ask for `ItiAiClient` in any controller's constructor (see `ChatController.
 2. **`userId` = the signed-in person's permanent id from your session** (e.g. the user's primary key).
    Never from the browser (people could read each other's chats). Not a username that can be renamed,
    and never reused for a new person. Ideally the same id in all your apps (e.g. the employee number).
-   It is **required** on every chat and history call (missing = 422 `invalid_request`), even though
-   Swagger (`/docs`) shows the `ITI-User-Id` header as optional.
+   It is **required** on every chat and history call (missing = 422 `invalid_request`).
 3. **Timeout of at least 150 s.** One model serves everyone; questions can wait in a queue.
 4. **Retry only `llm_busy`**, once, after a pause. Never retry anything else automatically.
 5. **Log `Code` and `RequestId`, never the question** (it may contain personal details).
@@ -96,6 +95,8 @@ var r = await ai.ChatAsync(userId, new ChatRequest("How many leave days do new e
 - **`Found = false` is the "I don't know" reply.** Show it like any answer; it is not an error.
 - **`Found = true` with no citations:** show "No source cited, please verify with HR".
 - **Citations:** show the file title and page. `Snippet` is the start of the passage, not an exact quote.
+- **New conversation:** leave `ConversationId` out (`null`, the default). Over plain HTTP: leave
+  `conversation_id` out or send `null`; a blank `""` also starts a new one.
 - **Follow-up questions:** send the previous `ConversationId` in the next `ChatRequest`. Store it if you
   want "continue this chat" (it fits `VARCHAR(32)`). That is the only column you might add.
 - **History:** `GetConversationsAsync(userId)` (newest first) and `GetMessagesAsync(userId, conversationId)`.

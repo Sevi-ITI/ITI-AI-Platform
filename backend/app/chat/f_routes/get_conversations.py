@@ -19,4 +19,5 @@ def get_conversations(
     principal: AppPrincipal = Depends(require_scope("chat:invoke")),
     db: Session = Depends(get_db),
 ) -> list[ConversationSummary]:
+    """The ITI-User-Id's own conversations in this app, newest first (limit: default 30, max 100). For a history list."""
     return conversation_summaries(db, principal, user_id, limit)

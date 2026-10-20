@@ -17,4 +17,6 @@ def get_conversation_messages(
     principal: AppPrincipal = Depends(require_scope("chat:invoke")),
     db: Session = Depends(get_db),
 ) -> list[MessageOut]:
+    """Every message of one conversation, oldest first: the user's questions and the assistant's answers with their
+    citations. Someone else's conversation is a 404, the same as a missing one."""
     return conversation_messages(db, principal, user_id, conversation_id)

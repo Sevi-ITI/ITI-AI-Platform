@@ -17,8 +17,16 @@ from app.core.e_errors.app_error import AppError
 
 def user_id_for(
     principal: AppPrincipal = Depends(require_app),
-    user_id: Annotated[str | None, Header(alias="ITI-User-Id", max_length=100)] = None,
-    user_role: Annotated[str | None, Header(alias="ITI-User-Role", max_length=50)] = None,
+    user_id: Annotated[
+        str | None,
+        Header(alias="ITI-User-Id", max_length=100,
+               description="Required: the signed-in person's permanent id from your server's session."),
+    ] = None,
+    user_role: Annotated[
+        str | None,
+        Header(alias="ITI-User-Role", max_length=50,
+               description="Optional label (e.g. 'hr staff') shown in the console; doesn't change access."),
+    ] = None,
 ) -> str:
     if principal.console_user:
         return principal.console_user

@@ -1,4 +1,5 @@
 """open_conversation(): returns the conversation id to use: a new one, or the caller's own.
+No id (null, missing or "") starts a new conversation: a blank form field must not be a 404.
 Someone else's id gets the same 404 as a missing one, so ids reveal nothing."""
 
 from sqlalchemy.orm import Session
@@ -12,7 +13,7 @@ from app.core.e_errors.app_error import AppError
 def open_conversation(
     db: Session, principal: AppPrincipal, user_id: str, conversation_id: str | None, collection: str
 ) -> str:
-    if conversation_id is None:
+    if not conversation_id:
         return create_conversation(db, principal.app_id, principal.company_id, user_id, collection).id
     conv = get_conversation(db, conversation_id)
     if conv is None or (conv.app_id, conv.company_id, conv.user_id) != (

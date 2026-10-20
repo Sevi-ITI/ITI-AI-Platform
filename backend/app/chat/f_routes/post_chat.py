@@ -20,4 +20,8 @@ def post_chat(
         user_id: str = Depends(user_id_for),
         db: Session = Depends(get_db),
 ) -> ChatResponse:
+    """The answer comes only from the collection's documents, with file and page citations. found = false is the
+    "I don't know" reply (a normal 200: show it like any answer). Leave conversation_id out, null or empty to start a
+    new conversation; send the previous reply's conversation_id for a follow-up.
+    Answers can queue: use a timeout of at least 150 s."""
     return answer_question(db, principal, user_id, conversation_id, req)

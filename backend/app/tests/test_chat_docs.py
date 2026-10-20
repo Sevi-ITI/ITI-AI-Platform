@@ -17,8 +17,21 @@ def test_the_chat_spec_holds_only_the_chat_routes_and_the_key_login(client):
 def test_the_docs_page_uses_that_spec_and_stays_out_of_the_full_docs_and_the_log(client, make_key):
     page = client.get("/v1/docs")
     assert page.status_code == 200 and "/v1/openapi.json" in page.text and "swagger" in page.text.lower()
+    assert page.text.index(".scheme-container") < page.text.index("</head>")  # Authorize beside the title
     assert not {"/v1/docs", "/v1/openapi.json"} & set(client.get("/openapi.json").json()["paths"])
 
     admin = make_key("iti-admin", ["admin"], [])
     logged = {row["path"] for row in client.get("/v1/admin/requests", headers=admin).json()}
     assert not {"/v1/docs", "/v1/openapi.json"} & logged
+
+
+def test_the_spec_says_what_an_app_really_gets(client):
+    paths = client.get("/v1/openapi.json").json()["paths"]
+    chat, stream = paths["/v1/chat"]["post"], paths["/v1/chat/stream"]["post"]
+    user_id = next(p for p in chat["parameters"] if p["name"] == "ITI-User-Id")
+    assert user_id["required"] is True
+    assert set(chat["responses"]) == {"200", "401", "403", "404", "422", "500", "503"}  # no upload errors
+    assert "conversation_not_found" in chat["responses"]["404"]["description"]
+    assert set(paths["/v1/conversations"]["get"]["responses"]) == {"200", "401", "403", "422", "500"}
+    assert list(stream["responses"]["404"]["content"]) == ["application/json"]  # refused before the stream starts
+    assert "**done**" in stream["responses"]["200"]["description"]
