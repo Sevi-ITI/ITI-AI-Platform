@@ -1,6 +1,7 @@
 """The hrdotnet MCP server's own tools (8.6L): get_my_attendance (totals, the days worth noting, the guards),
-get_my_schedule (which source wins per day), get_my_overtime (hours per status) and get_my_time_logs (punches). Fake connections stand in for
-SQL Server: the SQL itself is checked live against the ai views, never here."""
+get_my_schedule (which source wins per day), get_my_overtime (hours per status), get_my_time_logs (punches),
+get_my_requests (OB, missed logs, offsets) and get_my_employment_info (whitelisted, no pay). Fake connections stand in
+for SQL Server: the SQL itself is checked live against the ai views, never here."""
 
 from datetime import date
 from decimal import Decimal
@@ -9,7 +10,14 @@ import pytest
 from mcp.server.mcpserver.exceptions import ToolError
 
 import app.tools.mcp_servers as mcp_servers
-from app.tools.mcp_servers import get_my_attendance, get_my_overtime, get_my_schedule, get_my_time_logs
+from app.tools.mcp_servers import (
+    get_my_attendance,
+    get_my_employment_info,
+    get_my_overtime,
+    get_my_requests,
+    get_my_schedule,
+    get_my_time_logs,
+)
 
 
 def day(work_date, day_type="regular day", time_in="08:00:00", time_out="17:00:00", late=0, undertime=0, absent=0,
@@ -269,3 +277,100 @@ def test_time_log_ranges_are_checked(punches):
     for date_from, date_to, problem in ((date(2026, 9, 2), date(2026, 9, 1), "after"), (date(2026, 9, 1), date(2026, 10, 15), "31 days")):
         with pytest.raises(ToolError, match=problem):
             get_my_time_logs("44", date_from, date_to)
+
+
+# --- get_my_requests -------------------------------------------------------------------------------------------
+
+
+def request(kind, day, status, time_from="08:00:00", time_to="17:00:00", detail="Makati"):
+    return {"request_type": kind, "document_no": f"{kind[:2].upper()}-{day}", "date_from": day, "date_to": day,
+            "time_from": time_from, "time_to": time_to, "detail": detail, "status": status, "filed_on": day,
+            "approved_on": day if status in ("Posted", "Approved") else None}
+
+
+def test_requests_are_counted_per_type_and_status(records):
+    seen = records([
+        request("official business", "2026-09-01", "Posted"),
+        request("official business", "2026-09-02", "Cancelled"),
+        request("missed log", "2026-09-03", "Filed", time_from="17:05:00", time_to=None, detail="time out"),
+        request("offset", "2026-09-04", "Approved", detail="08:00AM-05:00PM(08)"),
+    ])
+    r = get_my_requests("44", date(2026, 9, 1), date(2026, 9, 30))
+    assert seen["employee_id"] == "44"
+    assert r["requests_filed"] == 4
+    assert r["count_by_type"] == {"official business": {"posted": 1, "cancelled": 1}, "missed log": {"filed": 1},
+                                  "offset": {"approved": 1}}
+    missed = r["requests"][2]
+    assert (missed["type"], missed["time_from"], missed["time_to"], missed["detail"], missed["status"]) == (
+        "missed log", "17:05", None, "time out", "filed")
+
+
+def test_no_requests_and_bad_ranges(records):
+    records([])
+    r = get_my_requests("44", date(2026, 9, 1), date(2026, 9, 30))
+    assert (r["requests_filed"], r["count_by_type"], r["requests"]) == (0, {}, [])
+    for date_from, date_to, problem in ((date(2026, 9, 30), date(2026, 9, 1), "after"), (date(2026, 1, 1), date(2026, 6, 30), "3 months")):
+        with pytest.raises(ToolError, match=problem):
+            get_my_requests("44", date_from, date_to)
+
+
+# --- get_my_employment_info ------------------------------------------------------------------------------------
+
+
+@pytest.fixture
+def employment(monkeypatch):
+    """employment(record, movements): the employment-info query returns `record` (None = no row)."""
+
+    class Result(list):
+        def first(self):
+            return self[0] if self else None
+
+    def use(record, movements=()):
+        class Conn:
+            def execute(self, sql, params):
+                assert params == {"employee_id": "44"}
+                rows = [record] if sql is mcp_servers.HRDOTNET_EMPLOYMENT_SQL and record else []
+                rows = list(movements) if sql is mcp_servers.HRDOTNET_MOVEMENTS_SQL else rows
+                return Result(type("Row", (), {"_mapping": r})() for r in rows)
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_):
+                return False
+
+        monkeypatch.setattr(mcp_servers, "get_hrdotnet_engine", lambda: type("Engine", (), {"connect": lambda self: Conn()})())
+
+    return use
+
+
+RECORD = {"employee_no": "E-0044", "company": "Mayon", "branch": "Main", "division": "Ops", "department": "IT",
+          "section": "Dev", "position": "Developer", "position_level": "Rank and File", "employment_status": "Regular",
+          "date_hired": date(2023, 3, 15), "date_regularized": date(2023, 9, 15), "date_ended": None,
+          "usual_schedule": "8:00AM-5:00PM(M-F)"}
+
+
+def test_employment_info_with_service_length_and_career_events(employment):
+    employment(RECORD, [{"document_no": "MV-1", "movement": "Regularization", "effective_on": "2023-09-15"}])
+    r = get_my_employment_info("44")
+    assert (r["position"], r["employment_status"], r["date_hired"], r["date_regularized"], r["date_ended"]) == (
+        "Developer", "Regular", "2023-03-15", "2023-09-15", None)
+    assert r["length_of_service"].startswith("3 years")
+    assert r["career_events"] == [{"document_no": "MV-1", "movement": "Regularization", "effective_on": "2023-09-15"}]
+    assert not [k for k in r if any(w in k for w in ("rate", "salary", "bank", "account", "confi", "tax"))]
+
+
+def test_an_ended_employment_counts_service_to_its_end_and_a_missing_record_says_so(employment):
+    employment({**RECORD, "employment_status": "Resigned", "date_ended": date(2025, 5, 14)})
+    assert get_my_employment_info("44")["length_of_service"] == "2 years and 1 month"
+    employment(None)
+    assert get_my_employment_info("44") == {"found": False, "note": "No employment record for this employee."}
+
+
+@pytest.mark.parametrize(
+    ("start", "end", "text"),
+    [(date(2026, 10, 1), date(2026, 10, 20), "less than a month"), (date(2025, 10, 20), date(2026, 10, 20), "1 year"),
+     (date(2025, 10, 21), date(2026, 10, 20), "11 months"), (date(2023, 3, 15), date(2026, 10, 20), "3 years and 7 months")],
+)
+def test_service_length_counts_whole_months(start, end, text):
+    assert mcp_servers.service_length(start, end) == text

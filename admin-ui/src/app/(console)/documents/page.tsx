@@ -230,6 +230,8 @@ function DocumentRow({
         {row.filename}
         <div className={`${styles.kpiNote} ${styles.num}`}>{formatBytes(row.size_bytes)}</div>
         {row.error && <div className={styles.error}>{row.error}</div>}
+        {/* indexed, but the PDF's text has broken numbers (garbled OCR): answers from those pages may be refused */}
+        {row.warning && !replaced && <div className={styles.warn}>⚠ {row.warning}</div>}
       </td>
       {showCollection && (
         <td className={`mono ${styles.nowrap}`} translate="no">

@@ -13,8 +13,10 @@ from app.core.a_config.get_settings import get_settings
 from app.core.c_database.get_sessionmaker import get_sessionmaker
 from app.core.e_errors.app_error import AppError
 from app.documents.d_service.clean_filename import clean_filename
+from app.documents.d_service.garbled_numbers_warning import garbled_numbers_warning
 from app.documents.d_service.refuse_duplicate import refuse_duplicate
 from app.documents.d_service.save_upload import save_upload
+from app.rag.a_loader import Page
 from app.rag.d_vectorstore.chunk_row import ChunkRow
 
 NAME = "Leave Policy.pdf"
@@ -80,6 +82,25 @@ def test_a_failed_reupload_keeps_the_old_file_and_chunks(client, hr, db_engine):
     assert chunk_texts(db_engine) == ["v1 page one", "v1 page two"]
     assert list((stored_file().parent / "_incoming").iterdir()) == []  # the failed copy was deleted
     assert upload(client, hr, b"v3").status_code == 409  # the failed upload doesn't count; v1 still exists
+
+
+def test_numbers_the_ocr_broke_are_flagged_per_page():
+    # Real samples from the 2026-10-20 uploads; each one made the answer check refuse.
+    pages = [
+        Page("a.pdf", 1, "Clean: 12:00nn to 1:00pm, 4:00am, ACCTG-2017-01, 2026-10-20, 4K60, P100.oo, 15km, 2.1mb."),
+        Page("a.pdf", 2, 'Lunch {Php 30.0il - at L7:A0 AM. Gas l"5km to 65km. Dinner: at least 1"4 hours.'),
+        Page("a.pdf", 4, "June 20L7 Page: 4"),
+    ]
+    assert garbled_numbers_warning(pages[:1]) is None
+    warning = garbled_numbers_warning(pages)
+    assert warning.startswith('5 number(s) may be unreadable on page(s) 2, 4 (e.g. "30.0il", "L7:A0", "l"5km").')
+
+
+def test_an_upload_with_broken_numbers_is_indexed_with_a_warning(client, hr):
+    status = job(client, hr, upload(client, hr, b"fine page|Lunch Php 30.0il"))
+    assert status["status"] == "done" and status["chunks"] == 2
+    assert status["warning"].startswith('1 number(s) may be unreadable on page(s) 2 (e.g. "30.0il")')
+    assert job(client, hr, upload(client, hr, b"all clean", name="Clean.pdf"))["warning"] is None
 
 
 def test_a_shorter_new_version_leaves_no_stale_chunks(client, hr, db_engine):

@@ -1580,6 +1580,8 @@ export interface components {
             chunks: number | null;
             /** Error */
             error: string | null;
+            /** Warning */
+            warning: string | null;
             /** Finished At */
             finished_at: string | null;
         };
@@ -1651,6 +1653,8 @@ export interface components {
             chunks?: number | null;
             /** Error */
             error?: string | null;
+            /** Warning */
+            warning?: string | null;
             /**
              * Created At
              * Format: date-time

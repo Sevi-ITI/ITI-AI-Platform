@@ -376,6 +376,104 @@ def get_my_time_logs(employee_id: str, date_from: date, date_to: date) -> dict:
                                     if latest else "No punches on record at all for this employee.")
     return result
 
+# --- get_my_requests: official business, missed log and offset requests between two dates (ai.v_requests) ------
+
+HRDOTNET_REQUESTS_SQL = text("""
+    SELECT request_type, document_no, CONVERT(char(10), date_from, 23) AS date_from,
+           CONVERT(char(10), date_to, 23) AS date_to, time_from, time_to, detail, status,
+           CONVERT(char(10), filed_on, 23) AS filed_on, CONVERT(char(10), approved_on, 23) AS approved_on
+    FROM ai.v_requests
+    WHERE employee_id = :employee_id AND date_from <= :date_to AND date_to >= :date_from
+    ORDER BY date_from, request_type
+""")
+
+
+@hrdotnet.tool(
+    description="Get the CURRENT USER's own time REQUESTS between two dates (at most 3 months): OFFICIAL BUSINESS (OB, "
+    "work outside the office: where and when), MISSED LOG (a forgotten time in or time out filed afterwards) and "
+    "OFFSET, each with its status (filed, reviewed, approved, posted, cancelled). Use it for questions like 'was my OB "
+    "approved' or 'what happened to my missed log'. Not for leave (get_my_leave_applications) or overtime "
+    "(get_my_overtime)."
+)
+def get_my_requests(employee_id: str, date_from: date, date_to: date) -> dict:
+    if not employee_id:
+        raise ToolError("employee_id is missing")
+    if date_from > date_to:
+        raise ToolError("date_from is after date_to")
+    if (date_to - date_from).days > 92:
+        raise ToolError("the range is longer than 3 months: ask for a shorter period")
+    with get_hrdotnet_engine().connect() as conn:
+        params = {"employee_id": employee_id, "date_from": date_from, "date_to": date_to}
+        rows = [dict(row._mapping) for row in conn.execute(HRDOTNET_REQUESTS_SQL, params)]
+    counts: dict[str, dict[str, int]] = {}
+    for row in rows:
+        by_status = counts.setdefault(row["request_type"], {})
+        status = (row["status"] or "").lower()
+        by_status[status] = by_status.get(status, 0) + 1
+    return {
+        "date_from": str(date_from), "date_to": str(date_to), "requests_filed": len(rows), "count_by_type": counts,
+        "requests": [
+            {"type": row["request_type"], "document_no": row["document_no"], "date_from": row["date_from"],
+             "date_to": row["date_to"], "time_from": hhmm(row["time_from"]), "time_to": hhmm(row["time_to"]),
+             "detail": row["detail"], "status": (row["status"] or "").lower(), "filed_on": row["filed_on"],
+             "approved_on": row["approved_on"]}
+            for row in rows
+        ],
+    }
+
+# --- get_my_employment_info: position, department, status, hire date, career events (whitelisted views) ----------
+# Never pay, bank, tax, Confi or rating: the views hold only the columns listed in 09_ai_views_employment.sql.
+
+HRDOTNET_EMPLOYMENT_SQL = text("""
+    SELECT employee_no, company, branch, division, department, section, position, position_level, employment_status,
+           date_hired, date_regularized, date_ended, usual_schedule
+    FROM ai.v_employment_info
+    WHERE employee_id = :employee_id
+""")
+
+HRDOTNET_MOVEMENTS_SQL = text("""
+    SELECT document_no, movement, CONVERT(char(10), effective_on, 23) AS effective_on
+    FROM ai.v_employment_movements
+    WHERE employee_id = :employee_id
+    ORDER BY effective_on
+""")
+
+
+def service_length(start: date, end: date) -> str:
+    """'3 years and 2 months' between two dates (whole months)."""
+    months = (end.year - start.year) * 12 + end.month - start.month - (end.day < start.day)
+    years, months = divmod(max(months, 0), 12)
+    parts = [f"{years} year{'s' if years != 1 else ''}"] if years else []
+    parts += [f"{months} month{'s' if months != 1 else ''}"] if months else []
+    return " and ".join(parts) or "less than a month"
+
+
+@hrdotnet.tool(
+    description="Get the CURRENT USER's own EMPLOYMENT information: employee number, company, branch, department, "
+    "section, position and level, employment status (probationary, regular, ...), date hired, date regularized, "
+    "length of service, usual schedule, and career events (transfers, promotions, regularization) with their dates. "
+    "Use it for questions like 'when was I hired', 'am I regular already' or 'what is my position'. "
+    "It has NO salary or pay information."
+)
+def get_my_employment_info(employee_id: str) -> dict:
+    if not employee_id:
+        raise ToolError("employee_id is missing")
+    with get_hrdotnet_engine().connect() as conn:
+        row = conn.execute(HRDOTNET_EMPLOYMENT_SQL, {"employee_id": employee_id}).first()
+        movements = [dict(m._mapping) for m in conn.execute(HRDOTNET_MOVEMENTS_SQL, {"employee_id": employee_id})]
+    if row is None:
+        return {"found": False, "note": "No employment record for this employee."}
+    info = dict(row._mapping)
+    hired, ended = info["date_hired"], info["date_ended"]
+    return {
+        **{key: value for key, value in info.items() if key not in ("date_hired", "date_regularized", "date_ended")},
+        "date_hired": str(hired) if hired else None,
+        "date_regularized": str(info["date_regularized"]) if info["date_regularized"] else None,
+        "date_ended": str(ended) if ended else None,
+        "length_of_service": service_length(hired, ended or date.today()) if hired else None,
+        "career_events": movements,
+    }
+
 # --- the list: name -> (server, http port, env variable of its secret for --http) --------------------------------
 
 SERVERS = {

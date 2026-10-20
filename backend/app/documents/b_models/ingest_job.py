@@ -17,5 +17,6 @@ class IngestJob(Base):
     status: Mapped[str] = mapped_column(String(16), default="queued")
     chunks: Mapped[int | None] = mapped_column(Integer)
     error: Mapped[str | None] = mapped_column(Text)
+    warning: Mapped[str | None] = mapped_column(Text)  # indexed, but some numbers look unreadable (garbled OCR)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

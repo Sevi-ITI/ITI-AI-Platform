@@ -14,6 +14,7 @@ from app.core.c_database.get_sessionmaker import get_sessionmaker
 from app.core.g_llm_slots.ingest_lock import INGEST_LOCK
 from app.core.h_stores.get_store import get_store
 from app.documents.c_repository.mark_job import mark_job
+from app.documents.d_service.garbled_numbers_warning import garbled_numbers_warning
 from app.rag.a_loader import load_pdf
 from app.rag.b_splitter import split_pages
 from app.rag.c_embeddings import embed
@@ -27,7 +28,8 @@ def run_ingest(job_id: str, staged: Path, collection: str) -> None:
     with get_sessionmaker()() as db:
         mark_job(db, job_id, "running")
         try:
-            chunks = split_pages(load_pdf(staged).pages)
+            pages = load_pdf(staged).pages
+            chunks = split_pages(pages)
             if not chunks:
                 raise ValueError("No text found (scanned PDF?). OCR is not available yet.")
             with INGEST_LOCK:  # one document at a time, so uploads never starve chat of the GPU
@@ -38,7 +40,7 @@ def run_ingest(job_id: str, staged: Path, collection: str) -> None:
             mark_job(db, job_id, "failed", error=f"{type(exc).__name__}: {exc}"[:500])
             shutil.rmtree(staged.parent, ignore_errors=True)  # drop the new copy; the old file stays
             return
-        mark_job(db, job_id, "done", chunks=len(chunks))
+        mark_job(db, job_id, "done", chunks=len(chunks), warning=garbled_numbers_warning(pages))
         log.info("Indexed %s: %d chunks", staged.name, len(chunks))
 
     try:

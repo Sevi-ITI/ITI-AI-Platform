@@ -20,6 +20,7 @@ def document_rows(db: Session, collection: str | None, limit: int, offset: int) 
             job_status=job.status,
             chunks=job.chunks,
             error=job.error,
+            warning=job.warning,
             finished_at=job.finished_at,
         )
         for doc, job in list_documents_with_jobs(db, collection, limit, offset)

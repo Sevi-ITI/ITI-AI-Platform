@@ -20,6 +20,7 @@ def get_job_status(db: Session, principal: AppPrincipal, job_id: str) -> JobStat
         status=job.status,
         chunks=job.chunks,
         error=job.error,
+        warning=job.warning,
         created_at=job.created_at,
         finished_at=job.finished_at,
     )

@@ -17,4 +17,5 @@ class DocumentRow(BaseModel):
     job_status: str
     chunks: int | None
     error: str | None
+    warning: str | None
     finished_at: UtcDateTime | None

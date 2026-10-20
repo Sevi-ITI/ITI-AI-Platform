@@ -13,5 +13,6 @@ class JobStatus(BaseModel):
     status: JobState
     chunks: int | None = None
     error: str | None = None
+    warning: str | None = None  # indexed, but some numbers look unreadable: answers from those pages may be refused
     created_at: UtcDateTime
     finished_at: UtcDateTime | None = None
