@@ -11,6 +11,7 @@ from app.rag.e_prompts import (
     REFUSAL_EN,
     REFUSAL_FIL,
     SYSTEM_PROMPT,
+    TONE,
     build_messages,
     format_context,
     is_filipino,
@@ -123,3 +124,14 @@ def test_history_adds_only_the_last_max_history_questions_after_the_context():
     assert history[0] not in block                  # the oldest question is dropped
     assert all(q in block for q in history[1:])     # the last MAX_HISTORY questions are kept
     assert system.index("</context>") < system.index("<earlier_questions>")
+
+
+# --- the friendly tone (2026-10-20) ---
+
+
+def test_the_tone_comes_before_the_rules_and_keeps_the_refusal_bare():
+    for history in ((), ("When do passwords expire?",)):
+        system = build_messages("And how long must they be?", [HISTORY_CHUNK], history)[0]["content"]
+        assert system.startswith(SYSTEM_PROMPT + "\n\n" + TONE + "\n\n### Task")
+    assert "reply with ONLY the exact refusal sentence" in TONE and "Every rule below still applies" in TONE
+    assert not is_refusal("Hello! " + REFUSAL_EN)  # why: a greeting in front would no longer count as a refusal

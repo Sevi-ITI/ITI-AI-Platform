@@ -181,7 +181,10 @@ export function TestButton({ name }: { name: string }) {
         setBusy(false);
         if (!r.ok) return r.status === 401 ? router.push("/login") : toast("error", r.message);
         const t = r.test;
-        toast(t.ok ? "ok" : "error", t.ok ? `${name}: ${t.tools.length} tools in ${t.seconds} s` : `${name} did not answer (${t.error})`);
+        const db = t.database; // our servers that read a database: did its login answer too?
+        const dbNote = !db ? "" : db.reachable ? `; database ${db.database} reachable` : `; database not reachable (${db.error})`;
+        const good = t.ok && (!db || db.reachable);
+        toast(good ? "ok" : "error", t.ok ? `${name}: ${t.tools.length} tools in ${t.seconds} s${dbNote}` : `${name} did not answer (${t.error})${dbNote}`);
       }}
     >
       {busy ? "Testing…" : "Test"}

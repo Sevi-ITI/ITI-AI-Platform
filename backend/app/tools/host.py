@@ -29,7 +29,7 @@ from app.tools.store import app_tool_names, records_source, sql_tool_rows, tool_
 from app.tools.tools import TOOL_REGISTRY
 
 MAX_ROUNDS = 3
-NO_ANSWER = "I couldn't answer that from your records. Please contact HR."
+NO_ANSWER = "I'm sorry, I couldn't find the answer to that in your records. HR will be glad to help you with it."
 
 # --- the documents signal -------------------------------------------------------------------------------------
 # Offered next to the tools. The model calls it for any question that is not about the user's own records; the
@@ -48,7 +48,8 @@ DOCUMENTS_TOOL = ToolSpec(
 )
 
 # --- the system prompt ----------------------------------------------------------------------------------------
-# The 8.1 spike's prompt (69/69). With the three records tools it is word for word that prompt (a test checks it).
+# The 8.1 spike's prompt (69/69): with the three records tools its rules are word for word that prompt (a test checks
+# it). TONE (Vince, 2026-10-20) comes after the rules, so being friendly never outranks them.
 
 PROMPT = """You are the ITI assistant for Intellismart Technology Inc. employees. Today is {today}.
 You are talking to ONE logged-in employee. You can only see THEIR OWN records.
@@ -61,10 +62,23 @@ You are talking to ONE logged-in employee. You can only see THEIR OWN records.
 - After explaining a deduction, add: "If this looks wrong, please contact HR."
 """
 
+# No example ANSWERS in TONE: with "Sure! Here are your leave credits for 2026." in it the model answered leave
+# questions without calling the tool (2/6 vs 6/6, 2026-10-20). Describe the style; never show a sample reply.
+TONE = """How to answer (Markdown: the apps render it):
+- Be warm, polite and glad to help, like a friendly customer service agent. Start with one short friendly line,
+  then the answer.
+- Put the key fact in **bold**: the number, date or status the employee asked about, exactly as the tool gave it.
+- Several items: a short bullet list. Three or more items with the same details (dates, statuses, hours): a small
+  Markdown table. Keep paragraphs short; no headings.
+- When something is pending, cancelled or missing, say it kindly and tell the employee what they can do.
+- When a tool returns nothing, say there is nothing on file for that period and suggest HR; never guess why.
+- End with the offer of more help on its own line, e.g. "Is there anything else I can help you with?"
+- Being friendly never changes the facts: every rule above still applies."""
+
 
 def system_prompt(topics: list[str], today: date, history: Sequence[str] = ()) -> str:
     joined = ", ".join(topics[:-1]) + ", or " + topics[-1] if len(topics) > 2 else " or ".join(topics)
-    text = PROMPT.format(today=today.isoformat(), topics=joined)
+    text = PROMPT.format(today=today.isoformat(), topics=joined) + "\n" + TONE
     if history:
         text += "\nEarlier questions in this conversation:\n" + "\n".join(f"- {q}" for q in history)
     return text

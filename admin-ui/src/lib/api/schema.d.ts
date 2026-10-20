@@ -1528,6 +1528,7 @@ export interface components {
             error: string | null;
             /** Seconds */
             seconds: number;
+            database?: components["schemas"]["DatabaseInfo"] | null;
         };
         /** ConversationSummary */
         ConversationSummary: {
@@ -1552,6 +1553,24 @@ export interface components {
              * @description When it started, UTC.
              */
             created_at: string;
+        };
+        /**
+         * DatabaseInfo
+         * @description Where one of our servers reads its data (never the password), and whether its reader can log in right now.
+         */
+        DatabaseInfo: {
+            /** Host */
+            host: string | null;
+            /** Port */
+            port: number | null;
+            /** Database */
+            database: string | null;
+            /** User */
+            user: string | null;
+            /** Reachable */
+            reachable: boolean;
+            /** Error */
+            error: string | null;
         };
         /** DocumentRow */
         DocumentRow: {

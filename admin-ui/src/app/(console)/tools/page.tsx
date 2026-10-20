@@ -26,6 +26,18 @@ import {
 export const metadata = { title: "Tools & MCP" };
 
 type Tool = components["schemas"]["ToolOut"];
+type Database = components["schemas"]["DatabaseInfo"];
+
+// Where one of our servers reads its data (never the password) and whether its login answered when the page opened.
+function DatabaseLine({ db }: { db: Database }) {
+  if (!db.host) return <div className={`${styles.kpiNote} ${styles.error}`}>database {db.error}</div>;
+  const where = `${db.host}${db.port ? `:${db.port}` : ""} / ${db.database ?? "?"} as ${db.user ?? "?"}`;
+  return (
+    <div className={`${styles.kpiNote} ${db.reachable ? "" : styles.error}`}>
+      database <span className="mono">{where}</span> · {db.reachable ? "reachable" : `not reachable (${db.error})`}
+    </div>
+  );
+}
 
 // Why a listed tool is not offered right now (the first reason that applies).
 function whyNotInUse(t: Tool, recordsSource: string | null): string {
@@ -223,6 +235,7 @@ export default async function ToolsPage() {
                           ) : (
                             on.server_status && <div className={styles.kpiNote}>not checked (disabled)</div>
                           )}
+                          {check?.database && <DatabaseLine db={check.database} />}
                         </td>
                         <td className={styles.actionsCell}>
                           <div className={styles.rowActions}>

@@ -43,6 +43,17 @@ Use them only to understand what the new question refers to. They are not source
 {{QUESTIONS}}
 </earlier_questions>"""
 
+# The friendly tone and format (Vince, 2026-10-20): its own block between SYSTEM_PROMPT and RAG_TEMPLATE, so both
+# stay word for word. Lessons from the tests (2026-10-20):
+# - BEFORE the rules and the context: 15/15 right refuse / answer; after the context: 12/15 (the model wrapped
+#   refusals in a polite explanation, which no longer counts as a refusal: is_refusal() only knows the bare sentence).
+# - No sample replies in it ("Sure! Here's what the policy says." made the model answer instead of refusing).
+TONE = """### How to answer (Markdown: the apps render it)
+- If the documents do not contain the answer, reply with ONLY the exact refusal sentence: no other words.
+- Otherwise: put the key fact in **bold**; steps or several points as a numbered or bulleted list; comparing items as a
+  small Markdown table; short paragraphs, no headings for short answers. Every rule below still applies.
+- When you answer, open with one short friendly line; be warm and polite, like a helpful customer service agent."""
+
 TAGALOG_WORDS = {
     "ang", "ng", "mga", "sa", "ano", "anong", "paano", "sino", "saan", "kailan", "bakit", "ilan", "magkano",
     "hindi", "ba", "po", "ko", "ka", "ito", "yung", "kung", "dapat", "wala", "meron", "nasa", "para", "lang", "rin",
@@ -67,7 +78,7 @@ def format_context(chunks: Sequence[Passage]) -> str:
     )
 
 def build_messages(question: str, chunks: Sequence[Passage], history: Sequence[str] = ()) -> list[dict]:
-    system = SYSTEM_PROMPT + "\n\n" + RAG_TEMPLATE.replace("{{CONTEXT}}", format_context(chunks))
+    system = SYSTEM_PROMPT + "\n\n" + TONE + "\n\n" + RAG_TEMPLATE.replace("{{CONTEXT}}", format_context(chunks))
     if history:
         earlier = "\n".join(f"- {q}" for q in history[-MAX_HISTORY:])
         system += "\n\n" + EARLIER_QUESTIONS.replace("{{QUESTIONS}}", earlier)

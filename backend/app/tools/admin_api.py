@@ -19,7 +19,8 @@ from typing import Literal
 import requests
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field, SecretStr, ValidationError
-from sqlalchemy import text
+from sqlalchemy import create_engine, make_url, text
+from sqlalchemy.pool import NullPool
 
 from app.auth.a_schemas.app_principal import AppPrincipal
 from app.auth.e_dependencies.require_scope import require_scope
@@ -79,12 +80,23 @@ class ConnectionOut(ConnectionIn):
     usable: bool  # enabled, records source fits, secret set
 
 
+class DatabaseInfo(BaseModel):
+    """Where one of our servers reads its data (never the password), and whether its reader can log in right now."""
+    host: str | None
+    port: int | None
+    database: str | None
+    user: str | None
+    reachable: bool
+    error: str | None  # "not configured", "invalid address" or the error's type name; None when reachable
+
+
 class ConnectionTest(BaseModel):
     name: str
     ok: bool
     tools: list[str]
     error: str | None
     seconds: float
+    database: DatabaseInfo | None = None  # only for our stdio servers that read a database (DATABASE_URLS)
 
 
 class ToolOut(BaseModel):
@@ -294,15 +306,43 @@ def delete_connection(
 # --- status ---------------------------------------------------------------------------------------------------
 
 
+# Our stdio servers that read a database, and the .env variable with its address. Listing a server's tools never
+# touches its database, so the status also logs in with that address once (SELECT 1) to show it really answers.
+DATABASE_URLS = {"records": "ITI_RECORDS_DB_URL", "hrdotnet": "ITI_HRDOTNET_DB_URL"}
+DATABASE_CHECK_TIMEOUT_S = 5
+
+
+def database_of(entry: dict) -> DatabaseInfo | None:
+    env = DATABASE_URLS.get(entry.get("server") or "") if entry.get("transport") == "stdio" else None
+    if env is None:
+        return None
+    raw = read_secret(env)
+    if not raw:
+        return DatabaseInfo(host=None, port=None, database=None, user=None, reachable=False, error="not configured")
+    try:
+        url = make_url(raw)
+    except Exception:  # noqa: BLE001  (the message could quote the address, password included)
+        return DatabaseInfo(host=None, port=None, database=None, user=None, reachable=False, error="invalid address")
+    try:
+        engine = create_engine(url, poolclass=NullPool, connect_args={"timeout": DATABASE_CHECK_TIMEOUT_S})
+        with engine.connect() as db:
+            db.execute(text("SELECT 1"))
+        reachable, error = True, None
+    except Exception as e:  # noqa: BLE001  (the type name only, never a secret)
+        reachable, error = False, type(e).__name__
+    return DatabaseInfo(host=url.host, port=url.port, database=url.database, user=url.username,
+                        reachable=reachable, error=error)
+
+
 def test_one(entry: dict) -> ConnectionTest:
     start = time.perf_counter()
     try:
         tools = client.list_mcp_tools(client.McpServerConfig.model_validate(entry))
-        return ConnectionTest(name=entry["name"], ok=True, tools=sorted(t.spec.name for t in tools), error=None,
-                              seconds=round(time.perf_counter() - start, 2))
-    except Exception as error:  # what went wrong, never a secret
-        return ConnectionTest(name=entry["name"], ok=False, tools=[], error=type(error).__name__,
-                              seconds=round(time.perf_counter() - start, 2))
+        ok, names, error = True, sorted(t.spec.name for t in tools), None
+    except Exception as e:  # what went wrong, never a secret
+        ok, names, error = False, [], type(e).__name__
+    return ConnectionTest(name=entry["name"], ok=ok, tools=names, error=error, database=database_of(entry),
+                          seconds=round(time.perf_counter() - start, 2))
 
 
 def post_connection_test(

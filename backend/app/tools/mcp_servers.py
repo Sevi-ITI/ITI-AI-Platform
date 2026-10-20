@@ -109,6 +109,12 @@ def get_my_leave_credits (
         return {"year": year, "credits": [dict(row._mapping) for row in rows]}
 
 
+# What each request status means (HRDotNet: Posted = IsPosted 1, Approved = IsPosted 0, both have an approval date).
+# Sent with every list of statuses, so the model never treats "approved" and "posted" as the same thing.
+STATUS_MEANINGS = ("filed = sent, waiting for review; reviewed = checked, waiting for approval; approved = approved, "
+                   "waiting for HR to post (apply) it; posted = approved AND already applied to timekeeping / payroll; "
+                   "partially posted = only part of it applied so far; cancelled = not in effect (withdrawn or not granted)")
+
 HRDOTNET_LEAVE_APPLICATIONS_SQL = text("""
     SELECT document_no, CONVERT(char(10), date_from, 23) AS date_from, CONVERT(char(10), date_to, 23) AS date_to,
            leave_name, day_part, CONVERT(varchar(12), CAST(days AS decimal(9, 2))) AS days, status,
@@ -134,7 +140,8 @@ def get_my_leave_applications(employee_id: str, date_from: date, date_to: date) 
     with get_hrdotnet_engine().connect() as conn:
         params = {"employee_id": employee_id, "date_from": date_from, "date_to": date_to}
         rows = conn.execute(HRDOTNET_LEAVE_APPLICATIONS_SQL, params)
-        return {"date_from": str(date_from), "date_to": str(date_to), "applications": [dict(row._mapping) for row in rows]}
+        return {"date_from": str(date_from), "date_to": str(date_to), "applications": [dict(row._mapping) for row in rows],
+                "status_meanings": STATUS_MEANINGS}
 
 # --- get_my_attendance: lates, undertime, absences, leave and overtime between two dates (ai.v_attendance) -----
 
@@ -312,6 +319,7 @@ def get_my_overtime(employee_id: str, date_from: date, date_to: date) -> dict:
         hours[OVERTIME_STATUS_GROUP.get(row["status"], "waiting")] += row["hours_filed"] or 0
     return {
         "date_from": str(date_from), "date_to": str(date_to), "applications_filed": len(rows),
+        "status_meanings": STATUS_MEANINGS,
         "hours_approved": as_text(hours["approved"]), "hours_waiting_for_approval": as_text(hours["waiting"]),
         "hours_cancelled": as_text(hours["cancelled"]),
         "applications": [
@@ -412,6 +420,7 @@ def get_my_requests(employee_id: str, date_from: date, date_to: date) -> dict:
         by_status[status] = by_status.get(status, 0) + 1
     return {
         "date_from": str(date_from), "date_to": str(date_to), "requests_filed": len(rows), "count_by_type": counts,
+        "status_meanings": STATUS_MEANINGS,
         "requests": [
             {"type": row["request_type"], "document_no": row["document_no"], "date_from": row["date_from"],
              "date_to": row["date_to"], "time_from": hhmm(row["time_from"]), "time_to": hhmm(row["time_to"]),

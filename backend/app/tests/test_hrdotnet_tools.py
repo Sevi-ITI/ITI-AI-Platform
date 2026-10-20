@@ -206,6 +206,7 @@ def test_overtime_hours_are_grouped_by_status(records):
     first = r["applications"][0]
     assert (first["time_start"], first["time_end"], first["hours_filed"], first["status"]) == ("18:00", "20:00", "2", "posted")
     assert r["applications"][2]["approved_on"] is None
+    assert r["status_meanings"] == mcp_servers.STATUS_MEANINGS
 
 
 def test_no_overtime_gives_zeros_and_bad_ranges_are_refused(records):
@@ -303,6 +304,8 @@ def test_requests_are_counted_per_type_and_status(records):
     missed = r["requests"][2]
     assert (missed["type"], missed["time_from"], missed["time_to"], missed["detail"], missed["status"]) == (
         "missed log", "17:05", None, "time out", "filed")
+    assert "approved = approved, waiting for HR to post" in r["status_meanings"]
+    assert "posted = approved AND already applied" in r["status_meanings"]
 
 
 def test_no_requests_and_bad_ranges(records):

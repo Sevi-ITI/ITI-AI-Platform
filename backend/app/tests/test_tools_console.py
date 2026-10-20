@@ -109,6 +109,26 @@ def test_connections_start_from_servers_py_and_never_show_a_secret(client, admin
     assert [c["what"] for c in client.get(f"{BASE}/changes", headers=admin).json()[:2]] == ["connection.delete", "connection.save"]
 
 
+def test_status_shows_where_a_server_reads_and_if_it_answers_never_the_password(monkeypatch):
+    import app.tools.admin_api as admin_api
+    from app.tools.admin_api import database_of, test_one
+
+    monkeypatch.setattr(admin_api, "DATABASE_CHECK_TIMEOUT_S", 1)  # nothing listens on port 1: don't wait 5 s
+    hrdotnet = {"name": "hrdotnet", "transport": "stdio", "server": "hrdotnet", "scope": "hrdotnet:read", "topics": ["leave"]}
+    monkeypatch.setattr(mcp_client, "list_mcp_tools", lambda config: [])  # no real server start
+    monkeypatch.setenv("ITI_HRDOTNET_DB_URL", "mssql+mssqlpython://hrdotnet_ai_reader:Sup3r-Secret-Pw@127.0.0.1:1/live_hr?Encrypt=yes")
+    result = test_one(hrdotnet)
+    db = result.database
+    assert (db.host, db.port, db.database, db.user, db.reachable) == ("127.0.0.1", 1, "live_hr", "hrdotnet_ai_reader", False)
+    assert db.error and "Sup3r-Secret-Pw" not in result.model_dump_json()  # nothing on port 1: refused, password never shown
+
+    monkeypatch.setenv("ITI_HRDOTNET_DB_URL", "not an address with Sup3r-Secret-Pw")
+    assert database_of(hrdotnet).error == "invalid address"
+    monkeypatch.delenv("ITI_HRDOTNET_DB_URL")
+    assert database_of(hrdotnet).error == "not configured"
+    assert database_of({"name": "x", "transport": "http", "url": "https://x.iti.local/mcp"}) is None  # not ours: no database line
+
+
 def test_connection_rules(client, admin):
     http_to_lan = {"transport": "http", "url": "http://10.0.0.5/mcp", "token_env": "ITI_MCP_X_TOKEN", "scope": "s", "topics": ["t"]}
     r = client.put(f"{BASE}/connections/lanbox", headers=admin, json=http_to_lan)

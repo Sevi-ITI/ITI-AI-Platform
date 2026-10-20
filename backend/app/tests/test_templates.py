@@ -1,7 +1,7 @@
 """The .example templates (Phase 8.6b E4, 8.6c layout) must keep working when the real code changes: each is run
 as Python here, pasted where its header says (a tool section at the end of tools.py, a server section into
-mcp_servers.py, a route on its own). And the system prompt with the three records tools must stay word for word
-the 8.1 spike's prompt (69/69 with it)."""
+mcp_servers.py, a route on its own). And the system prompt with the three records tools must START with the 8.1
+spike's rules word for word (69/69 with them); the tone section (2026-10-20) only comes after them."""
 
 from datetime import date
 from pathlib import Path
@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 from mcp.server.mcpserver import MCPServer
 
-from app.tools.host import system_prompt
+from app.tools.host import TONE, system_prompt
 from app.tools.shared import Tool
 from app.tools.tools import TOOL_REGISTRY
 
@@ -55,9 +55,10 @@ def test_the_route_template_runs():
     assert callable(run((APP / "route.py.example").read_text(encoding="utf-8"), "route.py.example")["get_new_route"])
 
 
-def test_prompt_with_the_records_tools_is_the_spikes_prompt():
+def test_prompt_with_the_records_tools_is_the_spikes_rules_then_the_tone():
     topics = [tool.topic for tool in TOOL_REGISTRY.values()]
-    assert system_prompt(topics, date(2026, 10, 13)) == SPIKE_PROMPT
+    assert system_prompt(topics, date(2026, 10, 13)) == SPIKE_PROMPT + "\n" + TONE
+    assert "every rule above still applies" in TONE
 
 
 @pytest.mark.parametrize("topics, expected", [
