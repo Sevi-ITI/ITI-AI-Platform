@@ -1,5 +1,5 @@
 """tools: ALL built-in tools. One concern per file (Phase 8.6c): every tool the chatbot can run itself is here,
-each in its own section, plus TOOLS at the bottom. The records MCP server (mcp_servers.py) offers the same list.
+each in its own section, plus TOOLS at the bottom. The records MCP server (systems/records.py) offers the same list.
 
 Change a tool: edit its section. Add a tool: copy new_tool.example to the end of this file, fill it in, and
 add it to TOOLS. Rules for every tool (the safety of the system depends on them):

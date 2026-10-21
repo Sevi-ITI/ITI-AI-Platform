@@ -3,6 +3,7 @@
 Rule 1: one function OR one class per file (constants allowed), and the file is named after it
         (main.py is the one exception: it is the name Uvicorn looks for). app/tools follows its own rule
         instead: ONE CONCERN PER FILE (Phase 8.6c): all tools in tools.py, all servers in servers.py, ...
+        and ONE FILE PER SYSTEM in app/tools/systems/ (2026-10-21): a system never imports another system.
 Rule 2: imports only point down: same feature -> same or earlier letter; other features -> only
         core/, auth/ and rag/ (admin/ may read every feature); core/ -> only core/ and rag/.
 """
@@ -24,10 +25,12 @@ TOOLS_FILES = {
     "sql_tools": {"shared"},
     "client": {"shared", "store"},
     "host": {"tools", "client", "shared", "store", "sql_tools", "console_features"},
-    "mcp_servers": {"tools", "shared"},
+    "mcp_servers": {"shared", "systems"},
     "admin_api": {"client", "store", "console_features", "gate", "host", "mcp_servers", "shared", "sql_tools", "tools"},
     "gate": {"store"},
 }
+# app/tools/systems: one file per system (2026-10-21), any name. What a system file may import (never another system).
+SYSTEM_IMPORTS = {"shared", "tools"}
 
 
 def source_files():
@@ -81,10 +84,13 @@ def test_tools_has_one_file_per_concern_importing_in_one_direction():
     for path, rel in source_files():
         if rel.parts[0] != "tools":
             continue
-        if len(rel.parts) != 2 or path.stem not in TOOLS_FILES:
-            problems.append(f"{rel}: app/tools has only the files {sorted(TOOLS_FILES)} (one concern per file, no folders)")
+        if len(rel.parts) == 3 and rel.parts[1] == "systems":
+            allowed = SYSTEM_IMPORTS
+        elif len(rel.parts) != 2 or path.stem not in TOOLS_FILES:
+            problems.append(f"{rel}: app/tools has only the files {sorted(TOOLS_FILES)} and systems/<name>.py (one concern per file)")
             continue
-        allowed = TOOLS_FILES[path.stem]
+        else:
+            allowed = TOOLS_FILES[path.stem]
         for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
             if isinstance(node, ast.ImportFrom) and node.module and node.module.startswith("app."):
                 parts = node.module.split(".")

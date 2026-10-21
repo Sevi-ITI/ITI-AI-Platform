@@ -2,13 +2,15 @@
 
 The chatbot answers from company documents (RAG) and, for keys with the right scope, from **tools**: small,
 read-only lookups such as "the asking employee's leave credits". Everything about tools is in this folder,
-**one concern per file**: to change or add something, you edit one file. All API routes: `app/ROUTES.md`.
+**one concern per file**, and **one file per system** in `systems/` (2026-10-21): to change or add something,
+you edit one file, and a change to one system's tools never touches another's. All API routes: `app/ROUTES.md`.
 
 | File | What is in it | You open it to... |
 |---|---|---|
 | `tools.py` | every built-in tool (leave credits, absences, deductions) + the list `TOOLS` | change or add a tool |
 | `servers.py` | the **starting set** of connections from the AI host to MCP servers (copied into the DB once; then the console manages them) | only for a fresh database |
-| `mcp_servers.py` | every MCP server we run ourselves (today: `records`) | add a server for a new system |
+| `systems/<name>.py` | **one file per system** we serve over MCP: its server, tools, SQL and helpers (today: `records.py`, `hrdotnet.py`). A system never imports another | change or add a tool of that system |
+| `mcp_servers.py` | the list `SERVERS` of our MCP servers (one per system file) + how one is started (stdio / `--http`) | list a new system |
 | `host.py` | the AI host: which tools a key gets, the system prompt, the tool loop, running a call | rarely: change how tools are used |
 | `client.py` | the MCP client: check a `servers.py` entry, connect, discover, call, cache | rarely: change how servers are reached |
 | `shared.py` | `ToolSpec`, `Tool`, the records DB engine, `read_secret`, `RECORDS_OF` | rarely |
@@ -16,7 +18,7 @@ read-only lookups such as "the asking employee's leave credits". Everything abou
 | `store.py` | the console's settings in Postgres: connections, records source, tool on/off, descriptions, SQL tools, change log | rarely |
 | `sql_tools.py` | the guards for SQL tools written in the console, and turning one into a tool | rarely |
 | `admin_api.py` | the API behind the console page (`/v1/admin/tools/...`), super admin only | rarely |
-| `new_tool.example`, `new_mcp_server.example` | templates: a section to paste into `tools.py` / `mcp_servers.py` | start a new tool / server |
+| `new_tool.example`, `systems/new_system.example` | templates: a section to paste into `tools.py` / a whole file to copy into `systems/` | start a new tool / system |
 
 ## How a question flows
 
@@ -77,7 +79,8 @@ the tools and a call gets `company_database_missing`, never another company's da
 | **Add a tool** on the records DB | Paste `new_tool.example` at the end of `tools.py`, fill it in, add it to `TOOLS`. It works built-in **and** over the records MCP server |
 | **Answer records through MCP instead of built-in** | Console → Tools & MCP → Records source → MCP (or `ITI_RECORDS_SOURCE=mcp` in `backend\.env` as the default). The AI host starts the records server itself |
 | **Connect an MCP server on another machine** | Put its secret in `backend\.env` (e.g. `ITI_MCP_PAYROLL_TOKEN=...`), then console → Tools & MCP → Add connection (http, url, that variable's name) |
-| **Add an MCP server for a new system on this machine** | Paste `new_mcp_server.example` into `mcp_servers.py`, add it to `SERVERS`, add its `servers.py` entry |
+| **Add a tool to a system** (e.g. HRDotNet) | A new section in `systems/hrdotnet.py` (SQL constant + `@hrdotnet.tool` function), then tick it on the app's card |
+| **Add an MCP server for a new system on this machine** | Copy `systems/new_system.example` to `systems/<name>.py`, add it to `SERVERS` in `mcp_servers.py`, add its `servers.py` entry (or console connection) |
 | **Switch a server or a tool off** | Console → Tools & MCP (connection: Enabled off; tool: its switch) |
 | **Give an app access** | Its key needs the tool's scope (`records:read`, "Chat + own records") AND the tool ticked on the app's card (Apps & keys → Tools it may use) |
 | **A new kind of access** (e.g. `tickets:read`) | Add it to `Scope` in `app/admin/a_schemas/key_create.py` (+ a console preset) |
@@ -109,5 +112,5 @@ Checks: from `backend\`: `ruff check .`, `pytest -q`, then `python -m scripts.ch
 
 `servers.py`, `shared.py`, `console_features.py` import no other tools file · `store.py` → servers · `tools.py`, `sql_tools.py`
 → shared · `client.py` → shared, store · `host.py` → tools, client, shared, store, sql_tools, console_features ·
-`mcp_servers.py` → tools, shared · `admin_api.py` → the others. In `app/tools/` the rule is one concern per
-file; everywhere else in the backend it stays one function or one class per file.
+`systems/<name>.py` → shared, tools (never another system) · `mcp_servers.py` → shared, systems · `admin_api.py` → the
+others. In `app/tools/` the rule is one concern per file and one file per system; everywhere else in the backend it stays one function or one class per file.

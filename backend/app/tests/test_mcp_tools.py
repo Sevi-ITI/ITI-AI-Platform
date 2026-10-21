@@ -217,7 +217,8 @@ def test_the_host_starts_the_records_server_over_stdio(servers):
 
 
 def test_records_server_offers_the_whole_of_tools_py_and_its_http_mode_needs_the_secret():
-    from app.tools.mcp_servers import build_http_app, records
+    from app.tools.mcp_servers import build_http_app
+    from app.tools.systems.records import records
 
     async def names():
         async with Client(records) as session:
@@ -241,7 +242,7 @@ def test_over_stdio_the_records_server_answers_for_the_injected_employee_only(se
 
 @needs_records_db
 def test_records_server_refuses_bad_arguments_with_a_message(servers, monkeypatch):
-    from app.tools.mcp_servers import records
+    from app.tools.systems.records import records
 
     monkeypatch.setattr(get_settings(), "records_db_url", RECORDS_URL)
     get_records_engine.cache_clear()

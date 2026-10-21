@@ -9,8 +9,8 @@ from decimal import Decimal
 import pytest
 from mcp.server.mcpserver.exceptions import ToolError
 
-import app.tools.mcp_servers as mcp_servers
-from app.tools.mcp_servers import (
+import app.tools.systems.hrdotnet as hrdotnet_system
+from app.tools.systems.hrdotnet import (
     get_my_attendance,
     get_my_employment_info,
     get_my_overtime,
@@ -51,7 +51,7 @@ def records(monkeypatch):
         def connect(self):
             return Conn()
 
-    monkeypatch.setattr(mcp_servers, "get_hrdotnet_engine", lambda: Engine())
+    monkeypatch.setattr(hrdotnet_system, "get_hrdotnet_engine", lambda: Engine())
 
     def use(rows):
         seen["rows"] = rows
@@ -120,9 +120,9 @@ def schedules(monkeypatch):
 
     def use(changes=(), weekly=(), usual=()):
         by_sql = {
-            mcp_servers.HRDOTNET_SCHEDULE_CHANGES_SQL: changes,
-            mcp_servers.HRDOTNET_WEEKLY_SCHEDULE_SQL: weekly,
-            mcp_servers.HRDOTNET_DEFAULT_SCHEDULE_SQL: usual,
+            hrdotnet_system.HRDOTNET_SCHEDULE_CHANGES_SQL: changes,
+            hrdotnet_system.HRDOTNET_WEEKLY_SCHEDULE_SQL: weekly,
+            hrdotnet_system.HRDOTNET_DEFAULT_SCHEDULE_SQL: usual,
         }
 
         class Conn:
@@ -136,7 +136,7 @@ def schedules(monkeypatch):
             def __exit__(self, *_):
                 return False
 
-        monkeypatch.setattr(mcp_servers, "get_hrdotnet_engine", lambda: type("Engine", (), {"connect": lambda self: Conn()})())
+        monkeypatch.setattr(hrdotnet_system, "get_hrdotnet_engine", lambda: type("Engine", (), {"connect": lambda self: Conn()})())
 
     return use
 
@@ -206,7 +206,7 @@ def test_overtime_hours_are_grouped_by_status(records):
     first = r["applications"][0]
     assert (first["time_start"], first["time_end"], first["hours_filed"], first["status"]) == ("18:00", "20:00", "2", "posted")
     assert r["applications"][2]["approved_on"] is None
-    assert r["status_meanings"] == mcp_servers.STATUS_MEANINGS
+    assert r["status_meanings"] == hrdotnet_system.STATUS_MEANINGS
 
 
 def test_no_overtime_gives_zeros_and_bad_ranges_are_refused(records):
@@ -233,7 +233,7 @@ def punches(monkeypatch):
         class Conn:
             def execute(self, sql, params):
                 assert params["employee_id"] == "44"
-                if sql is mcp_servers.HRDOTNET_LATEST_PUNCH_SQL:
+                if sql is hrdotnet_system.HRDOTNET_LATEST_PUNCH_SQL:
                     return Result([latest] if latest else [])
                 return Result(type("Row", (), {"_mapping": r})() for r in rows)
 
@@ -243,7 +243,7 @@ def punches(monkeypatch):
             def __exit__(self, *_):
                 return False
 
-        monkeypatch.setattr(mcp_servers, "get_hrdotnet_engine", lambda: type("Engine", (), {"connect": lambda self: Conn()})())
+        monkeypatch.setattr(hrdotnet_system, "get_hrdotnet_engine", lambda: type("Engine", (), {"connect": lambda self: Conn()})())
 
     return use
 
@@ -332,8 +332,8 @@ def employment(monkeypatch):
         class Conn:
             def execute(self, sql, params):
                 assert params == {"employee_id": "44"}
-                rows = [record] if sql is mcp_servers.HRDOTNET_EMPLOYMENT_SQL and record else []
-                rows = list(movements) if sql is mcp_servers.HRDOTNET_MOVEMENTS_SQL else rows
+                rows = [record] if sql is hrdotnet_system.HRDOTNET_EMPLOYMENT_SQL and record else []
+                rows = list(movements) if sql is hrdotnet_system.HRDOTNET_MOVEMENTS_SQL else rows
                 return Result(type("Row", (), {"_mapping": r})() for r in rows)
 
             def __enter__(self):
@@ -342,7 +342,7 @@ def employment(monkeypatch):
             def __exit__(self, *_):
                 return False
 
-        monkeypatch.setattr(mcp_servers, "get_hrdotnet_engine", lambda: type("Engine", (), {"connect": lambda self: Conn()})())
+        monkeypatch.setattr(hrdotnet_system, "get_hrdotnet_engine", lambda: type("Engine", (), {"connect": lambda self: Conn()})())
 
     return use
 
@@ -376,4 +376,4 @@ def test_an_ended_employment_counts_service_to_its_end_and_a_missing_record_says
      (date(2025, 10, 21), date(2026, 10, 20), "11 months"), (date(2023, 3, 15), date(2026, 10, 20), "3 years and 7 months")],
 )
 def test_service_length_counts_whole_months(start, end, text):
-    assert mcp_servers.service_length(start, end) == text
+    assert hrdotnet_system.service_length(start, end) == text

@@ -1,6 +1,6 @@
 """The .example templates (Phase 8.6b E4, 8.6c layout) must keep working when the real code changes: each is run
-as Python here, pasted where its header says (a tool section at the end of tools.py, a server section into
-mcp_servers.py, a route on its own). And the system prompt with the three records tools must START with the 8.1
+as Python here, where its header says (a tool section at the end of tools.py, a whole system file in
+tools/systems/, a route on its own). And the system prompt with the three records tools must START with the 8.1
 spike's rules word for word (69/69 with them); the tone section (2026-10-20) only comes after them."""
 
 from datetime import date
@@ -36,7 +36,7 @@ def run(source: str, name: str) -> dict:
 
 def test_there_is_a_template_for_tools_servers_and_routes():
     assert sorted(p.relative_to(APP).as_posix() for p in APP.rglob("*.example")) == [
-        "route.py.example", "tools/new_mcp_server.example", "tools/new_tool.example",
+        "route.py.example", "tools/new_tool.example", "tools/systems/new_system.example",
     ]
 
 
@@ -46,9 +46,9 @@ def test_the_tool_template_works_at_the_end_of_tools_py():
     assert isinstance(tool, Tool) and "employee" not in str(tool.spec.parameters).lower()
 
 
-def test_the_server_template_works_inside_mcp_servers_py():
-    source = (TOOLS / "mcp_servers.py").read_text(encoding="utf-8") + (TOOLS / "new_mcp_server.example").read_text(encoding="utf-8")
-    assert isinstance(run(source, "mcp_servers.py + new_mcp_server.example")["new_name"], MCPServer)
+def test_the_system_template_works_as_its_own_file():
+    source = (TOOLS / "systems" / "new_system.example").read_text(encoding="utf-8")
+    assert isinstance(run(source, "systems/new_system.example")["new_name"], MCPServer)
 
 
 def test_the_route_template_runs():

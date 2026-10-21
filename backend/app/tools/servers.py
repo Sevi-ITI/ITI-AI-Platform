@@ -2,8 +2,8 @@
 server, add one entry to MCP_SERVERS below (copy an EXAMPLE). No secrets here: they live only in backend\\.env.
 
 Two ways to connect:
-- "stdio": a server that runs on THIS machine and lives in app/tools/mcp_servers.py. The AI host starts it itself
-  when it needs it: no extra window, no port, no secret (only the host that started it can talk to it).
+- "stdio": a server that runs on THIS machine: listed in app/tools/mcp_servers.py, its code in app/tools/systems/.
+  The AI host starts it itself when it needs it: no extra window, no port, no secret (only the host that started it can talk to it).
 - "http":  a server somewhere else (e.g. a C# payroll MCP server). Needs a url (https unless 127.0.0.1 / localhost)
   and a shared secret in backend\\.env under "token_env".
 
@@ -44,6 +44,7 @@ MCP_SERVERS = [
 #       "enabled": True,
 #   },
 #
-# EXAMPLE, a second server on this machine (add its section to app/tools/mcp_servers.py first):
+# EXAMPLE, a second server on this machine (copy app/tools/systems/new_system.example to systems/overtime.py and add
+# it to SERVERS in app/tools/mcp_servers.py first):
 #   {"name": "overtime", "transport": "stdio", "server": "overtime", "scope": "records:read",
 #    "topics": ["overtime"], "enabled": True},

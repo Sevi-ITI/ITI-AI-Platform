@@ -1,0 +1,23 @@
+"""TEMPLATE: a new system's MCP server, one file per system (like .env.example). Copy this file to
+app/tools/systems/new_name.py and replace every CAPITAL placeholder. Then:
+1. Add it to SERVERS in app/tools/mcp_servers.py (import it at the top):   "new_name": (new_name, 8102, "ITI_MCP_NEW_NAME_TOKEN"),
+2. Add its entry to app/tools/servers.py (or add the connection on the console's Tools & MCP page):
+       {"name": "new_name", "transport": "stdio", "server": "new_name", "scope": "new_name:read",
+        "topics": ["NEW_TOPIC"], "enabled": True},
+3. Restart uvicorn (the AI host starts the server itself), then ruff + pytest; tick its tools on the app's card.
+(More records tools? Add them to tools.py instead: the records server offers the whole of tools.py.)
+Rules: this file imports only app.tools.shared (never another system); every per-employee tool takes employee_id
+(the AI host fills it in, the model never sees it); read-only; errors as ToolError("what was wrong"), never with
+other people's data."""
+
+from mcp.server.mcpserver import MCPServer
+from mcp.server.mcpserver.exceptions import ToolError
+
+new_name = MCPServer("new_name", instructions="NEW_SYSTEM (read-only). Every tool answers for ONE employee.")
+
+
+@new_name.tool(description="Get the CURRENT USER's own NEW_WHAT. Not for NEW_WHAT_NOT.")
+def get_my_new_thing(employee_id: str) -> dict:
+    if not employee_id:
+        raise ToolError("employee_id is missing")
+    return {"items": []}  # replace: read NEW_SYSTEM (its URL / key from backend\.env via read_secret) for this employee
