@@ -74,6 +74,21 @@ STATUS_MEANINGS = ("filed = sent, waiting for review; reviewed = checked, waitin
                    "waiting for HR to post (apply) it; posted = approved AND already applied to timekeeping / payroll; "
                    "partially posted = only part of it applied so far; cancelled = not in effect (withdrawn or not granted)")
 
+# --- dates left out: each tool's default period (Vince, 2026-10-21) ---------------------------------------------
+# A question without a period ("what is my schedule?") must still reach the tool. With required dates the model asked
+# for them instead (5/5), and that reply never reaches the employee: no tool call = a documents question.
+
+
+def day_arg(which: str, default: str):
+    """An optional date argument: the model may leave it out, then the tool's default period applies."""
+    return Annotated[date | None, Field(description=f"{which} day, e.g. 2026-10-01. Leave both dates out for {default}")]
+
+
+def period(date_from: date | None, date_to: date | None, default_from: date, default_to: date) -> tuple[date, date]:
+    """The dates asked for, with this tool's default for any date left out."""
+    return date_from or default_from, date_to or default_to
+
+
 HRDOTNET_LEAVE_APPLICATIONS_SQL = text("""
     SELECT document_no, CONVERT(char(10), date_from, 23) AS date_from, CONVERT(char(10), date_to, 23) AS date_to,
            leave_name, day_part, CONVERT(varchar(12), CAST(days AS decimal(9, 2))) AS days, status,
@@ -87,11 +102,18 @@ HRDOTNET_LEAVE_APPLICATIONS_SQL = text("""
 @hrdotnet.tool(
     description="Get the CURRENT USER's own leave APPLICATIONS between two dates: dates, leave type, whole or half "
     "day, number of days, status (filed, reviewed, approved, posted, cancelled) and filing date. "
-    "Not for balances: use get_my_leave_credits for those."
+    "Not for balances: use get_my_leave_credits for those. Leave the dates out when the question gives no period "
+    "(then: this calendar year)."
 )
-def get_my_leave_applications(employee_id: str, date_from: date, date_to: date) -> dict:
+def get_my_leave_applications(
+    employee_id: str,
+    date_from: day_arg("First", "this calendar year") = None,
+    date_to: day_arg("Last", "this calendar year") = None,
+) -> dict:
     if not employee_id:
         raise ToolError("employee_id is missing")
+    today = date.today()
+    date_from, date_to = period(date_from, date_to, date(today.year, 1, 1), date(today.year, 12, 31))
     if date_from > date_to:
         raise ToolError("date_from is after date_to")
     if (date_to - date_from).days > 366:
@@ -125,11 +147,18 @@ def as_text(value) -> str:
     description="Get the CURRENT USER's own ATTENDANCE between two dates (at most 3 months): totals of days late and "
     "minutes late, undertime, absences, leave days and overtime hours, plus each day worth noting (late, undertime, "
     "absent, on leave, or no time in / out) with its times. Use it for questions about being late, absent or tardy. "
-    "Not for leave balances (get_my_leave_credits) or leave applications (get_my_leave_applications)."
+    "Not for leave balances (get_my_leave_credits) or leave applications (get_my_leave_applications). "
+    "Leave the dates out when the question gives no period (then: this month so far)."
 )
-def get_my_attendance(employee_id: str, date_from: date, date_to: date) -> dict:
+def get_my_attendance(
+    employee_id: str,
+    date_from: day_arg("First", "this month so far") = None,
+    date_to: day_arg("Last", "this month so far") = None,
+) -> dict:
     if not employee_id:
         raise ToolError("employee_id is missing")
+    today = date.today()
+    date_from, date_to = period(date_from, date_to, today.replace(day=1), today)
     if date_from > date_to:
         raise ToolError("date_from is after date_to")
     if (date_to - date_from).days > 92:
@@ -211,12 +240,19 @@ def shift_of(row: dict, source: str) -> dict | None:
 @hrdotnet.tool(
     description="Get the CURRENT USER's own work SCHEDULE for each day between two dates (at most 31 days): the shift "
     "with its start and end time, or rest day, with approved schedule changes applied. Use it for questions like "
-    "'what is my shift tomorrow', 'am I off on Saturday' or 'my schedule next week'. "
-    "Not for attendance, lates or absences (get_my_attendance)."
+    "'what is my shift tomorrow', 'am I off on Saturday', 'my schedule next week' or 'what is my schedule'. "
+    "Not for attendance, lates or absences (get_my_attendance). "
+    "Leave the dates out when the question gives no period (then: today and the next 6 days)."
 )
-def get_my_schedule(employee_id: str, date_from: date, date_to: date) -> dict:
+def get_my_schedule(
+    employee_id: str,
+    date_from: day_arg("First", "today and the next 6 days") = None,
+    date_to: day_arg("Last", "today and the next 6 days") = None,
+) -> dict:
     if not employee_id:
         raise ToolError("employee_id is missing")
+    today = date.today()
+    date_from, date_to = period(date_from, date_to, today, today + timedelta(days=6))
     if date_from > date_to:
         raise ToolError("date_from is after date_to")
     if (date_to - date_from).days > 31:
@@ -261,11 +297,18 @@ OVERTIME_STATUS_GROUP = {"Posted": "approved", "Approved": "approved", "Filed": 
     description="Get the CURRENT USER's own OVERTIME applications between two dates (at most 3 months): each with its "
     "date, start and end time, hours filed and status (filed, reviewed, approved, posted, cancelled), plus the hours "
     "approved, waiting and cancelled in total. Use it for questions like 'was my overtime approved'. The overtime "
-    "hours actually paid after processing come from get_my_attendance."
+    "hours actually paid after processing come from get_my_attendance. "
+    "Leave the dates out when the question gives no period (then: the last 30 days)."
 )
-def get_my_overtime(employee_id: str, date_from: date, date_to: date) -> dict:
+def get_my_overtime(
+    employee_id: str,
+    date_from: day_arg("First", "the last 30 days") = None,
+    date_to: day_arg("Last", "the last 30 days") = None,
+) -> dict:
     if not employee_id:
         raise ToolError("employee_id is missing")
+    today = date.today()
+    date_from, date_to = period(date_from, date_to, today - timedelta(days=30), today)
     if date_from > date_to:
         raise ToolError("date_from is after date_to")
     if (date_to - date_from).days > 92:
@@ -308,11 +351,18 @@ TIME_LOGS_NOTE = ("Punches are not marked as in or out: the first of a day is us
 @hrdotnet.tool(
     description="Get the CURRENT USER's own raw clock PUNCHES (biometric time logs) per day between two dates (at most "
     "31 days), and the dates without any punch. Use it for questions like 'what time did I clock in on Monday' or "
-    "'did my log register'. Not for lates or absences after processing (get_my_attendance)."
+    "'did my log register'. Not for lates or absences after processing (get_my_attendance). "
+    "Leave the dates out when the question gives no period (then: the last 7 days)."
 )
-def get_my_time_logs(employee_id: str, date_from: date, date_to: date) -> dict:
+def get_my_time_logs(
+    employee_id: str,
+    date_from: day_arg("First", "the last 7 days") = None,
+    date_to: day_arg("Last", "the last 7 days") = None,
+) -> dict:
     if not employee_id:
         raise ToolError("employee_id is missing")
+    today = date.today()
+    date_from, date_to = period(date_from, date_to, today - timedelta(days=6), today)
     if date_from > date_to:
         raise ToolError("date_from is after date_to")
     if (date_to - date_from).days > 31:
@@ -360,11 +410,18 @@ HRDOTNET_REQUESTS_SQL = text("""
     "work outside the office: where and when), MISSED LOG (a forgotten time in or time out filed afterwards) and "
     "OFFSET, each with its status (filed, reviewed, approved, posted, cancelled). Use it for questions like 'was my OB "
     "approved' or 'what happened to my missed log'. Not for leave (get_my_leave_applications) or overtime "
-    "(get_my_overtime)."
+    "(get_my_overtime). Leave the dates out when the question names no date or period, e.g. 'what happened to my "
+    "OB request' (then: the last 30 days); never use only today's date for that."
 )
-def get_my_requests(employee_id: str, date_from: date, date_to: date) -> dict:
+def get_my_requests(
+    employee_id: str,
+    date_from: day_arg("First", "the last 30 days") = None,
+    date_to: day_arg("Last", "the last 30 days") = None,
+) -> dict:
     if not employee_id:
         raise ToolError("employee_id is missing")
+    today = date.today()
+    date_from, date_to = period(date_from, date_to, today - timedelta(days=30), today)
     if date_from > date_to:
         raise ToolError("date_from is after date_to")
     if (date_to - date_from).days > 92:

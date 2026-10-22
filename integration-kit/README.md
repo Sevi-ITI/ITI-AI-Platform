@@ -26,6 +26,9 @@ description as JSON: `<base URL>v1/openapi.json`. These are real calls: use a te
 - The **browser never calls the AI service** and never sees the key.
 - Your server sends **who is asking** (`ITI-User-Id`) from its own login session.
 - Nothing else is shared: **your database tables don't need to match ours.** The only link is the JSON above.
+- **No CORS on the AI service, on purpose.** A browser calling it directly is blocked; that is the wall that keeps
+  the key and `ITI-User-Id` out of the page. Your page calls your own server, so CORS never comes up
+  (see "Your frontend" below).
 
 ## What you get from Vince (ITI AI admin)
 
@@ -201,6 +204,81 @@ better generated questions may come later in the same shape, so your code won't 
 On `document_exists`, ask the user "Replace the existing file?" and upload again with `replace: true`.
 `DeleteDocumentAsync` removes a file and all its versions. PDF only, up to 50 MB.
 
+## Your frontend (the browser part)
+
+The page talks **only to your .NET server**, with the routes from `ChatController.cs` (`[Route("api/assistant")]`).
+The person is already signed in to your app, so the browser sends your login cookie, nothing else:
+
+| Page does | Your server route | Body / reply |
+|---|---|---|
+| ask | `POST /api/assistant/ask` | `{ "question": "...", "conversationId": null }` → `{ answer, found, citations, conversationId, requestId }` |
+| ask, word by word | `POST /api/assistant/ask/stream` | same body → one JSON object per line (`meta`, `token`..., `done`) |
+| chips | `GET /api/assistant/suggestions` | `[{ question, file }]` |
+| refused | any of the above | status 502 / 503 with `{ kind: "error", message, requestId }`: show `message` |
+
+**Ask** (plain JavaScript; the same `fetch` works in React, Angular, Vue):
+
+```js
+let conversationId = null;   // keep it for follow-up questions; null = new chat
+
+async function ask(question) {
+  const res = await fetch("/api/assistant/ask", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",                        // your login cookie; no key, no user id
+    body: JSON.stringify({ question, conversationId }),
+  });
+  const data = await res.json();
+  if (!res.ok) return showError(data.message);         // your own words, from ChatController.Refusal
+  conversationId = data.conversationId;
+  showAnswer(data.answer, data.found, data.citations); // answer is Markdown; citations: title + page
+}
+```
+
+**Ask, word by word** (reads the one-object-per-line stream from `AskStream`):
+
+```js
+async function askStream(question, box) {
+  const res = await fetch("/api/assistant/ask/stream", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify({ question, conversationId }),
+  });
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let end;
+    while ((end = buffer.indexOf("\n")) >= 0) {        // one JSON object per line
+      const line = buffer.slice(0, end);
+      buffer = buffer.slice(end + 1);
+      if (!line) continue;
+      const e = JSON.parse(line);
+      if (e.kind === "meta") conversationId = e.conversationId;
+      else if (e.kind === "token") box.textContent += e.text;
+      else if (e.kind === "done") showAnswer(e.answer, e.found, e.citations);   // REPLACES the tokens
+      else if (e.kind === "error") showError(e.message);
+    }
+  }
+}
+```
+
+**Frontend on its own dev server** (e.g. Vite on `localhost:5173`, your .NET API on `localhost:5001`): the
+browser sees two origins and blocks the call (CORS). Don't add CORS anywhere; let the dev server forward
+`/api` to your .NET server, so the page keeps one origin. Vite:
+
+```js
+// vite.config.js
+export default { server: { proxy: { "/api": { target: "https://localhost:5001", changeOrigin: true, secure: false } } } };
+```
+
+(`secure: false` only because it's your own local .NET dev certificate. Angular: `proxy.conf.json`, same idea.)
+In production, serve the built page from the same site as your .NET server, or put both behind one address.
+
 ## Errors
 
 Every refusal throws **`ItiAiException`** with `Status`, `Code`, `Message` and `RequestId`.
@@ -239,6 +317,80 @@ line and `ALL PASSED`. A `FAIL` line names the field or error code.
 Only if your key also has `documents:write`: add a company policy PDF you know (never a file with personal data)
 as a second argument. The test then also uploads a copy named `kit-smoke-upload.pdf`, waits for indexing and
 deletes it again: 11 `PASS` lines.
+
+## Last resort: a demo without your .NET server
+
+Only to prove the connection works (a demo, a first test) **before** your .NET server is ready. Never deployed,
+never on a shared machine. The trick is the same dev-server forwarding as above, pointed straight at the AI
+service: the dev server (Node, on your PC) adds the key and the user id, so they still never reach the page,
+and the page still sees one origin (no CORS).
+
+**Ask Vince first for:** a separate **demo key** (chat only, no tools, revoked after the demo) and your PC's IP
+allowed through to port 8443.
+
+**1. `.env.local`** next to `vite.config.js` (git-ignored; **no `VITE_` prefix**, so Vite never puts it in the page):
+
+```
+ITI_URL=https://ITI-Vinas.ho.intellismartinc.com:8443
+ITI_KEY=iti_sk_...
+ITI_DEMO_USER=demo-frontend-1
+```
+
+`ITI_DEMO_USER` is a made-up test id, **never a real employee's id**: every visitor of the demo page is that one user.
+
+**2. `vite.config.js`** (demo only):
+
+```js
+import { defineConfig, loadEnv } from "vite";
+
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), "ITI_");   // read by the dev server only, not sent to the page
+  return {
+    server: {
+      host: "localhost",                              // never --host: anyone on the LAN could use your key
+      proxy: {
+        "/iti": {
+          target: env.ITI_URL,
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/iti/, ""),
+          // lower case ON PURPOSE: browsers send header names in lower case, so these REPLACE whatever the page sends
+          headers: { "iti-api-key": env.ITI_KEY, "iti-user-id": env.ITI_DEMO_USER },
+        },
+      },
+    },
+  };
+});
+```
+
+**3. Trust ITI's certificate in Node** (Node ignores the Windows certificate store). Start the dev server with
+ITI's root certificate (the `root.crt` IT pushes; ask Vince for the file), never with certificate checks off:
+
+```powershell
+$env:NODE_EXTRA_CA_CERTS = "C:\certs\iti-root.crt"
+npm run dev
+```
+
+**4. Ask from the page.** The AI service's own JSON (snake_case, not your server's camelCase):
+
+```js
+const res = await fetch("/iti/v1/chat", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ question: "What is the dress code?", collection: "iti-docs", conversation_id: null }),
+});
+const data = await res.json();
+// ok:      { answer, found, citations: [{ doc_id, title, page, snippet }], conversation_id, request_id }
+// refused: { error: { code, message }, request_id }
+console.log(res.status, data);
+```
+
+**Expected:** `200` with an `answer` and `found: true`. `401 invalid_api_key` = the key in `.env.local`
+(the connection itself works). `500` with `http proxy error ... unable to get local issuer certificate` in the dev
+server's terminal = step 3 (restart `npm run dev` after setting it); `500` with a timeout or `ECONNREFUSED` there
+= port 8443 not open for your PC. `404` = the `/iti` rewrite.
+
+When your .NET server is ready: delete the `/iti` proxy and `.env.local`, switch the page to `/api/assistant/...`,
+and tell Vince to revoke the demo key.
 
 ## Support and changes
 

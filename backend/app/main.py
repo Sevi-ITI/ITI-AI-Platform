@@ -10,6 +10,7 @@ from app.chat.f_routes.router import router as chat_router
 from app.chat_docs_router import chat_docs_router
 from app.console.f_routes.router import router as console_router
 from app.core.e_errors.register_error_handlers import register_error_handlers
+from app.core.i_middleware.add_cors import add_cors
 from app.core.i_middleware.request_id_and_timing import request_id_and_timing
 from app.documents.f_routes.router import router as documents_router
 from app.lifespan import lifespan
@@ -25,6 +26,7 @@ def create_app() -> FastAPI:
                   swagger_ui_parameters={"syntaxHighlight.theme": "obsidian"})
     register_error_handlers(app)
     app.middleware("http")(request_id_and_timing)
+    add_cors(app)  # added last = runs first: answers the browser's preflight before anything else
     for router in ROUTERS:
         app.include_router(router)
     return app

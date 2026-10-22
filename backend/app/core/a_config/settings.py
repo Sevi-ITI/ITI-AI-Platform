@@ -33,7 +33,12 @@ class Settings(BaseSettings):
     # Records DB (Phase 8, SQL Server, read-only login iti_ai_reader). Empty = records tools off.
     # mssql+mssqlpython://iti_ai_reader:<password>@127.0.0.1:1433/iti_records?Encrypt=yes&TrustServerCertificate=yes
     records_db_url: str = ""
+
     # Who answers the records questions (Phase 8.6c): "builtin" = app/tools/tools.py reads the records DB itself;
     # "mcp" = the records MCP server in app/tools/servers.py ("records": True). MCP servers are listed in
     # app/tools/servers.py; only their secrets live in .env.
     records_source: Literal["builtin", "mcp"] = "builtin"
+
+    # Browser pages allowed to call the API directly (CORS, last resort for demos). Empty = off, the normal case:
+    # browser -> the app's own server -> this API. Exact addresses, a JSON list in .env: ["http://localhost:5173"].
+    cors_origins: list[str] = []

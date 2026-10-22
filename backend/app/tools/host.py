@@ -30,6 +30,12 @@ from app.tools.tools import TOOL_REGISTRY
 
 MAX_ROUNDS = 3
 NO_ANSWER = "I'm sorry, I couldn't find the answer to that in your records. HR will be glad to help you with it."
+# 2026-10-21: after an empty result the model sometimes called the SAME tool with the SAME arguments again (4/20), used
+# up the rounds, and the last call without tools then gave only "Let me look that up." A repeat is not run again (the
+# model is told its result is final), and the last call gets ANSWER_NOW first.
+REPEATED = "You already called this tool with these arguments: its result above is final. Answer from it now."
+ANSWER_NOW = ("Answer my question now, using only the tool results above. Don't say you will look something up: "
+              "give the answer (if a result is empty, say nothing is on file for that period).")
 
 # --- the documents signal -------------------------------------------------------------------------------------
 # Offered next to the tools. The model calls it for any question that is not about the user's own records; the
@@ -64,7 +70,11 @@ You are talking to ONE logged-in employee. You can only see THEIR OWN records.
 
 # No example ANSWERS in TONE: with "Sure! Here are your leave credits for 2026." in it the model answered leave
 # questions without calling the tool (2/6 vs 6/6, 2026-10-20). Describe the style; never show a sample reply.
-TONE = """How to answer (Markdown: the apps render it):
+# Its first line (2026-10-21): in Filipino, "start with one short friendly line" made the model greet and answer
+# WITHOUT the tool (about 2/15 called it; 15/15 without TONE; 40/40 with this line).
+TONE = """In ANY language (English, Filipino or Taglish): for the employee's OWN records, call the matching tool FIRST;
+never write a greeting or an answer before you have the tool result. About ANOTHER person: no tool (rule above).
+How to answer (Markdown: the apps render it):
 - Be warm, polite and glad to help, like a friendly customer service agent. Start with one short friendly line,
   then the answer.
 - Put the key fact in **bold**: the number, date or status the employee asked about, exactly as the tool gave it.
@@ -266,6 +276,7 @@ def answer_with_tools(
     system = system_prompt(topics_for(specs), date.today(), history)
     messages = [{"role": "system", "content": system}, {"role": "user", "content": question}]
     used, sources, found, tool_ms = [], [], False, 0
+    already_called: set[str] = set()  # name + arguments of every call made for this question
 
     for _ in range(MAX_ROUNDS):
         message = chat_with_tools(messages, tools)
@@ -277,6 +288,13 @@ def answer_with_tools(
         for call in calls:
             name, arguments = call["function"]["name"], call["function"].get("arguments")
             start, error_code = time.perf_counter(), None
+            same = f"{name} {json.dumps(arguments, sort_keys=True)}"
+            if same in already_called:
+                if trace is not None:
+                    trace.append({"tool": name, "arguments": arguments if isinstance(arguments, dict) else {}, "ms": 0, "error": "repeated_call"})
+                messages.append({"role": "tool", "tool_name": name, "content": json.dumps({"error": "repeated_call", "message": REPEATED})})
+                continue
+            already_called.add(same)
             try:
                 if name == DOCUMENTS_TOOL.name:
                     raise AppError(400, "tool_unknown", "Documents can't be searched here: answer from the records.")
@@ -294,8 +312,8 @@ def answer_with_tools(
             if trace is not None:
                 trace.append({"tool": name, "arguments": arguments if isinstance(arguments, dict) else {}, "ms": ms, "error": error_code})
             messages.append({"role": "tool", "tool_name": name, "content": content})
-    else:
-        message = chat_with_tools(messages, None)  # rounds used up: the model must answer now
+    else:  # rounds used up: the model must answer now
+        message = chat_with_tools(messages + [{"role": "user", "content": ANSWER_NOW}], None)
 
     if not used:
         return None

@@ -13,6 +13,7 @@ import app.tools.systems.hrdotnet as hrdotnet_system
 from app.tools.systems.hrdotnet import (
     get_my_attendance,
     get_my_employment_info,
+    get_my_leave_applications,
     get_my_overtime,
     get_my_requests,
     get_my_schedule,
@@ -377,3 +378,41 @@ def test_an_ended_employment_counts_service_to_its_end_and_a_missing_record_says
 )
 def test_service_length_counts_whole_months(start, end, text):
     assert hrdotnet_system.service_length(start, end) == text
+
+
+# --- dates left out (2026-10-21): a question without a period still reaches the tool, with its default period -----
+
+
+class FixedDate(date):
+    @classmethod
+    def today(cls):
+        return cls(2026, 10, 21)  # a Wednesday
+
+
+@pytest.mark.parametrize("tool, first, last", [
+    (get_my_leave_applications, date(2026, 1, 1), date(2026, 12, 31)),  # this calendar year
+    (get_my_attendance, date(2026, 10, 1), date(2026, 10, 21)),  # this month so far
+    (get_my_schedule, date(2026, 10, 21), date(2026, 10, 27)),  # today and the next 6 days
+    (get_my_overtime, date(2026, 9, 21), date(2026, 10, 21)),  # the last 30 days
+    (get_my_requests, date(2026, 9, 21), date(2026, 10, 21)),  # the last 30 days
+])
+def test_dates_left_out_use_the_tools_default_period(records, monkeypatch, tool, first, last):
+    monkeypatch.setattr(hrdotnet_system, "date", FixedDate)
+    seen = records([])
+    r = tool("44")
+    assert (seen["date_from"], seen["date_to"]) == (first, last)
+    assert (r["date_from"], r["date_to"]) == (str(first), str(last))
+
+
+def test_time_logs_without_dates_cover_the_last_7_days(punches, monkeypatch):
+    monkeypatch.setattr(hrdotnet_system, "date", FixedDate)
+    punches([], latest=date(2026, 10, 21))
+    r = get_my_time_logs("44")
+    assert (r["date_from"], r["date_to"]) == ("2026-10-15", "2026-10-21")
+
+
+def test_one_date_given_keeps_it_and_fills_only_the_other(records, monkeypatch):
+    monkeypatch.setattr(hrdotnet_system, "date", FixedDate)
+    seen = records([])
+    get_my_schedule("44", date_from=date(2026, 10, 23))
+    assert (seen["date_from"], seen["date_to"]) == (date(2026, 10, 23), date(2026, 10, 27))

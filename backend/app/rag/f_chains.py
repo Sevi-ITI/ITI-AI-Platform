@@ -137,6 +137,11 @@ def unsupported_numbers(answer: str, chunks: list[Passage]) -> list[str]:
         # "P100" in the source written as P100.00: same amount. Not when the source has 100.50.
         if number.endswith(".00") and re.search(rf"(?<!\d){re.escape(number[:-3])}(?!\d|[.,]\d)", allowed):
             continue
+        # "3-10" merged from "3-5" and "5-10": fine when both ends are in the sources.
+        if re.fullmatch(r"\d+-\d+", number) and all(
+            re.search(rf"(?<!\d){end}(?!\d)", allowed) for end in number.split("-")
+        ):
+            continue
         missing.append(number)
     return missing
 

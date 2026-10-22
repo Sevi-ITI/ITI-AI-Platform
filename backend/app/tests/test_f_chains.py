@@ -347,6 +347,13 @@ def test_ordinal_written_as_a_word_in_the_source(answer, expected):
     # F-E: the source says "Fifth Offense", the model may write "5th Offense".
     assert unsupported_numbers(answer, [OFFENSES]) == expected
 
+
+def test_a_range_merged_from_two_source_ranges_is_allowed():
+    # The model merged "3-5" and "5-10" into "3-10" (iti_req_e8971ccd49e1): both ends are in the source.
+    penalties = _chunk("code.pdf", 4, 0, "Suspension of 1-5 working days. Suspension of 3-5 or 5-10 working days.")
+    answer = "Suspension of 3-10 days, or 1-10 days [1]. Not 2-12 days [1]."
+    assert unsupported_numbers(answer, [penalties]) == ["2-12"]  # 12 is nowhere in the source
+
 # --- follow-up questions (D-6, SC-7) ---
 
 def test_without_history_the_search_uses_the_question_only(store, monkeypatch):

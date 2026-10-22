@@ -168,9 +168,21 @@ def test_a_tool_error_reaches_the_model_and_found_is_false(client, hr_records, m
 
 
 def test_rounds_are_capped_then_the_model_must_answer(client, hr_records, model, records_on, ran):
-    model.replies = [call("explain_my_deductions")] * 3 + [say("Done.")]
+    model.replies = [call("explain_my_deductions", pay_date=d) for d in ("2026-09-15", "2026-09-30", "2026-08-31")]
+    model.replies += [say("Done.")]
     assert client.post("/v1/chat", headers=hr_records, json=Q).json()["answer"] == "Done."
     assert len(model.seen) == 4 and model.seen[-1][1] is None and len(ran) == 3
+    assert model.seen[-1][0][-1] == {"role": "user", "content": awt.ANSWER_NOW}  # told to answer, not to "look it up"
+
+
+def test_a_repeated_identical_call_is_not_run_again(client, hr_records, model, records_on, ran):
+    """2026-10-21: after an empty result the model called the same tool with the same arguments again (4/20)."""
+    model.replies = [call("explain_my_deductions"), call("explain_my_deductions"), say("Nothing on file.")]
+    body = client.post("/v1/chat", headers=hr_records, json=Q).json()
+    assert body["answer"] == "Nothing on file." and len(ran) == 1  # the database was read once
+    repeat = json.loads(model.seen[2][0][-1]["content"])
+    assert repeat == {"error": "repeated_call", "message": awt.REPEATED}
+    assert last_log().tools == "explain_my_deductions"  # the request log lists only calls that ran
 
 
 def test_stream_sends_a_records_answer_as_one_token(client, hr_records, model, records_on, ran):
