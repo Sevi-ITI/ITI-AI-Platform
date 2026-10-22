@@ -11,7 +11,7 @@
           "ops"
         ],
         "summary": "Get Health",
-        "description": "Is the service up? Replies {\"status\": \"ok\"}. No key needed; checks neither the database nor the model.",
+        "description": "Is the service up? Replies {\"status\": \"ok\", \"how_to_call\": {...}}. No key needed; checks neither the database\nnor the model. `how_to_call` lists the headers and the collection format the chat routes expect (formats only).",
         "operationId": "get_health_health_get",
         "responses": {
           "200": {
@@ -19,9 +19,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "string"
-                  },
+                  "additionalProperties": true,
                   "type": "object",
                   "title": "Response Get Health Health Get"
                 }

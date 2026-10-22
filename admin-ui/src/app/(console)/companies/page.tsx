@@ -162,8 +162,9 @@ function CompanyCard({
                 done={`${c.name} deleted`}
               >
                 <p>
-                  Only a company with no collections and no keys (of any state) can be deleted. If it still has some, the
-                  reason is shown here: delete or move its collections and remove its apps&apos; keys first.
+                  Only a company with no collections and no working keys can be deleted; its revoked keys are deleted
+                  with it. If something is left, the reason is shown here: delete or move its collections and revoke its
+                  apps&apos; keys first.
                 </p>
               </ConfirmAction>
             )}

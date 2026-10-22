@@ -59,7 +59,7 @@ export async function testCompanyDatabase(
   return r.ok ? { ok: true, test: r.data } : { ok: false, message: displayMessage(r.error), status: r.error.status };
 }
 
-// Only a company that owns nothing (no collections, no keys of any state) can be deleted; FastAPI says what's left.
+// Only a company with no collections and no working keys can be deleted (its revoked keys go with it); FastAPI says what's left.
 export async function deleteCompany(companyId: string): Promise<ConfirmResult> {
   return result(
     await callApi((api) =>

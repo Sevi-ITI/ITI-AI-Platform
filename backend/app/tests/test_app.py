@@ -7,7 +7,10 @@ from app.documents.b_models.ingest_job import IngestJob
 
 def test_health_answers_and_every_reply_gets_a_request_id(client):
     r = client.get("/health")
-    assert r.status_code == 200 and r.json() == {"status": "ok"}
+    assert r.status_code == 200 and r.json()["status"] == "ok"
+    how = r.json()["how_to_call"]  # formats only: anyone may call /health
+    assert set(how["headers"]) == {"ITI-Api-Key", "ITI-User-Id"} and how["docs"] == "/v1/docs"
+    assert "iti_sk_<12 hex>_<secret>" in how["headers"]["ITI-Api-Key"] and "e.g. iti-docs" in how["collection"]
     assert r.headers["ITI-Request-Id"].startswith("iti_req_")
 
 

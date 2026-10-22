@@ -51,6 +51,23 @@ def test_companies_are_added_renamed_listed_and_deleted_only_when_empty(client, 
     assert client.delete("/v1/admin/companies/nope", headers=admin).status_code == 404
 
 
+def test_a_company_whose_keys_are_all_revoked_can_be_deleted(client, admin, link_app):
+    assert client.post("/v1/admin/companies", headers=admin, json={"company_id": "leaktest", "name": "Leak test"}).status_code == 201
+    link_app("hr-portal", "leaktest")
+    made = key(client, admin, "leaktest", [])
+    assert made.status_code == 201
+    key_id = made.json()["key_id"]
+
+    live = client.delete("/v1/admin/companies/leaktest", headers=admin)  # a key that still works: refused
+    assert live.status_code == 409 and live.json()["error"]["code"] == "company_in_use"
+    assert "1 key(s) not revoked" in live.json()["error"]["message"]
+
+    assert client.delete(f"/v1/admin/keys/{key_id}", headers=admin).status_code in (200, 204)
+    assert client.delete("/v1/admin/companies/leaktest", headers=admin).status_code == 204
+    assert all(c["company_id"] != "leaktest" for c in client.get("/v1/admin/companies", headers=admin).json())
+    assert all(k["key_id"] != key_id for k in client.get("/v1/admin/keys", headers=admin).json())  # revoked row gone
+
+
 def test_a_key_may_use_only_its_companys_collections_and_global_ones(client, acme):
     made = key(client, acme, "acme", ["acme-hr", "labor-code"])
     assert made.status_code == 201 and made.json()["company_id"] == "acme"
