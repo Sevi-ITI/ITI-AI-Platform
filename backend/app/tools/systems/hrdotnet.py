@@ -498,3 +498,129 @@ def get_my_employment_info(employee_id: str) -> dict:
         "length_of_service": service_length(hired, ended or date.today()) if hired else None,
         "career_events": movements,
     }
+
+
+
+# --- get_my_payslip: posted payslips with their itemized lines (ai.v_payslips, ai.v_payslip_lines) ---------------
+# Decided by Vince, 2026-10-22: one tool; no dates = the latest posted payslip; with dates at most 3 months (token use);
+# the lines always come with it. Totals come ONLY from the payslip itself: the earning lines do not add up to gross pay
+# (basic pay is not a line). Anything unclear (not posted yet, totals that do not add up) -> ask Payroll, never a guess.
+
+PAYSLIP_COLUMNS = """payslip_id, cutoff, CONVERT(char(10), period_from, 23) AS period_from,
+           CONVERT(char(10), period_to, 23) AS period_to, CONVERT(char(10), pay_date, 23) AS pay_date,
+           basic_pay, overtime, night_diff, night_diff_ot, night_diff_nd_ot, holiday_pay, leave_pay, service_charge,
+           other_earnings, retro_income, absence, tardy, undertime, gross_pay, sss, philhealth, pagibig, wisp, tax,
+           sss_loan, pagibig_loan, other_loan, other_deduction, retro_deduction, net_pay"""
+
+HRDOTNET_PAYSLIPS_SQL = text(f"""
+    SELECT {PAYSLIP_COLUMNS}
+    FROM ai.v_payslips
+    WHERE employee_id = :employee_id AND period_from <= :date_to AND period_to >= :date_from
+    ORDER BY pay_date, payslip_id
+""")
+
+HRDOTNET_LATEST_PAYSLIP_SQL = text(f"""
+    SELECT TOP 1 {PAYSLIP_COLUMNS}
+    FROM ai.v_payslips
+    WHERE employee_id = :employee_id
+    ORDER BY pay_date DESC, payslip_id DESC
+""")
+
+HRDOTNET_PAYSLIP_LINES_SQL = text("""
+    SELECT l.payslip_id, l.line_type, l.item, l.description, l.hours, l.amount,
+           CONVERT(char(10), l.work_date, 23) AS work_date
+    FROM ai.v_payslip_lines AS l
+    JOIN ai.v_payslips AS v ON v.payslip_id = l.payslip_id
+    WHERE l.employee_id = :employee_id AND v.employee_id = :employee_id
+      AND v.period_from <= :date_to AND v.period_to >= :date_from
+    ORDER BY l.payslip_id, l.line_type, l.item
+""")
+
+# (column, how people call it), in payslip order. Zero amounts are left out.
+PAYSLIP_EARNINGS = (("basic_pay", "basic pay"), ("overtime", "overtime"), ("night_diff", "night differential"),
+                    ("night_diff_ot", "night differential on overtime"), ("night_diff_nd_ot", "night differential (other)"),
+                    ("holiday_pay", "holiday pay"), ("leave_pay", "paid leave"), ("service_charge", "service charge"),
+                    ("other_earnings", "other earnings"), ("retro_income", "retroactive pay"))
+PAYSLIP_TIME_DEDUCTIONS = (("absence", "absences"), ("tardy", "lates (tardiness)"), ("undertime", "undertime"))
+PAYSLIP_DEDUCTIONS = (("sss", "SSS"), ("philhealth", "PhilHealth"), ("pagibig", "Pag-IBIG"), ("wisp", "SSS WISP"),
+                      ("tax", "withholding tax"), ("sss_loan", "SSS loan"), ("pagibig_loan", "Pag-IBIG loan"),
+                      ("other_loan", "other loans"), ("other_deduction", "other deductions"),
+                      ("retro_deduction", "retroactive deduction"))
+
+PAYSLIP_NOTE = ("Only POSTED payslips are shown (a payslip appears after Payroll posts the run). Absences, lates and "
+                "undertime are already taken out of gross pay; net pay = gross pay minus the deductions. If anything is "
+                "unclear or looks wrong, tell the employee to ask Payroll: never guess or recompute pay.")
+
+
+def peso(value) -> str:
+    """An amount as on a payslip: 12,345.60."""
+    return f"{Decimal(value or 0):,.2f}"
+
+
+def payslip_of(row: dict, lines: list[dict]) -> dict:
+    """One payslip as the model should read it: totals from the payslip, non-zero items only, then its lines."""
+
+    def items(columns) -> dict:
+        return {label: peso(row[column]) for column, label in columns if row[column]}
+
+    deductions = sum(Decimal(row[column] or 0) for column, _ in PAYSLIP_DEDUCTIONS)
+    payslip = {
+        "cutoff": row["cutoff"], "period_from": row["period_from"], "period_to": row["period_to"],
+        "pay_date": row["pay_date"], "earnings": items(PAYSLIP_EARNINGS),
+        "taken_out_before_gross": items(PAYSLIP_TIME_DEDUCTIONS), "gross_pay": peso(row["gross_pay"]),
+        "deductions": items(PAYSLIP_DEDUCTIONS), "total_deductions": peso(deductions), "net_pay": peso(row["net_pay"]),
+        "lines": [
+            {"type": line["line_type"], "item": line["item"],
+             **({"description": line["description"]} if line["description"] and line["description"] != line["item"] else {}),
+             **({"hours": as_text(line["hours"])} if line["hours"] else {}),
+             "amount": peso(line["amount"]), **({"date": line["work_date"]} if line["work_date"] else {})}
+            for line in lines
+        ],
+    }
+    if abs(Decimal(row["gross_pay"] or 0) - deductions - Decimal(row["net_pay"] or 0)) >= 1:
+        payslip["check_with_payroll"] = ("Gross pay minus these deductions does not equal the net pay on record: "
+                                         "the employee should confirm this payslip with Payroll.")
+    return payslip
+
+
+@hrdotnet.tool(
+    description="Get the CURRENT USER's own POSTED PAYSLIPS: pay date, cut-off, each earning, absences / lates / "
+    "undertime, gross pay, each deduction (SSS, PhilHealth, Pag-IBIG, withholding tax, loans), net pay and the itemized "
+    "lines. Use it for questions like 'my latest payslip', 'my payslip for November', 'explain my deductions' or 'why "
+    "is my net pay lower'. Leave the dates out for the latest posted payslip; with dates it returns every payslip whose "
+    "cut-off overlaps them (at most 3 months)."
+)
+def get_my_payslip(
+    employee_id: str,
+    date_from: day_arg("First", "the latest posted payslip") = None,
+    date_to: day_arg("Last", "the latest posted payslip") = None,
+) -> dict:
+    if not employee_id:
+        raise ToolError("employee_id is missing")
+    with get_hrdotnet_engine().connect() as conn:
+        latest = conn.execute(HRDOTNET_LATEST_PAYSLIP_SQL, {"employee_id": employee_id}).first()
+        latest = dict(latest._mapping) if latest else None
+        if date_from is None and date_to is None:
+            if latest is None:
+                return {"payslips": [], "note": "No posted payslip on record for this employee: ask Payroll."}
+            rows, result = [latest], {"latest_posted_payslip": True}
+            date_from, date_to = date.fromisoformat(latest["period_from"]), date.fromisoformat(latest["period_to"])
+        else:
+            date_to = date_to or date.today()
+            date_from = date_from or date_to.replace(day=1)
+            if date_from > date_to:
+                raise ToolError("date_from is after date_to")
+            if (date_to - date_from).days > 92:
+                raise ToolError("the range is longer than 3 months: ask for a shorter period")
+            params = {"employee_id": employee_id, "date_from": date_from, "date_to": date_to}
+            rows = [dict(row._mapping) for row in conn.execute(HRDOTNET_PAYSLIPS_SQL, params)]
+            result = {"date_from": str(date_from), "date_to": str(date_to)}
+        params = {"employee_id": employee_id, "date_from": date_from, "date_to": date_to}
+        lines = [dict(row._mapping) for row in conn.execute(HRDOTNET_PAYSLIP_LINES_SQL, params)]
+    if not rows:
+        last = f"The latest posted payslip on record is from {latest['pay_date']}. " if latest else ""
+        return {**result, "payslips": [],
+                "note": f"No posted payslip for this period. {last}If one is expected, it may not be posted yet: ask Payroll."}
+    return {**result, "currency": "PHP", "note": PAYSLIP_NOTE,
+            "payslips": [payslip_of(row, [line for line in lines if line["payslip_id"] == row["payslip_id"]])
+                         for row in rows]}

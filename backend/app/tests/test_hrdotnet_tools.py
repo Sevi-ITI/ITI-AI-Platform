@@ -15,6 +15,7 @@ from app.tools.systems.hrdotnet import (
     get_my_employment_info,
     get_my_leave_applications,
     get_my_overtime,
+    get_my_payslip,
     get_my_requests,
     get_my_schedule,
     get_my_time_logs,
@@ -416,3 +417,129 @@ def test_one_date_given_keeps_it_and_fills_only_the_other(records, monkeypatch):
     seen = records([])
     get_my_schedule("44", date_from=date(2026, 10, 23))
     assert (seen["date_from"], seen["date_to"]) == (date(2026, 10, 23), date(2026, 10, 27))
+
+
+
+# --- get_my_payslip --------------------------------------------------------------------------------------------
+
+
+def slip(payslip_id, period_from, period_to, pay_date, **amounts):
+    """A posted payslip row; every amount not given is 0. Defaults add up: 20,000 gross - 2,000 deductions = 18,000."""
+    row = {column: Decimal(0) for column in (
+        "basic_pay", "overtime", "night_diff", "night_diff_ot", "night_diff_nd_ot", "holiday_pay", "leave_pay",
+        "service_charge", "other_earnings", "retro_income", "absence", "tardy", "undertime", "gross_pay", "sss",
+        "philhealth", "pagibig", "wisp", "tax", "sss_loan", "pagibig_loan", "other_loan", "other_deduction",
+        "retro_deduction", "net_pay")}
+    row.update(basic_pay=Decimal("20500"), tardy=Decimal("500"), gross_pay=Decimal("20000"), sss=Decimal("500"),
+               tax=Decimal("1500"), net_pay=Decimal("18000"))
+    row.update({key: Decimal(str(value)) for key, value in amounts.items()})
+    return {**row, "payslip_id": payslip_id, "cutoff": f"cut-off {payslip_id}", "period_from": period_from,
+            "period_to": period_to, "pay_date": pay_date}
+
+
+def line(payslip_id, item, amount, line_type="earning", hours=None, description=None, work_date=None):
+    return {"payslip_id": payslip_id, "line_type": line_type, "item": item, "description": description or item,
+            "hours": None if hours is None else Decimal(str(hours)), "amount": Decimal(str(amount)), "work_date": work_date}
+
+
+@pytest.fixture
+def payslips(monkeypatch):
+    """payslips(latest, in_period, lines) -> the params per SQL; the tool reads these rows instead of the database."""
+    seen = {}
+
+    def use(latest=None, in_period=(), lines=()):
+        by_sql = {
+            hrdotnet_system.HRDOTNET_LATEST_PAYSLIP_SQL: [latest] if latest else [],
+            hrdotnet_system.HRDOTNET_PAYSLIPS_SQL: list(in_period),
+            hrdotnet_system.HRDOTNET_PAYSLIP_LINES_SQL: list(lines),
+        }
+
+        class Result(list):
+            def first(self):
+                return self[0] if self else None
+
+        class Conn:
+            def execute(self, sql, params):
+                assert params["employee_id"] == "44"  # always the host's employee_id
+                seen[sql] = params
+                return Result(type("Row", (), {"_mapping": r})() for r in by_sql[sql])
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_):
+                return False
+
+        monkeypatch.setattr(hrdotnet_system, "get_hrdotnet_engine", lambda: type("E", (), {"connect": lambda _: Conn()})())
+        return seen
+
+    return use
+
+
+def test_no_dates_gives_the_latest_posted_payslip_with_only_its_lines(payslips):
+    latest = slip("7", "2025-12-01", "2025-12-15", "2025-12-29")
+    seen = payslips(latest=latest, lines=[
+        line("7", "Overtime", 1200, hours=6.5),
+        line("7", "SSS", 500, line_type="deduction"),
+        line("6", "Overtime", 999),  # another payslip whose cut-off overlaps: not this one's line
+    ])
+    r = get_my_payslip("44")
+    assert r["latest_posted_payslip"] is True and r["currency"] == "PHP" and "ask Payroll" in r["note"]
+    assert hrdotnet_system.HRDOTNET_PAYSLIPS_SQL not in seen  # no period asked: only the latest
+    lines_params = seen[hrdotnet_system.HRDOTNET_PAYSLIP_LINES_SQL]
+    assert (lines_params["date_from"], lines_params["date_to"]) == (date(2025, 12, 1), date(2025, 12, 15))
+    (p,) = r["payslips"]
+    assert (p["pay_date"], p["gross_pay"], p["total_deductions"], p["net_pay"]) == ("2025-12-29", "20,000.00", "2,000.00", "18,000.00")
+    assert p["earnings"] == {"basic pay": "20,500.00"}  # zero items are left out
+    assert p["taken_out_before_gross"] == {"lates (tardiness)": "500.00"}
+    assert p["deductions"] == {"SSS": "500.00", "withholding tax": "1,500.00"}
+    assert p["lines"] == [{"type": "earning", "item": "Overtime", "hours": "6.5", "amount": "1,200.00"},
+                          {"type": "deduction", "item": "SSS", "amount": "500.00"}]
+    assert "check_with_payroll" not in p  # its totals add up
+
+
+def test_a_period_returns_every_payslip_whose_cutoff_overlaps_it(payslips):
+    first, second = slip("8", "2025-11-01", "2025-11-15", "2025-11-29"), slip("9", "2025-11-16", "2025-11-30", "2025-12-14")
+    seen = payslips(latest=second, in_period=[first, second], lines=[line("8", "Holiday", 300), line("9", "Holiday", 400)])
+    r = get_my_payslip("44", date(2025, 11, 1), date(2025, 11, 30))
+    params = seen[hrdotnet_system.HRDOTNET_PAYSLIPS_SQL]
+    assert (params["date_from"], params["date_to"]) == (date(2025, 11, 1), date(2025, 11, 30))
+    assert (r["date_from"], r["date_to"]) == ("2025-11-01", "2025-11-30") and "latest_posted_payslip" not in r
+    assert [p["pay_date"] for p in r["payslips"]] == ["2025-11-29", "2025-12-14"]
+    assert [[ln["amount"] for ln in p["lines"]] for p in r["payslips"]] == [["300.00"], ["400.00"]]
+
+
+def test_totals_that_do_not_add_up_are_sent_to_payroll(payslips):
+    payslips(latest=slip("7", "2025-12-01", "2025-12-15", "2025-12-29", net_pay=17500))
+    (p,) = get_my_payslip("44")["payslips"]
+    assert p["net_pay"] == "17,500.00" and "confirm this payslip with Payroll" in p["check_with_payroll"]
+
+
+def test_nothing_posted_in_the_period_says_so_and_names_the_latest(payslips):
+    payslips(latest=slip("7", "2025-12-01", "2025-12-15", "2025-12-29"))
+    r = get_my_payslip("44", date(2026, 9, 1), date(2026, 9, 30))
+    assert r["payslips"] == [] and "2025-12-29" in r["note"] and "ask Payroll" in r["note"]
+
+
+def test_no_payslip_at_all(payslips):
+    payslips()
+    assert get_my_payslip("44") == {"payslips": [], "note": "No posted payslip on record for this employee: ask Payroll."}
+
+
+@pytest.mark.parametrize(
+    ("date_from", "date_to", "problem"),
+    [(date(2025, 9, 2), date(2025, 9, 1), "date_from is after date_to"),
+     (date(2025, 9, 1), date(2025, 12, 31), "longer than 3 months")],
+)
+def test_payslip_ranges_are_checked(payslips, date_from, date_to, problem):
+    payslips()
+    with pytest.raises(ToolError, match=problem):
+        get_my_payslip("44", date_from, date_to)
+
+
+def test_one_date_given_for_payslips_fills_the_other(payslips, monkeypatch):
+    monkeypatch.setattr(hrdotnet_system, "date", FixedDate)
+    seen = payslips()
+    get_my_payslip("44", date_to=date(2025, 11, 20))
+    params = seen[hrdotnet_system.HRDOTNET_PAYSLIPS_SQL]
+    assert (params["date_from"], params["date_to"]) == (date(2025, 11, 1), date(2025, 11, 20))
