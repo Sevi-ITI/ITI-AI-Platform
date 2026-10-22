@@ -22,6 +22,12 @@ from app.tools.systems.hrdotnet import (
 )
 
 
+@pytest.fixture(autouse=True)
+def still_employed(monkeypatch):
+    """Every test's employee is still employed unless it says otherwise (the leaver tests at the end)."""
+    monkeypatch.setattr(hrdotnet_system, "employment_ended", lambda _employee_id: False)
+
+
 def day(work_date, day_type="regular day", time_in="08:00:00", time_out="17:00:00", late=0, undertime=0, absent=0,
         leave=None, leave_days=0, overtime=0):
     return {"work_date": work_date, "day_type": day_type, "schedule": "8-5", "time_in": time_in, "time_out": time_out,
@@ -543,3 +549,66 @@ def test_one_date_given_for_payslips_fills_the_other(payslips, monkeypatch):
     get_my_payslip("44", date_to=date(2025, 11, 20))
     params = seen[hrdotnet_system.HRDOTNET_PAYSLIPS_SQL]
     assert (params["date_from"], params["date_to"]) == (date(2025, 11, 1), date(2025, 11, 20))
+
+
+# --- leavers (Vince, 2026-10-23): an ended employment gets ONLY the latest posted payslip -------------------------
+
+
+@pytest.mark.parametrize("tool", [
+    lambda: hrdotnet_system.get_my_leave_credits("44"),
+    lambda: get_my_leave_applications("44"),
+    lambda: get_my_attendance("44"),
+    lambda: get_my_schedule("44"),
+    lambda: get_my_overtime("44"),
+    lambda: get_my_time_logs("44"),
+    lambda: get_my_requests("44"),
+    lambda: get_my_employment_info("44"),
+])
+def test_a_leaver_is_refused_every_tool_but_the_payslip_before_any_query(monkeypatch, tool):
+    monkeypatch.setattr(hrdotnet_system, "employment_ended", lambda employee_id: employee_id == "44")
+    monkeypatch.setattr(hrdotnet_system, "get_hrdotnet_engine", lambda: pytest.fail("no data query for a leaver"))
+    with pytest.raises(ToolError, match="employment has ended: only your latest posted payslip"):
+        tool()
+
+
+def test_a_leaver_gets_only_the_latest_payslip_whatever_dates_are_asked(payslips, monkeypatch):
+    monkeypatch.setattr(hrdotnet_system, "employment_ended", lambda employee_id: employee_id == "44")
+    latest = slip("7", "2025-12-01", "2025-12-15", "2025-12-29")
+    seen = payslips(latest=latest, in_period=[slip("3", "2025-10-01", "2025-10-15", "2025-10-29")],
+                    lines=[line("7", "SSS", 500, line_type="deduction")])
+    r = get_my_payslip("44", date(2025, 10, 1), date(2025, 10, 31))
+    assert hrdotnet_system.HRDOTNET_PAYSLIPS_SQL not in seen  # the older period is never read
+    assert r["latest_posted_payslip"] is True and "employment has ended" in r["only_latest"]
+    assert [p["pay_date"] for p in r["payslips"]] == ["2025-12-29"]
+
+
+def test_someone_still_employed_gets_no_leaver_note(payslips):
+    payslips(latest=slip("7", "2025-12-01", "2025-12-15", "2025-12-29"))
+    assert "only_latest" not in get_my_payslip("44")
+
+
+def test_ended_means_a_past_end_date_or_a_leaving_status():
+    sql = str(hrdotnet_system.HRDOTNET_ENDED_SQL)
+    assert "date_ended <= CAST(GETDATE() AS date) OR employment_status IN (" in sql  # either one counts
+    for status in ("Resigned", "Separated", "Terminated", "End of Contract", "Retired"):
+        assert f"'{status}'" in sql
+
+
+def test_employment_ended_reads_the_view_for_the_hosts_employee(monkeypatch):
+    seen = {}
+
+    class Conn:
+        def execute(self, sql, params):
+            seen.update(params)
+            return type("Result", (), {"scalar": lambda _: 1 if params["employee_id"] == "44" else 0})()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            return False
+
+    monkeypatch.undo()  # the real employment_ended, not the autouse stand-in
+    monkeypatch.setattr(hrdotnet_system, "get_hrdotnet_engine", lambda: type("E", (), {"connect": lambda _: Conn()})())
+    assert hrdotnet_system.employment_ended("44") is True and seen == {"employee_id": "44"}
+    assert hrdotnet_system.employment_ended("45") is False

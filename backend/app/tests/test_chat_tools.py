@@ -207,3 +207,33 @@ def test_real_records_follow_the_header_not_the_question(client, make_key, model
     client.post("/v1/chat", headers=e1002, json=Q)
     tool_result = model.seen[1][0][-1]["content"]
     assert "700.00" in tool_result and "850.00" not in tool_result
+
+
+# --- a misspelled tool name (2026-10-23): get_my_payslips for hrdotnet__get_my_payslip ------------------------------
+
+
+@pytest.mark.parametrize(("asked", "meant"), [
+    ("hrdotnet__get_my_payslips", "hrdotnet__get_my_payslip"),  # a plural s
+    ("get_my_payslip", "hrdotnet__get_my_payslip"),  # no server prefix
+    ("get_my_payslips", "hrdotnet__get_my_payslip"),  # both
+    ("HRDOTNET__Get_My_Payslip", "hrdotnet__get_my_payslip"),  # any case
+    ("get_my_time_log", "hrdotnet__get_my_time_logs"),  # the s missing instead
+    ("hrdotnet__get_my_payslip", "hrdotnet__get_my_payslip"),  # right already
+])
+def test_a_near_miss_becomes_the_one_offered_tool(asked, meant):
+    offered = ["hrdotnet__get_my_payslip", "hrdotnet__get_my_time_logs", "get_my_absences"]
+    assert awt.offered_name(asked, offered) == meant
+
+
+@pytest.mark.parametrize("asked", ["get_my_salary", "get_my_leave_credit", "get_my_payslip_lines", "search_company_documents"])
+def test_no_match_or_two_matches_keep_the_name_as_given(asked):
+    offered = ["hrdotnet__get_my_payslip", "get_my_leave_credits", "hrdotnet__get_my_leave_credits"]  # credits: two
+    assert awt.offered_name(asked, offered) == asked
+
+
+def test_a_misspelled_call_runs_the_offered_tool_and_cites_it(client, hr_records, model, records_on, ran):
+    model.replies = [call("explain_my_deduction"), say("You were absent on 2026-09-03: 850.00.")]
+    body = client.post("/v1/chat", headers=hr_records, json=Q).json()
+    assert ran == [("E-1001", "explain_my_deductions", {})]  # run as the offered tool, so every gate in run_tool applies
+    assert body["found"] is True and body["citations"][0]["doc_id"] == "records:explain_my_deductions"
+    assert last_log().tools == "explain_my_deductions"

@@ -39,6 +39,34 @@ def get_hrdotnet_engine():
 
     return engine
 
+# --- leavers (Vince, 2026-10-23): someone whose employment has ended gets ONLY their latest posted payslip ---------
+# Ended = an end date today or earlier OR a leaving status. Either one counts: the two disagree for about 25 people,
+# so the stricter reading wins. A future end date (serving notice) is still employed. An id not in the view is not a
+# leaver (its tools find nothing anyway). Checked after a tool's own argument checks, just before its query.
+
+LEAVING_STATUSES = ("Resigned", "Separated", "Terminated", "End of Contract", "Retired")
+
+HRDOTNET_ENDED_SQL = text(f"""
+    SELECT COUNT(*)
+    FROM ai.v_employment_info
+    WHERE employee_id = :employee_id
+      AND (date_ended <= CAST(GETDATE() AS date) OR employment_status IN ({", ".join(f"'{s}'" for s in LEAVING_STATUSES)}))
+""")
+
+LEAVER_REFUSAL = ("Your employment has ended: only your latest posted payslip is available here. For anything else, "
+                  "please contact HR.")
+
+
+def employment_ended(employee_id: str) -> bool:
+    with get_hrdotnet_engine().connect() as conn:
+        return bool(conn.execute(HRDOTNET_ENDED_SQL, {"employee_id": employee_id}).scalar())
+
+
+def refuse_if_ended(employee_id: str) -> None:
+    if employment_ended(employee_id):
+        raise ToolError(LEAVER_REFUSAL)
+
+
 HRDOTNET_LEAVE_SQL = text("""
     SELECT leave_name,
         CONVERT(varchar(12), CAST(earned_days AS decimal(9, 2))) AS earned_days,
@@ -63,6 +91,7 @@ def get_my_leave_credits (
         raise ToolError("employee_id is missing")
 
     year = year or date.today().year
+    refuse_if_ended(employee_id)
     with get_hrdotnet_engine().connect() as conn:
         rows = conn.execute(HRDOTNET_LEAVE_SQL, {"employee_id": employee_id, "year": year})
         return {"year": year, "credits": [dict(row._mapping) for row in rows]}
@@ -118,6 +147,7 @@ def get_my_leave_applications(
         raise ToolError("date_from is after date_to")
     if (date_to - date_from).days > 366:
         raise ToolError("the range is longer than one year")
+    refuse_if_ended(employee_id)
     with get_hrdotnet_engine().connect() as conn:
         params = {"employee_id": employee_id, "date_from": date_from, "date_to": date_to}
         rows = conn.execute(HRDOTNET_LEAVE_APPLICATIONS_SQL, params)
@@ -163,6 +193,7 @@ def get_my_attendance(
         raise ToolError("date_from is after date_to")
     if (date_to - date_from).days > 92:
         raise ToolError("the range is longer than 3 months: ask for a shorter period")
+    refuse_if_ended(employee_id)
     with get_hrdotnet_engine().connect() as conn:
         params = {"employee_id": employee_id, "date_from": date_from, "date_to": date_to}
         rows = [dict(row._mapping) for row in conn.execute(HRDOTNET_ATTENDANCE_SQL, params)]
@@ -257,6 +288,7 @@ def get_my_schedule(
         raise ToolError("date_from is after date_to")
     if (date_to - date_from).days > 31:
         raise ToolError("the range is longer than 31 days: ask for a shorter period")
+    refuse_if_ended(employee_id)
     params = {"employee_id": employee_id, "date_from": date_from, "date_to": date_to}
     with get_hrdotnet_engine().connect() as conn:
         changes = [dict(row._mapping) for row in conn.execute(HRDOTNET_SCHEDULE_CHANGES_SQL, params)]
@@ -313,6 +345,7 @@ def get_my_overtime(
         raise ToolError("date_from is after date_to")
     if (date_to - date_from).days > 92:
         raise ToolError("the range is longer than 3 months: ask for a shorter period")
+    refuse_if_ended(employee_id)
     with get_hrdotnet_engine().connect() as conn:
         params = {"employee_id": employee_id, "date_from": date_from, "date_to": date_to}
         rows = [dict(row._mapping) for row in conn.execute(HRDOTNET_OVERTIME_SQL, params)]
@@ -367,6 +400,7 @@ def get_my_time_logs(
         raise ToolError("date_from is after date_to")
     if (date_to - date_from).days > 31:
         raise ToolError("the range is longer than 31 days: ask for a shorter period")
+    refuse_if_ended(employee_id)
     with get_hrdotnet_engine().connect() as conn:
         params = {"employee_id": employee_id, "date_from": date_from, "date_to": date_to}
         rows = [dict(row._mapping) for row in conn.execute(HRDOTNET_TIME_LOGS_SQL, params)]
@@ -426,6 +460,7 @@ def get_my_requests(
         raise ToolError("date_from is after date_to")
     if (date_to - date_from).days > 92:
         raise ToolError("the range is longer than 3 months: ask for a shorter period")
+    refuse_if_ended(employee_id)
     with get_hrdotnet_engine().connect() as conn:
         params = {"employee_id": employee_id, "date_from": date_from, "date_to": date_to}
         rows = [dict(row._mapping) for row in conn.execute(HRDOTNET_REQUESTS_SQL, params)]
@@ -483,6 +518,7 @@ def service_length(start: date, end: date) -> str:
 def get_my_employment_info(employee_id: str) -> dict:
     if not employee_id:
         raise ToolError("employee_id is missing")
+    refuse_if_ended(employee_id)
     with get_hrdotnet_engine().connect() as conn:
         row = conn.execute(HRDOTNET_EMPLOYMENT_SQL, {"employee_id": employee_id}).first()
         movements = [dict(m._mapping) for m in conn.execute(HRDOTNET_MOVEMENTS_SQL, {"employee_id": employee_id})]
@@ -597,6 +633,9 @@ def get_my_payslip(
 ) -> dict:
     if not employee_id:
         raise ToolError("employee_id is missing")
+    ended = employment_ended(employee_id)
+    if ended:  # a leaver: the latest posted payslip, whatever dates were asked
+        date_from = date_to = None
     with get_hrdotnet_engine().connect() as conn:
         latest = conn.execute(HRDOTNET_LATEST_PAYSLIP_SQL, {"employee_id": employee_id}).first()
         latest = dict(latest._mapping) if latest else None
@@ -604,6 +643,9 @@ def get_my_payslip(
             if latest is None:
                 return {"payslips": [], "note": "No posted payslip on record for this employee: ask Payroll."}
             rows, result = [latest], {"latest_posted_payslip": True}
+            if ended:
+                result["only_latest"] = ("This employee's employment has ended: only the latest posted payslip is "
+                                         "available here. For older payslips, ask HR or Payroll.")
             date_from, date_to = date.fromisoformat(latest["period_from"]), date.fromisoformat(latest["period_to"])
         else:
             date_to = date_to or date.today()

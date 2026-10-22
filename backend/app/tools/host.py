@@ -176,6 +176,22 @@ def tools_for(principal: AppPrincipal) -> list[ToolSpec]:
 # --- running one call -----------------------------------------------------------------------------------------
 
 
+def offered_name(name: str, offered: Sequence[str]) -> str:
+    """The offered tool the model meant when it misspelled one (2026-10-23: a follow-up called get_my_payslips for
+    hrdotnet__get_my_payslip 2 runs in 3, then gave up on "no such tool"). Same name without the server prefix and a
+    plural s, in any case, and exactly ONE offered tool like that; otherwise the name as given (then tool_unknown).
+    Only renames: run_tool still checks every gate for the tool it becomes."""
+    if name in offered:
+        return name
+
+    def base(tool: str) -> str:
+        tool = tool.lower().rsplit("__", 1)[-1]
+        return tool.removesuffix("s")
+
+    matches = [tool for tool in offered if base(tool) == base(name)]
+    return matches[0] if len(matches) == 1 else name
+
+
 def run_tool(principal: AppPrincipal, employee_id: str, name: str, arguments: dict | None) -> dict:
     """One tool call for the asking employee. Refusals: tool_unknown, tool_off, scope_forbidden, tool_not_allowed
     (not on the app's tool list), tool_bad_arguments, tool_not_approved, records_unavailable, tool_failed,
@@ -273,6 +289,7 @@ def answer_with_tools(
     if not specs:
         return None
     tools = [DOCUMENTS_TOOL.as_ollama()] + [spec.as_ollama() for spec in specs]
+    offered = [spec.name for spec in specs]
     system = system_prompt(topics_for(specs), date.today(), history)
     messages = [{"role": "system", "content": system}, {"role": "user", "content": question}]
     used, sources, found, tool_ms = [], [], False, 0
@@ -286,7 +303,7 @@ def answer_with_tools(
             break  # an answer, or a documents question
         messages.append(message)
         for call in calls:
-            name, arguments = call["function"]["name"], call["function"].get("arguments")
+            name, arguments = offered_name(call["function"]["name"], offered), call["function"].get("arguments")
             start, error_code = time.perf_counter(), None
             same = f"{name} {json.dumps(arguments, sort_keys=True)}"
             if same in already_called:
