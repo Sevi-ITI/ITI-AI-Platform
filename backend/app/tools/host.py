@@ -34,12 +34,16 @@ NO_ANSWER = "I'm sorry, I couldn't find the answer to that in your records. HR w
 # up the rounds, and the last call without tools then gave only "Let me look that up." A repeat is not run again (the
 # model is told its result is final), and the last call gets ANSWER_NOW first.
 REPEATED = "You already called this tool with these arguments: its result above is final. Answer from it now."
+DOCUMENTS_LATER = ("The company documents part of the question is answered separately, after your answer. Answer ONLY "
+                   "the part about the employee's own records; don't mention policies or documents.")
 ANSWER_NOW = ("Answer my question now, using only the tool results above. Don't say you will look something up: "
               "give the answer (if a result is empty, say nothing is on file for that period).")
 
 # --- the documents signal -------------------------------------------------------------------------------------
 # Offered next to the tools. The model calls it for any question that is not about the user's own records; the
-# answer then comes from RAG (citations, "I don't know"). It is a signal, never run.
+# answer then comes from RAG (citations, "I don't know"). It is a signal, never run here. Called NEXT TO a records
+# tool (2026-10-23: "the overtime policy, and how much overtime did I file?"), its query goes back in ToolAnswer and
+# chat answers that part from RAG (chat/d_service/with_documents.py); the model answers only the records part.
 
 DOCUMENTS_TOOL = ToolSpec(
     name="search_company_documents",
@@ -277,6 +281,7 @@ class ToolAnswer(BaseModel):
     answer: str
     found: bool
     sources: list[dict[str, str]]
+    documents_query: str | None = None  # the question ALSO asked about policy: chat answers this text from the documents
 
 
 def answer_with_tools(
@@ -294,6 +299,7 @@ def answer_with_tools(
     messages = [{"role": "system", "content": system}, {"role": "user", "content": question}]
     used, sources, found, tool_ms = [], [], False, 0
     already_called: set[str] = set()  # name + arguments of every call made for this question
+    documents_query = None
 
     for _ in range(MAX_ROUNDS):
         message = chat_with_tools(messages, tools)
@@ -305,6 +311,13 @@ def answer_with_tools(
         for call in calls:
             name, arguments = offered_name(call["function"]["name"], offered), call["function"].get("arguments")
             start, error_code = time.perf_counter(), None
+            if name == DOCUMENTS_TOOL.name:  # next to a records tool: the policy part, answered by chat from the documents
+                query = arguments.get("query") if isinstance(arguments, dict) else None
+                documents_query = str(query or "").strip() or question
+                if trace is not None:
+                    trace.append({"tool": name, "arguments": arguments if isinstance(arguments, dict) else {}, "ms": 0, "error": None})
+                messages.append({"role": "tool", "tool_name": name, "content": json.dumps({"note": DOCUMENTS_LATER})})
+                continue
             same = f"{name} {json.dumps(arguments, sort_keys=True)}"
             if same in already_called:
                 if trace is not None:
@@ -313,8 +326,6 @@ def answer_with_tools(
                 continue
             already_called.add(same)
             try:
-                if name == DOCUMENTS_TOOL.name:
-                    raise AppError(400, "tool_unknown", "Documents can't be searched here: answer from the records.")
                 result = run_tool(principal, employee_id, name, arguments)
                 doc_id, title, has_data = describe_result(name, result)
                 sources.append({"doc_id": doc_id, "title": title})
@@ -335,4 +346,5 @@ def answer_with_tools(
     if not used:
         return None
     record_metric(tools=",".join(used)[:120], tools_ms=tool_ms)
-    return ToolAnswer(answer=(message.get("content") or "").strip() or NO_ANSWER, found=found, sources=sources)
+    return ToolAnswer(answer=(message.get("content") or "").strip() or NO_ANSWER, found=found, sources=sources,
+                      documents_query=documents_query)

@@ -1,7 +1,7 @@
 """answer_question(): loads the follow-up history, waits for a free LLM slot, answers, saves the turn,
 builds the ChatResponse. Blocking calls are fine: the route is a plain `def` (FastAPI runs it in a thread).
 Keys with "records:read" first try the records tools (answer_with_tools); a documents question, and every
-other key, gets rag/'s answer exactly as before."""
+other key, gets rag/'s answer exactly as before. A question about both gets both (with_documents)."""
 
 import logging
 import time
@@ -14,8 +14,8 @@ from app.chat.a_schemas.chat_request import ChatRequest
 from app.chat.a_schemas.chat_response import ChatResponse
 from app.chat.c_repository.recent_questions import recent_questions
 from app.chat.c_repository.save_turn import save_turn
-from app.chat.d_service.records_citations import records_citations
 from app.chat.d_service.to_citations import to_citations
+from app.chat.d_service.with_documents import with_documents
 from app.core.b_logging.request_id_var import REQUEST_ID
 from app.core.d_metrics.record_metric import record_metric
 from app.core.e_errors.app_error import AppError
@@ -34,16 +34,15 @@ def answer_question(
         start = time.perf_counter()
         try:
             records = answer_with_tools(principal, user_id, req.question, history)
-            result = None if records else f_chains.ask(req.question, get_store(req.collection), history=history)
+            if records:  # plus the policy part when the question asked both (with_documents)
+                text, found, citations, reason = with_documents(records, req.collection)
+            else:
+                result = f_chains.ask(req.question, get_store(req.collection), history=history)
+                text, found, citations, reason = result.text, result.reason == "answered", to_citations(result), result.reason
         except requests.RequestException as exc:  # Ollama down, refused or timed out; real bugs still give a 500
             log.warning("Ollama unreachable: %s", exc)
             raise AppError(503, "llm_unavailable", "The assistant is unavailable right now. Try again later.") from None
         record_metric(rag_ms=int((time.perf_counter() - start) * 1000))
-    if records:
-        text, found, citations = records.answer, records.found, records_citations(records)
-        reason = "records_answered" if found else "records_empty"
-    else:
-        text, found, citations, reason = result.text, result.reason == "answered", to_citations(result), result.reason
     record_metric(found=found, reason=reason)
     request_id = REQUEST_ID.get()
     save_turn(db, conversation_id, req.question, text, reason, request_id, [c.model_dump() for c in citations])

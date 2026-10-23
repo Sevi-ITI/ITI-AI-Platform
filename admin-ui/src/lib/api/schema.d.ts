@@ -13,7 +13,8 @@ export interface paths {
         };
         /**
          * Get Health
-         * @description Is the service up? Replies {"status": "ok"}. No key needed; checks neither the database nor the model.
+         * @description Is the service up? Replies {"status": "ok", "how_to_call": {...}}. No key needed; checks neither the database
+         *     nor the model. `how_to_call` lists the headers and the collection format the chat routes expect (formats only).
          */
         get: operations["get_health_health_get"];
         put?: never;
@@ -2352,7 +2353,7 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
-                        [key: string]: string;
+                        [key: string]: unknown;
                     };
                 };
             };

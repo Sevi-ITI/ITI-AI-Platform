@@ -25,6 +25,7 @@ const OUTCOMES: Record<string, { label: string; ok: boolean }> = {
   blank: { label: "“I don’t know”: empty answer", ok: false },
   records_answered: { label: "Answered from records", ok: true },
   records_empty: { label: "Records: nothing found or unavailable", ok: false },
+  records_and_documents: { label: "Answered from records + documents", ok: true },
 };
 
 // One conversation as the user saw it (questions, answers, sources), plus each answer's outcome, time and

@@ -10,6 +10,7 @@ import pytest
 from sqlalchemy import select
 
 import app.tools.host as awt
+from app.chat.d_service.with_documents import POLICY_NOT_FOUND
 from app.core.a_config.get_settings import get_settings
 from app.core.c_database.get_sessionmaker import get_sessionmaker
 from app.core.d_metrics.request_log import RequestLog
@@ -237,3 +238,47 @@ def test_a_misspelled_call_runs_the_offered_tool_and_cites_it(client, hr_records
     assert ran == [("E-1001", "explain_my_deductions", {})]  # run as the offered tool, so every gate in run_tool applies
     assert body["found"] is True and body["citations"][0]["doc_id"] == "records:explain_my_deductions"
     assert last_log().tools == "explain_my_deductions"
+
+
+# --- a policy AND records question (2026-10-23): both parts answered, the documents' citations first ---------------
+
+
+def both(query, tool):
+    """One model turn calling the documents signal and a records tool together (what qwen3.5:4b does for M1)."""
+    return {"role": "assistant", "content": "", "tool_calls": [
+        {"function": {"name": "search_company_documents", "arguments": {"query": query}}},
+        {"function": {"name": tool, "arguments": {}}},
+    ]}
+
+
+def test_a_policy_and_records_question_gets_both_answers(client, hr_records, model, records_on, ran):
+    model.replies = [both("leave policy", "explain_my_deductions"), say("You were absent on 2026-09-03: 850.00.")]
+    body = client.post("/v1/chat", headers=hr_records, json=Q).json()
+    assert body["answer"] == "You were absent on 2026-09-03: 850.00.\n\n**From company policy:**\n\n15 days [1]."
+    assert [c["doc_id"] for c in body["citations"]] == ["Leave Policy.pdf", "records:explain_my_deductions"]  # [1] first
+    assert body["found"] is True
+    assert json.loads(model.seen[1][0][-2]["content"]) == {"note": awt.DOCUMENTS_LATER}  # answer only the records part
+    log = last_log()
+    assert (log.reason, log.tools) == ("records_and_documents", "explain_my_deductions")  # the signal is no tool call
+
+
+def test_a_policy_part_not_in_the_documents_says_so(client, hr_records, model, records_on, ran):
+    model.replies = [both("unknown rule", "explain_my_deductions"), say("You were absent on 2026-09-03: 850.00.")]
+    body = client.post("/v1/chat", headers=hr_records, json=Q).json()
+    assert body["answer"] == f"You were absent on 2026-09-03: 850.00.\n\n{POLICY_NOT_FOUND}"
+    assert [c["doc_id"] for c in body["citations"]] == ["records:explain_my_deductions"]
+    assert last_log().reason == "records_answered"
+
+
+def test_a_records_only_question_gets_no_policy_part(client, hr_records, model, records_on, ran):
+    model.replies = [call("explain_my_deductions"), say("You were absent on 2026-09-03: 850.00.")]
+    body = client.post("/v1/chat", headers=hr_records, json=Q).json()
+    assert "From company policy" not in body["answer"] and len(body["citations"]) == 1
+
+
+def test_stream_sends_both_parts_as_one_token(client, hr_records, model, records_on, ran):
+    model.replies = [both("leave policy", "explain_my_deductions"), say("You were absent on 2026-09-03: 850.00.")]
+    got = events(client.post("/v1/chat/stream", headers=hr_records, json=Q))
+    assert [e for e, _ in got] == ["meta", "token", "done"]
+    assert got[1][1]["text"] == got[2][1]["answer"] and got[2][1]["answer"].endswith("**From company policy:**\n\n15 days [1].")
+    assert [c["doc_id"] for c in got[2][1]["citations"]] == ["Leave Policy.pdf", "records:explain_my_deductions"]

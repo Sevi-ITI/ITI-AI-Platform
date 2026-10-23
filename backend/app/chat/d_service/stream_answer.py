@@ -20,8 +20,8 @@ from app.chat.a_schemas.chat_request import ChatRequest
 from app.chat.c_repository.recent_questions import recent_questions
 from app.chat.c_repository.save_turn import save_turn
 from app.chat.d_service.error_event import error_event
-from app.chat.d_service.records_citations import records_citations
 from app.chat.d_service.to_citations import to_citations
+from app.chat.d_service.with_documents import with_documents
 from app.core.b_logging.request_id_var import REQUEST_ID
 from app.core.d_metrics.record_metric import record_metric
 from app.core.e_errors.app_error import AppError
@@ -44,15 +44,14 @@ def stream_answer(
         with llm_slot():
             start = time.perf_counter()
             records = answer_with_tools(principal, user_id, req.question, history)
-            if records:
-                found = records.found
-                reason = "records_answered" if found else "records_empty"
+            if records:  # plus the policy part when the question asked both (with_documents)
+                answer, found, cited, reason = with_documents(records, req.collection)
                 record_metric(ttft_ms=int((time.perf_counter() - start) * 1000))
                 record_metric(rag_ms=int((time.perf_counter() - start) * 1000), tokens=1, found=found, reason=reason)
-                citations = [c.model_dump() for c in records_citations(records)]
-                save_turn(db, conversation_id, req.question, records.answer, reason, request_id, citations)
-                yield ServerSentEvent(event="token", data={"text": records.answer})
-                yield ServerSentEvent(event="done", data={"answer": records.answer, "found": found, "citations": citations})
+                citations = [c.model_dump() for c in cited]
+                save_turn(db, conversation_id, req.question, answer, reason, request_id, citations)
+                yield ServerSentEvent(event="token", data={"text": answer})
+                yield ServerSentEvent(event="done", data={"answer": answer, "found": found, "citations": citations})
                 return
             for kind, value in f_chains.ask_stream(req.question, get_store(req.collection), history=history):
                 if kind == "token":
