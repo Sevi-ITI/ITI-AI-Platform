@@ -10,7 +10,7 @@ from app.rag.c_embeddings import OLLAMA_URL, embed
 from app.rag.config import SETTINGS
 from app.rag.d_vectorstore.pg_store import PgStore
 from app.rag.d_vectorstore.search import search
-from app.rag.e_prompts import build_messages, is_refusal, refusal_for
+from app.rag.e_prompts import build_messages, could_be_refusal, is_refusal, refusal_for
 from app.rag.passage import Passage
 
 TOP_K = 6  # chunks per question (spec 5.5); used to live in the Chroma d_vectorstore.py
@@ -227,8 +227,12 @@ def ask_stream(
     if isinstance(found, Answer):
         yield "done", found
         return
-    pieces = []
+    pieces, sent = [], 0
     for piece in chat_stream(build_messages(question, found, history)):
         pieces.append(piece)
-        yield "token", piece
+        if could_be_refusal("".join(pieces)):
+            continue  # may still be the bare refusal: the person never sees it, "done" brings the human reply
+        for held in pieces[sent:]:
+            yield "token", held
+        sent = len(pieces)
     yield "done", _finish(question, "".join(pieces).strip(), found)

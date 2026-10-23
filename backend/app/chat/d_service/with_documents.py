@@ -13,7 +13,7 @@ from app.rag import f_chains
 from app.tools.host import ToolAnswer
 
 POLICY_LABEL = "**From company policy:**"
-POLICY_NOT_FOUND = "I couldn't find the policy part in the company documents; HR can help with that."
+POLICY_NOT_FOUND = "I couldn't find anything on the policy part, though. HR can tell you more about that."
 
 
 def with_documents(records: ToolAnswer, collection: str) -> tuple[str, bool, list[Citation], str]:

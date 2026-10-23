@@ -6,7 +6,7 @@ import pytest
 from app.rag import f_chains
 from app.rag.b_splitter import Chunk
 from app.rag.d_vectorstore.pg_store import PgStore
-from app.rag.e_prompts import REFUSAL_EN, REFUSAL_FIL
+from app.rag.e_prompts import HUMAN_REFUSAL_EN, HUMAN_REFUSAL_FIL, REFUSAL_EN, REFUSAL_FIL
 from app.rag.f_chains import (
     Answer,
     Citation,
@@ -116,19 +116,19 @@ def test_blank_question_is_refused_without_searching(store, monkeypatch):
     # noinspection PyUnresolvedReferences
     monkeypatch.setattr(f_chains, "embed", never_called)
     answer = ask("   ", store, chat=never_called)
-    assert (answer.text, answer.refused, answer.reason, answer.citations) == (REFUSAL_EN, True, "blank", [])
+    assert (answer.text, answer.refused, answer.reason, answer.citations) == (HUMAN_REFUSAL_EN, True, "blank", [])
 
 
 def test_nothing_above_the_threshold_is_refused_without_calling_the_model(store):
     answer = ask("When do passwords expire?", store, threshold=1.5, chat=never_called)
-    assert (answer.text, answer.reason) == (REFUSAL_EN, "no_relevant_chunks")
+    assert (answer.text, answer.reason) == (HUMAN_REFUSAL_EN, "no_relevant_chunks")
 
 
 def test_empty_store_is_refused_without_calling_the_model(monkeypatch):
     # noinspection PyUnresolvedReferences
     monkeypatch.setattr(f_chains, "search", fake_search([]))
     answer = ask("Kailan mag-e-expire ang password?", FAKE_STORE, chat=never_called)
-    assert (answer.text, answer.reason) == (REFUSAL_FIL, "no_relevant_chunks")
+    assert (answer.text, answer.reason) == (HUMAN_REFUSAL_FIL, "no_relevant_chunks")
 
 # --- ask(): what happens with the model's reply ---
 
@@ -143,8 +143,8 @@ def test_the_model_gets_the_question_and_the_retrieved_chunks(store):
 @pytest.mark.parametrize(
     "question, model_reply, expected",
     [
-        ("When do passwords expire?", REFUSAL_FIL, REFUSAL_EN),
-        ("Kailan mag-e-expire ang password?", REFUSAL_EN, REFUSAL_FIL),
+        ("When do passwords expire?", REFUSAL_FIL, HUMAN_REFUSAL_EN),
+        ("Kailan mag-e-expire ang password?", REFUSAL_EN, HUMAN_REFUSAL_FIL),
     ],
 )
 def test_model_refusal_comes_back_in_the_question_language(store, question, model_reply, expected):
@@ -185,13 +185,13 @@ def test_two_chunks_from_one_page_keep_the_first_cited_chunks_text(store):
 
 def test_answer_with_an_invented_number_is_refused(store):
     answer = ask("When do passwords expire?", store, chat=FakeModel("Every 45 days [1]."))
-    assert (answer.text, answer.refused, answer.reason) == (REFUSAL_EN, True, "check_failed")
+    assert (answer.text, answer.refused, answer.reason) == (HUMAN_REFUSAL_EN, True, "check_failed")
 
 
 def test_number_taken_from_a_leading_question_is_refused(store):
     # F-A: "30" is only in the question, not in the sources (they say 90), so agreeing with it is refused.
     answer = ask("Is it true passwords expire every 30 days?", store, chat=FakeModel("Yes, every 30 days [1]."))
-    assert (answer.text, answer.refused, answer.reason) == (REFUSAL_EN, True, "check_failed")
+    assert (answer.text, answer.refused, answer.reason) == (HUMAN_REFUSAL_EN, True, "check_failed")
 
 
 def test_answer_using_only_numbers_from_the_sources_is_kept(store):
@@ -439,7 +439,19 @@ def test_stream_with_nothing_relevant_sends_only_done_without_calling_the_model(
 def test_stream_invented_number_ends_in_a_refusal_after_the_tokens(store):
     events = list(ask_stream("When do passwords expire?", store, chat_stream=FakeStreamModel("Every 45 ", "days [1].")))
     assert _kinds(events) == ["token", "token", "done"]
-    assert (_done(events).text, _done(events).reason) == (REFUSAL_EN, "check_failed")
+    assert (_done(events).text, _done(events).reason) == (HUMAN_REFUSAL_EN, "check_failed")
+
+def test_stream_bare_refusal_sends_no_tokens_only_the_human_reply(store):
+    events = list(ask_stream("When do passwords expire?", store,
+                             chat_stream=FakeStreamModel("I don't know. ", "I couldn't find that in the uploaded documents.")))
+    assert _kinds(events) == ["done"]
+    assert (_done(events).text, _done(events).reason) == (HUMAN_REFUSAL_EN, "model_refused")
+
+
+def test_stream_answer_that_starts_like_a_refusal_still_shows_every_piece(store):
+    events = list(ask_stream("When do passwords expire?", store,
+                             chat_stream=FakeStreamModel("I ", "don't ", "see why not: every 90 days [1].")))
+    assert _token_text(events) == "I don't see why not: every 90 days [1]."
 
 def test_stream_uses_the_history_like_ask(store, monkeypatch):
     embed = RecordingEmbed()

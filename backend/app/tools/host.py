@@ -20,6 +20,7 @@ from app.core.a_config.get_settings import get_settings
 from app.core.d_metrics.record_metric import record_metric
 from app.core.e_errors.app_error import AppError
 from app.rag.c_embeddings import OLLAMA_URL
+from app.rag.e_prompts import refusal_for
 from app.rag.f_chains import CHAT_MODEL, NUM_CTX, TEMPERATURE, TIMEOUT_SECONDS
 from app.tools.client import McpTool, call_mcp_tool, company_system, mcp_tools
 from app.tools.console_features import feature_on
@@ -29,7 +30,6 @@ from app.tools.store import app_tool_names, company_systems, records_source, sql
 from app.tools.tools import TOOL_REGISTRY
 
 MAX_ROUNDS = 3
-NO_ANSWER = "I'm sorry, I couldn't find the answer to that in your records. HR will be glad to help you with it."
 # 2026-10-21: after an empty result the model sometimes called the SAME tool with the SAME arguments again (4/20), used
 # up the rounds, and the last call without tools then gave only "Let me look that up." A repeat is not run again (the
 # model is told its result is final), and the last call gets ANSWER_NOW first.
@@ -69,7 +69,7 @@ You are talking to ONE logged-in employee. You can only see THEIR OWN records.
   do NOT call any records tool: say you can only show the logged-in employee's own records.
 - Every records tool returns ONLY the logged-in employee's own records, never anyone else's.
 - Never guess numbers: use only what a tool returns, quote dates and amounts exactly, never calculate new amounts.
-- After explaining a deduction, add: "If this looks wrong, please contact HR."
+- After explaining a deduction, add: "If this looks wrong, please contact HR or Payroll."
 """
 
 # No example ANSWERS in TONE: with "Sure! Here are your leave credits for 2026." in it the model answered leave
@@ -346,5 +346,5 @@ def answer_with_tools(
     if not used:
         return None
     record_metric(tools=",".join(used)[:120], tools_ms=tool_ms)
-    return ToolAnswer(answer=(message.get("content") or "").strip() or NO_ANSWER, found=found, sources=sources,
+    return ToolAnswer(answer=(message.get("content") or "").strip() or refusal_for(question), found=found, sources=sources,
                       documents_query=documents_query)

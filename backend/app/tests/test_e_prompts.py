@@ -6,6 +6,8 @@ import pytest
 
 from app.rag.b_splitter import Chunk
 from app.rag.e_prompts import (
+    HUMAN_REFUSAL_EN,
+    HUMAN_REFUSAL_FIL,
     MAX_HISTORY,
     RAG_TEMPLATE,
     REFUSAL_EN,
@@ -13,6 +15,7 @@ from app.rag.e_prompts import (
     SYSTEM_PROMPT,
     TONE,
     build_messages,
+    could_be_refusal,
     format_context,
     is_filipino,
     is_refusal,
@@ -66,9 +69,16 @@ def test_is_filipino(question, expected):
 
 
 def test_refusal_for_uses_the_question_language():
-    assert refusal_for("What is the capital of France?") == REFUSAL_EN
-    assert refusal_for("Sino ang presidente ng Pilipinas?") == REFUSAL_FIL
+    assert refusal_for("What is the capital of France?") == HUMAN_REFUSAL_EN
+    assert refusal_for("Sino ang presidente ng Pilipinas?") == HUMAN_REFUSAL_FIL
 
+@pytest.mark.parametrize(
+    "text, expected",
+    [("", True), ("I don't", True), (REFUSAL_EN, True), (f"{REFUSAL_EN}\n\nHindi", True),
+     ("Every 90", False), ("I don't see why", False)],
+)
+def test_could_be_refusal_holds_only_the_start_of_the_bare_sentence(text, expected):
+    assert could_be_refusal(text) is expected
 
 @pytest.mark.parametrize(
     "answer, expected",

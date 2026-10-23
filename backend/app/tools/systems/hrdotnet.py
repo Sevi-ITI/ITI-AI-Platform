@@ -562,6 +562,13 @@ HRDOTNET_LATEST_PAYSLIP_SQL = text(f"""
     ORDER BY pay_date DESC, payslip_id DESC
 """)
 
+HRDOTNET_PREVIOUS_PAYSLIP_SQL = text(f"""
+    SELECT TOP 1 {PAYSLIP_COLUMNS}
+    FROM ai.v_payslips
+    WHERE employee_id = :employee_id AND pay_date < :pay_date
+    ORDER BY pay_date DESC, payslip_id DESC
+""")
+
 HRDOTNET_PAYSLIP_LINES_SQL = text("""
     SELECT l.payslip_id, l.line_type, l.item, l.description, l.hours, l.amount,
            CONVERT(char(10), l.work_date, 23) AS work_date
@@ -586,6 +593,12 @@ PAYSLIP_DEDUCTIONS = (("sss", "SSS"), ("philhealth", "PhilHealth"), ("pagibig", 
 PAYSLIP_NOTE = ("Only POSTED payslips are shown (a payslip appears after Payroll posts the run). Absences, lates and "
                 "undertime are already taken out of gross pay; net pay = gross pay minus the deductions. If anything is "
                 "unclear or looks wrong, tell the employee to ask Payroll: never guess or recompute pay.")
+
+# The payslip before the latest comes with it (Vince, 2026-10-23): with only a description, the model picked the
+# wrong one to compare (4B and 9B, #40 of the golden set). The host picks it; the model never chooses dates.
+PAYSLIP_COMPARE = ("payslips holds the latest posted payslip; previous_payslip is the one just before it. To explain a "
+                   "change in pay, name every earning or deduction whose amount differs or that is on only one of the "
+                   "two, with both amounts exactly as given; never calculate a difference.")
 
 
 def peso(value) -> str:
@@ -623,8 +636,8 @@ def payslip_of(row: dict, lines: list[dict]) -> dict:
     description="Get the CURRENT USER's own POSTED PAYSLIPS: pay date, cut-off, each earning, absences / lates / "
     "undertime, gross pay, each deduction (SSS, PhilHealth, Pag-IBIG, withholding tax, loans), net pay and the itemized "
     "lines. Use it for questions like 'my latest payslip', 'my payslip for November', 'explain my deductions' or 'why "
-    "is my net pay lower'. Leave the dates out for the latest posted payslip; with dates it returns every payslip whose "
-    "cut-off overlaps them (at most 3 months)."
+    "is my net pay lower'. Leave the dates out for the latest posted payslip (it also returns the one just before it, "
+    "to explain a change in pay); with dates it returns every payslip whose cut-off overlaps them (at most 3 months)."
 )
 def get_my_payslip(
     employee_id: str,
@@ -636,6 +649,7 @@ def get_my_payslip(
     ended = employment_ended(employee_id)
     if ended:  # a leaver: the latest posted payslip, whatever dates were asked
         date_from = date_to = None
+    previous = None
     with get_hrdotnet_engine().connect() as conn:
         latest = conn.execute(HRDOTNET_LATEST_PAYSLIP_SQL, {"employee_id": employee_id}).first()
         latest = dict(latest._mapping) if latest else None
@@ -646,7 +660,12 @@ def get_my_payslip(
             if ended:
                 result["only_latest"] = ("This employee's employment has ended: only the latest posted payslip is "
                                          "available here. For older payslips, ask HR or Payroll.")
-            date_from, date_to = date.fromisoformat(latest["period_from"]), date.fromisoformat(latest["period_to"])
+            else:  # the one before it too, so a change in pay can be explained
+                params = {"employee_id": employee_id, "pay_date": date.fromisoformat(latest["pay_date"])}
+                previous = conn.execute(HRDOTNET_PREVIOUS_PAYSLIP_SQL, params).first()
+                previous = dict(previous._mapping) if previous else None
+            date_from = date.fromisoformat((previous or latest)["period_from"])  # lines of both payslips in one query
+            date_to = date.fromisoformat(latest["period_to"])
         else:
             date_to = date_to or date.today()
             date_from = date_from or date_to.replace(day=1)
@@ -663,6 +682,61 @@ def get_my_payslip(
         last = f"The latest posted payslip on record is from {latest['pay_date']}. " if latest else ""
         return {**result, "payslips": [],
                 "note": f"No posted payslip for this period. {last}If one is expected, it may not be posted yet: ask Payroll."}
-    return {**result, "currency": "PHP", "note": PAYSLIP_NOTE,
-            "payslips": [payslip_of(row, [line for line in lines if line["payslip_id"] == row["payslip_id"]])
-                         for row in rows]}
+
+    def lines_of(row: dict) -> list[dict]:
+        return [line for line in lines if line["payslip_id"] == row["payslip_id"]]
+
+    result = {**result, "currency": "PHP", "note": PAYSLIP_NOTE, "payslips": [payslip_of(row, lines_of(row)) for row in rows]}
+    if previous:
+        result.update(previous_payslip=payslip_of(previous, lines_of(previous)), compare=PAYSLIP_COMPARE)
+    return result
+
+# --- get_holidays: the holidays of the employee's own company between two dates (ai.v_holidays) ---------------
+# HRDotNet keeps one holiday list per company, so a holiday question still goes by employee_id (Vince, 2026-10-23).
+# National = location 1 (Philippines); a local holiday carries its place and the employee judges if it applies.
+# The type is the text HR typed; test entries in the QA data are shown as they are (read the values as presented).
+
+HRDOTNET_HOLIDAYS_SQL = text("""
+    SELECT holiday, holiday_type, location_id, location, CONVERT(char(10), date_from, 23) AS date_from,
+           CONVERT(char(10), COALESCE(date_to, date_from), 23) AS date_to
+    FROM ai.v_holidays
+    WHERE employee_id = :employee_id AND date_from <= :date_to AND COALESCE(date_to, date_from) >= :date_from
+    ORDER BY date_from, holiday
+""")
+
+NATIONAL_LOCATION_ID = 1
+
+
+@hrdotnet.tool(
+    description="Get the HOLIDAYS of the CURRENT USER's own company between two dates (at most 1 year): date, name, "
+    "type (regular holiday, special non-working holiday, ...) and whether it is national or local (with the place). "
+    "Use it for questions like 'is November 1 a holiday', 'what are the holidays this December' or 'when is the next "
+    "holiday'. Leave the dates out when the question names no date or period (then: the next 30 days)."
+)
+def get_holidays(
+    employee_id: str,
+    date_from: day_arg("First", "the next 30 days") = None,
+    date_to: day_arg("Last", "the next 30 days") = None,
+) -> dict:
+    if not employee_id:
+        raise ToolError("employee_id is missing")
+    today = date.today()
+    date_from, date_to = period(date_from, date_to, today, today + timedelta(days=30))
+    if date_from > date_to:
+        raise ToolError("date_from is after date_to")
+    if (date_to - date_from).days > 366:
+        raise ToolError("the range is longer than 1 year: ask for a shorter period")
+    refuse_if_ended(employee_id)
+    with get_hrdotnet_engine().connect() as conn:
+        params = {"employee_id": employee_id, "date_from": date_from, "date_to": date_to}
+        rows = [dict(row._mapping) for row in conn.execute(HRDOTNET_HOLIDAYS_SQL, params)]
+    holidays = [
+        {"date": row["date_from"], **({"until": row["date_to"]} if row["date_to"] != row["date_from"] else {}),
+         "name": row["holiday"], "type": row["holiday_type"],
+         "scope": "national" if row["location_id"] == NATIONAL_LOCATION_ID else f"local: {row['location']}"}
+        for row in rows
+    ]
+    result = {"date_from": str(date_from), "date_to": str(date_to), "holidays": holidays}
+    if not holidays:
+        result["note"] = "No holiday on file for the employee's company in this period."
+    return result

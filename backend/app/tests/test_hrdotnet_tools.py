@@ -1,6 +1,7 @@
 """The hrdotnet MCP server's own tools (8.6L): get_my_attendance (totals, the days worth noting, the guards),
 get_my_schedule (which source wins per day), get_my_overtime (hours per status), get_my_time_logs (punches),
-get_my_requests (OB, missed logs, offsets) and get_my_employment_info (whitelisted, no pay). Fake connections stand in
+get_my_requests (OB, missed logs, offsets), get_my_employment_info (whitelisted, no pay) and get_holidays (the
+employee's company, national or local). Fake connections stand in
 for SQL Server: the SQL itself is checked live against the ai views, never here."""
 
 from datetime import date
@@ -11,6 +12,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 
 import app.tools.systems.hrdotnet as hrdotnet_system
 from app.tools.systems.hrdotnet import (
+    get_holidays,
     get_my_attendance,
     get_my_employment_info,
     get_my_leave_applications,
@@ -325,6 +327,42 @@ def test_no_requests_and_bad_ranges(records):
             get_my_requests("44", date_from, date_to)
 
 
+# --- get_holidays ----------------------------------------------------------------------------------------------
+
+
+def holiday(name, date_from, date_to=None, holiday_type="Regular Holiday", location_id=1, location="Philippines"):
+    return {"holiday": name, "holiday_type": holiday_type, "location_id": location_id, "location": location,
+            "date_from": date_from, "date_to": date_to or date_from}
+
+
+def test_holidays_say_national_or_local_and_how_long(records, monkeypatch):
+    monkeypatch.setattr(hrdotnet_system, "date", FixedDate)
+    seen = records([
+        holiday("ALL SAINTS' DAY", "2026-11-01", holiday_type="Special Non-Working Holiday"),
+        holiday("PASIG DAY", "2026-11-05", location_id=1072, location="Pasig, Metro Manila"),
+        holiday("MANILA DAY", "2026-11-10", "2026-11-12", location_id=1066, location="Manila, Metro Manila"),
+    ])
+    r = get_holidays("44")
+    assert seen["employee_id"] == "44"
+    assert (seen["date_from"], seen["date_to"]) == (date(2026, 10, 21), date(2026, 11, 20))  # the next 30 days
+    assert r["holidays"] == [
+        {"date": "2026-11-01", "name": "ALL SAINTS' DAY", "type": "Special Non-Working Holiday", "scope": "national"},
+        {"date": "2026-11-05", "name": "PASIG DAY", "type": "Regular Holiday", "scope": "local: Pasig, Metro Manila"},
+        {"date": "2026-11-10", "until": "2026-11-12", "name": "MANILA DAY", "type": "Regular Holiday",
+         "scope": "local: Manila, Metro Manila"},
+    ]
+    assert "note" not in r
+
+
+def test_no_holidays_and_bad_ranges(records):
+    records([])
+    r = get_holidays("44", date(2026, 11, 1), date(2026, 11, 1))
+    assert r["holidays"] == [] and "No holiday on file" in r["note"]
+    for date_from, date_to, problem in ((date(2026, 11, 2), date(2026, 11, 1), "after"), (date(2026, 1, 1), date(2027, 1, 3), "1 year")):
+        with pytest.raises(ToolError, match=problem):
+            get_holidays("44", date_from, date_to)
+
+
 # --- get_my_employment_info ------------------------------------------------------------------------------------
 
 
@@ -450,12 +488,13 @@ def line(payslip_id, item, amount, line_type="earning", hours=None, description=
 
 @pytest.fixture
 def payslips(monkeypatch):
-    """payslips(latest, in_period, lines) -> the params per SQL; the tool reads these rows instead of the database."""
+    """payslips(latest, in_period, lines, previous) -> the params per SQL; the tool reads these rows instead of the database."""
     seen = {}
 
-    def use(latest=None, in_period=(), lines=()):
+    def use(latest=None, in_period=(), lines=(), previous=None):
         by_sql = {
             hrdotnet_system.HRDOTNET_LATEST_PAYSLIP_SQL: [latest] if latest else [],
+            hrdotnet_system.HRDOTNET_PREVIOUS_PAYSLIP_SQL: [previous] if previous else [],
             hrdotnet_system.HRDOTNET_PAYSLIPS_SQL: list(in_period),
             hrdotnet_system.HRDOTNET_PAYSLIP_LINES_SQL: list(lines),
         }
@@ -502,6 +541,32 @@ def test_no_dates_gives_the_latest_posted_payslip_with_only_its_lines(payslips):
     assert p["lines"] == [{"type": "earning", "item": "Overtime", "hours": "6.5", "amount": "1,200.00"},
                           {"type": "deduction", "item": "SSS", "amount": "500.00"}]
     assert "check_with_payroll" not in p  # its totals add up
+
+
+def test_no_dates_also_gives_the_payslip_just_before_the_latest(payslips):
+    latest = slip("7", "2025-12-01", "2025-12-15", "2025-12-29")
+    before = slip("6", "2025-11-16", "2025-11-30", "2025-12-14", sss=0, wisp=750, net_pay=17750)
+    seen = payslips(latest=latest, previous=before, lines=[
+        line("7", "SSS", 500, line_type="deduction"),
+        line("6", "WISP", 750, line_type="deduction"),
+    ])
+    r = get_my_payslip("44")
+    assert seen[hrdotnet_system.HRDOTNET_PREVIOUS_PAYSLIP_SQL]["pay_date"] == date(2025, 12, 29)  # before the latest
+    lines_params = seen[hrdotnet_system.HRDOTNET_PAYSLIP_LINES_SQL]
+    assert (lines_params["date_from"], lines_params["date_to"]) == (date(2025, 11, 16), date(2025, 12, 15))
+    assert [p["pay_date"] for p in r["payslips"]] == ["2025-12-29"]  # payslips: still only the latest
+    previous = r["previous_payslip"]
+    assert previous["pay_date"] == "2025-12-14" and previous["net_pay"] == "17,750.00"
+    assert previous["deductions"] == {"SSS WISP": "750.00", "withholding tax": "1,500.00"}
+    assert [ln["amount"] for ln in previous["lines"]] == ["750.00"]  # only its own lines
+    assert "previous_payslip" in r["compare"] and "never calculate" in r["compare"]
+
+
+def test_a_period_asked_reads_no_previous_payslip(payslips):
+    first = slip("8", "2025-11-01", "2025-11-15", "2025-11-29")
+    seen = payslips(latest=first, in_period=[first], previous=slip("5", "2025-10-16", "2025-10-31", "2025-11-14"))
+    r = get_my_payslip("44", date(2025, 11, 1), date(2025, 11, 30))
+    assert hrdotnet_system.HRDOTNET_PREVIOUS_PAYSLIP_SQL not in seen and "previous_payslip" not in r
 
 
 def test_a_period_returns_every_payslip_whose_cutoff_overlaps_it(payslips):
@@ -563,6 +628,7 @@ def test_one_date_given_for_payslips_fills_the_other(payslips, monkeypatch):
     lambda: get_my_time_logs("44"),
     lambda: get_my_requests("44"),
     lambda: get_my_employment_info("44"),
+    lambda: get_holidays("44"),
 ])
 def test_a_leaver_is_refused_every_tool_but_the_payslip_before_any_query(monkeypatch, tool):
     monkeypatch.setattr(hrdotnet_system, "employment_ended", lambda employee_id: employee_id == "44")
@@ -575,11 +641,13 @@ def test_a_leaver_gets_only_the_latest_payslip_whatever_dates_are_asked(payslips
     monkeypatch.setattr(hrdotnet_system, "employment_ended", lambda employee_id: employee_id == "44")
     latest = slip("7", "2025-12-01", "2025-12-15", "2025-12-29")
     seen = payslips(latest=latest, in_period=[slip("3", "2025-10-01", "2025-10-15", "2025-10-29")],
-                    lines=[line("7", "SSS", 500, line_type="deduction")])
+                    lines=[line("7", "SSS", 500, line_type="deduction")],
+                    previous=slip("6", "2025-11-16", "2025-11-30", "2025-12-14"))
     r = get_my_payslip("44", date(2025, 10, 1), date(2025, 10, 31))
     assert hrdotnet_system.HRDOTNET_PAYSLIPS_SQL not in seen  # the older period is never read
     assert r["latest_posted_payslip"] is True and "employment has ended" in r["only_latest"]
     assert [p["pay_date"] for p in r["payslips"]] == ["2025-12-29"]
+    assert hrdotnet_system.HRDOTNET_PREVIOUS_PAYSLIP_SQL not in seen and "previous_payslip" not in r  # leavers: latest only
 
 
 def test_someone_still_employed_gets_no_leaver_note(payslips):

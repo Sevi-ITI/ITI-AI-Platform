@@ -6,6 +6,13 @@ from app.rag.passage import Passage
 REFUSAL_EN = "I don't know. I couldn't find that in the uploaded documents."
 REFUSAL_FIL = "Hindi ko alam. Wala ito sa mga na-upload na dokumento."
 
+# What the person sees (Vince, 2026-10-23: refusals sound human, name no source, point to HR). The model still writes
+# REFUSAL_EN / REFUSAL_FIL: is_refusal() needs that exact sentence; the code swaps in this reply.
+HUMAN_REFUSAL_EN = ("Sorry, that's not something I can help with. HR would be the best people to ask, "
+                    "and they'll be happy to help.")
+HUMAN_REFUSAL_FIL = ("Pasensya na, hindi ko po 'yan masasagot. Mas mabuting magtanong po kayo sa HR, "
+                     "matutulungan nila kayo.")
+
 SYSTEM_PROMPT = """You are ITI Assistant, an internal helper for Intellismart Technology Inc.
 You answer ONLY from ITI's uploaded documents provided to you as context.
 If the documents do not contain the answer, reply exactly:
@@ -64,12 +71,17 @@ def is_filipino(question: str) -> bool:
     return any(word in TAGALOG_WORDS for word in words)
 
 def refusal_for(question: str) -> str:
-    return REFUSAL_FIL if is_filipino(question) else REFUSAL_EN
+    return HUMAN_REFUSAL_FIL if is_filipino(question) else HUMAN_REFUSAL_EN
 
 def is_refusal(answer: str) -> bool:
     """The reply is only the refusal: English, Filipino, or both (the model sometimes writes both lines)."""
     rest = answer.replace(REFUSAL_EN, "").replace(REFUSAL_FIL, "")
     return rest != answer and rest.strip() == ""
+
+def could_be_refusal(text: str) -> bool:
+    """While streaming: the text so far may still turn into the bare refusal, so don't show it yet."""
+    rest = text.replace(REFUSAL_EN, "").replace(REFUSAL_FIL, "").strip()
+    return REFUSAL_EN.startswith(rest) or REFUSAL_FIL.startswith(rest)
 
 def format_context(chunks: Sequence[Passage]) -> str:
     return "\n".join(
