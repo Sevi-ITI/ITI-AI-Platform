@@ -1,6 +1,6 @@
 <#
 stop-lan.ps1: stops what start-lan.ps1 started on this laptop: Caddy (443/8443, the LAN door first), the console
-(3000) and the API (8000). Docker Desktop, the database and Ollama keep running (other work uses them too).
+(3000), the game console (4000) and the API (8000). Docker Desktop, the database and Ollama keep running (other work uses them too).
 Start again with deploy\start-lan.ps1, or sign out and in (the "ITI AI LAN" task).
 #>
 
@@ -14,7 +14,7 @@ function Log([string]$text) {
 }
 
 Log "=== stop-lan.ps1 (user $env:USERNAME)"
-foreach ($stop in @(@("Caddy", 443), @("Caddy", 8443), @("console", 3000), @("API", 8000))) {
+foreach ($stop in @(@("Caddy", 443), @("Caddy", 8443), @("console", 3000), @("game console", 4000), @("API", 8000))) {
     $name, $port = $stop
     $owners = Get-NetTCPConnection -State Listen -LocalPort $port -ErrorAction SilentlyContinue |
         Select-Object -ExpandProperty OwningProcess -Unique

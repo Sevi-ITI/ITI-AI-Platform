@@ -6,15 +6,18 @@ start-lan.ps1: starts the ITI AI Platform for the office network, in order, in t
   3. API (uvicorn)  -> waits for http://127.0.0.1:8000/health
   4. Console        -> `npm start` (the BUILT console), waits for http://127.0.0.1:3000/login
   5. Caddy          -> the only door to the LAN (443 testers, 8443 API), waits for https on 443
+  6. Game console   -> `npm start` in game-ui (the BUILT app), waits for http://127.0.0.1:4000/login (this laptop
+                       only: Caddy does not open it to the LAN)
 
 Safe to run again at any time: a piece that is already running is left alone. Logs (git-ignored):
   data\logs\start-lan.log   what this script did, with times
-  data\logs\api-<date>.log, console-<date>.log, caddy-<date>.log (+ .err.log): each service's own output
+  data\logs\api-<date>.log, console-<date>.log, caddy-<date>.log, game-console-<date>.log (+ .err.log): each
+  service's own output
 
 Started at sign-in by the Task Scheduler task "ITI AI LAN" (see System Guide 16.4). Runs as the signed-in user ON
 PURPOSE: Caddy's certificate authority lives in this user's profile (%AppData%\Caddy); another account (a Windows
 service) would make a NEW root certificate that the office PCs don't trust.
-Stop the API, console and Caddy with deploy\stop-lan.ps1.
+Stop the API, both consoles and Caddy with deploy\stop-lan.ps1.
 #>
 
 # "Continue", not "Stop": Windows PowerShell 5.1 would stop on any line a program writes to its error output.
@@ -107,7 +110,16 @@ try {
         Wait-For "Caddy on 443 and 8443" 60 { (Http-Ok "https://${Name}/login") -and (Http-Ok "https://${Name}:8443/health") }
     } else { Log "5. Caddy is running" }
 
-    Log "=== all up: https://$Name (testers), https://${Name}:8443/v1/docs (API docs)"
+    # 6. The game console (the built app: after a code change run `npm run build` in game-ui first)
+    if (-not (Listening 4000)) {
+        $game = Join-Path $Root "game-ui"
+        if (-not (Test-Path (Join-Path $game ".next\BUILD_ID"))) { throw "the game console is not built: run 'npm run build' in game-ui" }
+        Log "6. starting the game console"
+        Start-Hidden "game-console" "C:\Program Files\nodejs\npm.cmd" "start" $game
+        Wait-For "game console /login" 90 { Http-Ok "http://127.0.0.1:4000/login" }
+    } else { Log "6. the game console is running" }
+
+    Log "=== all up: https://$Name (testers), https://${Name}:8443/v1/docs (API docs), http://127.0.0.1:4000 (game console, this laptop)"
 }
 catch {
     Log "!!! FAILED: $($_.Exception.Message)"
