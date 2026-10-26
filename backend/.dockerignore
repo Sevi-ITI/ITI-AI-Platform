@@ -1,0 +1,22 @@
+# Build context of the iti-ai-api image (backend/). Mirrors .gitignore: no secrets, nothing local or generated.
+# Secrets: every .env except the committed example
+.env
+.env.*
+*.env
+!.env.example
+# Local Python environment, caches and build output
+.venv/
+**/__pycache__/
+**/*.pyc
+.pytest_cache/
+.ruff_cache/
+# Licensed / company PDFs (the ISO test copy)
+app/rag/fixtures/*.pdf
+**/*.pdf
+# Editor and assistant files
+.idea/
+.claude
+CLAUDE.md
+# The image's own build files
+Dockerfile
+.dockerignore

@@ -170,14 +170,14 @@ def test_a_change_beats_the_weekly_schedule_which_beats_the_usual_shift(schedule
     )
     days = get_my_schedule("44", date(2026, 9, 1), date(2026, 9, 6))["days"]
     assert [(d["date"], d["weekday"], d["shift"], d["source"]) for d in days] == [
-        ("2026-09-01", "Tuesday", "10:00AM-07:00PM(08)", "schedule change CS-1 (posted)"),
+        ("2026-09-01", "Tuesday", "10:00 AM-7:00 PM(08)", "schedule change CS-1 (posted)"),
         ("2026-09-02", "Wednesday", "rest day", "schedule change CS-2 (approved)"),
-        ("2026-09-03", "Thursday", "09:00AM-06:00PM(08)", "weekly schedule"),
-        ("2026-09-04", "Friday", "08:00AM-05:00PM(08)", "usual weekly shift"),
+        ("2026-09-03", "Thursday", "9:00 AM-6:00 PM(08)", "weekly schedule"),
+        ("2026-09-04", "Friday", "8:00 AM-5:00 PM(08)", "usual weekly shift"),
         ("2026-09-05", "Saturday", "rest day", "usual weekly shift"),
         ("2026-09-06", "Sunday", "no schedule on record", "none"),
     ]
-    assert (days[0]["time_in"], days[0]["time_out"]) == ("08:00", "17:00") and "time_in" not in days[1]
+    assert (days[0]["time_in"], days[0]["time_out"]) == ("8:00 AM", "5:00 PM") and "time_in" not in days[1]
 
 
 def test_no_schedule_at_all_gets_a_note(schedules):
@@ -214,7 +214,7 @@ def test_overtime_hours_are_grouped_by_status(records):
     assert seen["employee_id"] == "44"
     assert (r["applications_filed"], r["hours_approved"], r["hours_waiting_for_approval"], r["hours_cancelled"]) == (5, "3.5", "4", "2.5")
     first = r["applications"][0]
-    assert (first["time_start"], first["time_end"], first["hours_filed"], first["status"]) == ("18:00", "20:00", "2", "posted")
+    assert (first["time_start"], first["time_end"], first["hours_filed"], first["status"]) == ("6:00 PM", "8:00 PM", "2", "posted")
     assert r["applications"][2]["approved_on"] is None
     assert r["status_meanings"] == hrdotnet_system.STATUS_MEANINGS
 
@@ -267,8 +267,8 @@ def test_punches_per_day_and_the_dates_without_any(punches):
              punch(date(2026, 9, 3), "08:10:00", manual=True)], latest=date(2026, 9, 14))
     r = get_my_time_logs("44", date(2026, 9, 1), date(2026, 9, 3))
     assert r["days"] == [
-        {"date": "2026-09-01", "weekday": "Tuesday", "punches": ["07:58", "17:03"]},
-        {"date": "2026-09-03", "weekday": "Thursday", "punches": ["08:10"], "entered_by_hand": ["08:10"]},
+        {"date": "2026-09-01", "weekday": "Tuesday", "punches": ["7:58 AM", "5:03 PM"]},
+        {"date": "2026-09-03", "weekday": "Thursday", "punches": ["8:10 AM"], "entered_by_hand": ["8:10 AM"]},
     ]
     assert r["dates_without_punches"] == ["2026-09-02"] and "not_loaded_yet" not in r and "not marked as in or out" in r["note"]
 
@@ -313,7 +313,7 @@ def test_requests_are_counted_per_type_and_status(records):
                                   "offset": {"approved": 1}}
     missed = r["requests"][2]
     assert (missed["type"], missed["time_from"], missed["time_to"], missed["detail"], missed["status"]) == (
-        "missed log", "17:05", None, "time out", "filed")
+        "missed log", "5:05 PM", None, "time out", "filed")
     assert "approved = approved, waiting for HR to post" in r["status_meanings"]
     assert "posted = approved AND already applied" in r["status_meanings"]
 
