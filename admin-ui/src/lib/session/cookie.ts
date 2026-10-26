@@ -2,10 +2,10 @@ import "server-only";
 
 import { cookies } from "next/headers";
 
+import { SESSION_COOKIE } from "@/lib/console-app";
+
 // The person's FastAPI session pass (iti_cs_...) lives only in this httpOnly cookie: the browser's
 // scripts can't read it, and it is never passed to client components or written to a log.
-
-export const SESSION_COOKIE = "iti_console_session";
 
 export async function readSession(): Promise<string | undefined> {
   return (await cookies()).get(SESSION_COOKIE)?.value;

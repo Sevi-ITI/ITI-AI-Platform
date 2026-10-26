@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { SESSION_COOKIE } from "@/lib/session/cookie";
+import { SESSION_COOKIE } from "@/lib/console-app";
 
 // First gate only: no session cookie → the login page. Whether the pass is still valid is checked by
 // FastAPI on every call (a 401 → /session-ended), so this never decides who may do what.
