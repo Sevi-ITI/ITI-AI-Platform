@@ -4,6 +4,7 @@ in SERVERS in mcp_servers.py. Add a tool: a new section in this file (a SQL cons
 Rules: every per-employee tool takes employee_id (the host fills it in from ITI-User-Id, the model never sees it);
 read-only; errors as ToolError("what was wrong"), never with other people's data."""
 
+import re
 from datetime import date, timedelta
 from decimal import Decimal
 from functools import lru_cache
@@ -220,8 +221,8 @@ def get_my_attendance(
         days_undertime=days_with("undertime_minutes"), undertime_minutes=total("undertime_minutes"),
         days_absent=total("absent_days"), leave_days=total("leave_days"), overtime_hours=total("overtime_hours"),
         days_to_note=[
-            {"date": row["work_date"], "day_type": row["day_type"], "schedule": row["schedule"],
-             "time_in": row["time_in"] or "no log", "time_out": row["time_out"] or "no log",
+            {"date": row["work_date"], "day_type": row["day_type"], "schedule": twelve_hour(row["schedule"]),
+             "time_in": twelve_hour(row["time_in"]) or "no log", "time_out": twelve_hour(row["time_out"]) or "no log",
              "late_minutes": as_text(row["late_minutes"]), "undertime_minutes": as_text(row["undertime_minutes"]),
              "absent": (row["absent_days"] or 0) > 0, "leave": row["leave_code"]}
             for row in noted
@@ -254,9 +255,27 @@ HRDOTNET_DEFAULT_SCHEDULE_SQL = text("""
 """)
 
 
-def hhmm(value: str | None) -> str | None:
-    """A shift time as people say it: "08:00:00" -> "08:00"."""
-    return value[:5] if value else None
+CLOCK = re.compile(r"(\d{1,2}):(\d{2})(?::\d{2})?(?:\s*([AP]M))?", re.IGNORECASE)
+
+
+def twelve_hour_time(match: re.Match) -> str:
+    """One time to 12-hour; an hour over 12 wins over a wrong AM/PM ("18:00 PM" -> "6:00 PM")."""
+    hour, minute, suffix = int(match[1]) % 24, match[2], (match[3] or "").upper()
+    if hour >= 13:
+        hour, suffix = hour - 12, "PM"
+    elif hour == 0:
+        hour, suffix = 12, "AM"
+    elif hour == 12:
+        suffix = suffix or "PM"
+    else:
+        suffix = suffix or "AM"
+    return f"{hour}:{minute} {suffix}"
+
+
+def twelve_hour(value: str | None) -> str | None:
+    """Every time in a text to 12-hour, as people say it: "08:00:00" -> "8:00 AM", "8:00 AM - 18:00 PM" ->
+    "8:00 AM - 6:00 PM". HR types shift names by hand, mixing 24-hour times with AM/PM."""
+    return CLOCK.sub(twelve_hour_time, value) if value else None
 
 
 def shift_of(row: dict, source: str) -> dict | None:
@@ -265,7 +284,8 @@ def shift_of(row: dict, source: str) -> dict | None:
         return {"shift": "rest day", "source": source}
     if not row["shift"]:
         return None
-    return {"shift": row["shift"], "time_in": hhmm(row["time_in"]), "time_out": hhmm(row["time_out"]), "source": source}
+    return {"shift": twelve_hour(row["shift"]), "time_in": twelve_hour(row["time_in"]),
+            "time_out": twelve_hour(row["time_out"]), "source": source}
 
 
 @hrdotnet.tool(
@@ -358,8 +378,8 @@ def get_my_overtime(
         "hours_approved": as_text(hours["approved"]), "hours_waiting_for_approval": as_text(hours["waiting"]),
         "hours_cancelled": as_text(hours["cancelled"]),
         "applications": [
-            {"document_no": row["document_no"], "date": row["ot_date"], "shift": row["shift"],
-             "time_start": hhmm(row["time_start"]), "time_end": hhmm(row["time_end"]),
+            {"document_no": row["document_no"], "date": row["ot_date"], "shift": twelve_hour(row["shift"]),
+             "time_start": twelve_hour(row["time_start"]), "time_end": twelve_hour(row["time_end"]),
              "hours_filed": as_text(row["hours_filed"]), "status": (row["status"] or "").lower(),
              "filed_on": row["filed_on"], "approved_on": row["approved_on"]}
             for row in rows
@@ -410,8 +430,8 @@ def get_my_time_logs(
         by_day.setdefault(row["log_date"], []).append(row)
     days = []
     for day, punches in sorted(by_day.items()):
-        entry = {"date": str(day), "weekday": day.strftime("%A"), "punches": [hhmm(p["log_time"]) for p in punches]}
-        manual = [hhmm(p["log_time"]) for p in punches if p["is_manual"]]
+        entry = {"date": str(day), "weekday": day.strftime("%A"), "punches": [twelve_hour(p["log_time"]) for p in punches]}
+        manual = [twelve_hour(p["log_time"]) for p in punches if p["is_manual"]]
         if manual:
             entry["entered_by_hand"] = manual
         days.append(entry)
@@ -474,8 +494,8 @@ def get_my_requests(
         "status_meanings": STATUS_MEANINGS,
         "requests": [
             {"type": row["request_type"], "document_no": row["document_no"], "date_from": row["date_from"],
-             "date_to": row["date_to"], "time_from": hhmm(row["time_from"]), "time_to": hhmm(row["time_to"]),
-             "detail": row["detail"], "status": (row["status"] or "").lower(), "filed_on": row["filed_on"],
+             "date_to": row["date_to"], "time_from": twelve_hour(row["time_from"]), "time_to": twelve_hour(row["time_to"]),
+             "detail": twelve_hour(row["detail"]), "status": (row["status"] or "").lower(), "filed_on": row["filed_on"],
              "approved_on": row["approved_on"]}
             for row in rows
         ],
@@ -528,6 +548,7 @@ def get_my_employment_info(employee_id: str) -> dict:
     hired, ended = info["date_hired"], info["date_ended"]
     return {
         **{key: value for key, value in info.items() if key not in ("date_hired", "date_regularized", "date_ended")},
+        "usual_schedule": twelve_hour(info["usual_schedule"]),
         "date_hired": str(hired) if hired else None,
         "date_regularized": str(info["date_regularized"]) if info["date_regularized"] else None,
         "date_ended": str(ended) if ended else None,
