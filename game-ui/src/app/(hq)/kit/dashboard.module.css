@@ -1,0 +1,2064 @@
+/* Copied from admin-ui src/app/(console)/dashboard.module.css (G3), with the other pieces in this kit/ folder.
+   One change: the breakpoints follow the page panel (@container page, set in hq.module.css), not the window.
+   Not kept identical to admin-ui (game-ui may restyle it). */
+
+/* Overview and Performance: compact dashboard (KPI row, wide + narrow columns, cards). Tokens only. */
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-5);
+}
+
+.header h1 {
+  font-size: var(--text-xl);
+  text-wrap: balance; /* long names wrap evenly, no one-word last line */
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+.ok {
+  color: var(--ok);
+}
+
+.warn {
+  color: var(--warn);
+}
+
+.error {
+  color: var(--error);
+}
+
+/* Cards */
+/* Layers: page (0) -> panels .card (1) -> groups inside a panel .nested (2) -> floating: sidebar, dialogs, toasts */
+.card {
+  display: grid;
+  gap: var(--space-3);
+  align-content: start;
+  min-width: 0;
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--elevation-1);
+}
+
+.card > h2 {
+  font-size: var(--text-md);
+}
+
+/* Row 1: four small number cards */
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.kpi {
+  composes: card;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+}
+
+.kpiLabel {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.kpiValue {
+  font-size: var(--text-xl);
+  font-weight: 700;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+
+.kpiNote {
+  color: var(--text-subtle);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Below: wide column + narrow column, one column on small screens */
+.columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: start;
+}
+
+.column {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+  container-type: inline-size; /* cards inside can adapt to the column's width, not the window's */
+}
+
+/* Status tiles: a colored underline carries the status (with a word, never color alone) */
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr)); /* 4 across, or 2 x 2 in a narrow column: never 3 + 1 */
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+}
+
+/* after .tiles, so it wins: the column (a size container) is narrow -> 2 x 2 */
+@container (max-width: 36rem) {
+  .tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.tile {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2) var(--space-3);
+  border-bottom: 3px solid var(--border);
+}
+
+.tile_ok {
+  border-bottom-color: var(--ok);
+}
+
+.tile_warn {
+  border-bottom-color: var(--warn);
+}
+
+.tile_error {
+  border-bottom-color: var(--error);
+}
+
+.tileValue {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.tileValue svg {
+  flex: none;
+}
+
+/* Overview's System card: the overall state as a pill beside the title (icon shape + words, color repeats it) */
+.statusPill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.statusPill_ok {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.statusPill_error {
+  background: var(--error-soft);
+  color: var(--error);
+}
+
+/* Small facts on one line under the tiles (Models, Indexing, Service up for); they wrap on narrow cards */
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.facts div {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.facts dt {
+  color: var(--text-muted);
+}
+
+.facts dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+/* GPU memory meter (Performance): label + value, a thin bar, then MB and busy */
+.meter {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.meterHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.meterValue {
+  font-size: var(--text-xl);
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.meterHigh {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--warn);
+}
+
+/* Collections: one row each (name + count, then a thin bar); the biggest bar in the accent color */
+.bars {
+  display: grid;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bars li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+}
+
+.barLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-sm);
+}
+
+.barValue {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.barTrack {
+  grid-column: 1 / -1;
+  display: flex;
+  height: 0.5rem;
+  border-radius: var(--radius-pill);
+  background: var(--border-subtle);
+  overflow: hidden;
+}
+
+.barFill,
+.barTop {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--text-subtle);
+}
+
+.barTop {
+  background: var(--accent);
+}
+
+/* Label / value list */
+.list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.list div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.list dt {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--text-muted);
+}
+
+.list dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Tables scroll sideways on narrow screens instead of breaking the page */
+.tableWrap {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.table th,
+.table td {
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.table th {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+
+.table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.table .number {
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* Comfortaa has no fixed-width digits (a "1" is 2/3 as wide; tabular-nums changes nothing), so number CELLS use the
+   monospace stack: digits line up from row to row. Headers keep the UI font. */
+.table td.number {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+/* Performance: window switch (1 h / 24 h / 7 d) */
+.switch {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+}
+
+.switch a,
+.switch button {
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  text-decoration: none;
+  transition:
+    background var(--fast),
+    color var(--fast);
+}
+
+.switch a:hover,
+.switch button:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--text);
+}
+
+/* Pending dot: space always reserved (no layout shift), appears only if loading takes over 100 ms */
+.pendingDot {
+  display: inline-block;
+  width: 0.4rem;
+  height: 0.4rem;
+  margin-left: var(--space-1);
+  border-radius: 50%;
+  background: currentColor;
+  vertical-align: middle;
+  opacity: 0;
+}
+
+.isPending {
+  animation:
+    pending-in 200ms ease 100ms forwards,
+    pending-pulse 1s ease-in-out 300ms infinite;
+}
+
+@keyframes pending-in {
+  to {
+    opacity: 0.8;
+  }
+}
+
+@keyframes pending-pulse {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+.switch button {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.switch a[aria-current="page"],
+.switch button[aria-pressed="true"] {
+  background: var(--accent-soft);
+  color: var(--text);
+  font-weight: 700;
+}
+
+/* Answer outcomes: one stacked bar, then a legend with counts (color is never the only cue) */
+.stack {
+  display: flex;
+  gap: 2px;
+  height: 0.6rem;
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+
+.dot {
+  display: inline-block;
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  vertical-align: baseline;
+}
+
+.outcomeAnswered {
+  background: var(--ok);
+}
+
+.outcomeRefused {
+  background: var(--text-subtle);
+}
+
+.outcomeBusy {
+  background: var(--warn);
+}
+
+.outcomeFailed {
+  background: var(--error);
+}
+
+/* "Show all" fold under a table (native <details>, no JavaScript) */
+.more summary {
+  width: fit-content;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.more summary:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+/* Filter bar (plain GET form) */
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3) var(--space-4);
+}
+
+.filters label {
+  display: grid;
+  gap: var(--space-1);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.filters select {
+  min-width: 12rem; /* the box, chevron and list come from globals.css */
+}
+
+.filters input:not([type="checkbox"]) {
+  min-height: 2.25rem;
+  min-width: 12rem;
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken); /* explicit: Windows draws native selects white otherwise */
+  color: var(--text);
+  font-size: 1rem; /* 16px: phones don't zoom in */
+}
+
+.filters .check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 2.25rem;
+  cursor: pointer;
+}
+
+.check input {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--accent);
+}
+
+.apply {
+  min-height: 2.25rem;
+  padding: var(--space-1) var(--space-4);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--button-primary-bg);
+  color: var(--button-primary-text);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* Filter forms: Apply is outlined (the table is the page's main thing, not its filter button); Clear is a quiet
+   text link beside it. Same height, same line. */
+.filterApply {
+  min-height: 2.25rem;
+  padding: var(--space-1) var(--space-4);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--text);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    background-color var(--fast) var(--ease),
+    border-color var(--fast) var(--ease);
+}
+
+.filterApply:hover {
+  border-color: var(--accent);
+  background: var(--hover);
+}
+
+.clear {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.25rem;
+  padding: var(--space-1) var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.clear:hover {
+  color: var(--text);
+  text-decoration: underline;
+}
+
+/* Previous / Next */
+.pager {
+  /* above the table, at its right: "Rows 101–200  ← Previous  Next →" */
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2) var(--space-3);
+
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.pager a {
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  color: var(--text);
+  text-decoration: none;
+}
+
+.pager a:hover {
+  background: var(--hover);
+}
+
+/* Two equal cards side by side */
+.pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  align-items: stretch; /* both cards as tall as the taller one (Vince, R2j); the charts start level */
+}
+
+/* Charts */
+.chart {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+/* Plot: value labels (left) | chart, then time labels under the chart only */
+.plot {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: var(--space-2);
+  row-gap: var(--space-1);
+}
+
+.plot > svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.yAxis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-width: 2.2rem;
+  color: var(--text-subtle);
+  font-size: var(--text-xs);
+  line-height: 1;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.plot > .axis {
+  grid-column: 2;
+}
+
+.axis {
+  display: flex;
+  justify-content: space-between;
+  color: var(--text-subtle);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.gridLine {
+  stroke: var(--border-subtle);
+  stroke-dasharray: 4 4;
+}
+
+.barRequests {
+  fill: var(--accent);
+  opacity: 0.55;
+}
+
+.barErrors {
+  fill: var(--error);
+}
+
+.swatchRequests,
+.swatchErrors {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 2px;
+  background: var(--accent);
+  opacity: 0.55;
+}
+
+.swatchErrors {
+  background: var(--error);
+  opacity: 1;
+}
+
+/* Lines differ by dash pattern as well as color (never color alone) */
+.lineP50,
+.lineP95,
+.lineQueue {
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.lineP50 {
+  stroke: var(--accent);
+}
+
+.lineP95 {
+  stroke: var(--text-muted);
+  stroke-dasharray: 6 4;
+}
+
+.lineQueue {
+  stroke: var(--warn);
+  stroke-dasharray: 2 4;
+}
+
+.lineP50 circle {
+  fill: var(--accent);
+}
+
+.lineP95 circle {
+  fill: var(--text-muted);
+}
+
+.lineQueue circle {
+  fill: var(--warn);
+}
+
+.lineP50 circle,
+.lineP95 circle,
+.lineQueue circle {
+  stroke: none;
+}
+
+@container page (max-width: 56rem) {
+  .pair {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@container page (max-width: 56rem) {
+  .columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@container page (max-width: 40rem) {
+  .kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Dialogs (native <dialog>): add a document, delete a user's chats, ... */
+.dialog {
+  width: min(28rem, calc(100vw - 2 * var(--float-gap)));
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  color: var(--text);
+  box-shadow: var(--elevation-3);
+  overscroll-behavior: contain;
+}
+
+.dialog::backdrop {
+  background: rgba(0, 0, 0, 0.5);
+}
+
+/* Dialogs ease in and out (rise + fade; the backdrop fades). @starting-style = the state it opens from. */
+.dialog,
+.dialog::backdrop {
+  transition:
+    opacity var(--fast) var(--ease),
+    transform var(--medium) var(--ease),
+    background-color var(--fast) var(--ease),
+    overlay var(--fast) allow-discrete,
+    display var(--fast) allow-discrete;
+}
+
+.dialog:not([open]) {
+  opacity: 0;
+  transform: translateY(0.5rem) scale(0.98);
+}
+
+.dialog:not([open])::backdrop {
+  background-color: transparent;
+}
+
+@starting-style {
+  .dialog[open] {
+    opacity: 0;
+    transform: translateY(0.5rem) scale(0.98);
+  }
+
+  .dialog[open]::backdrop {
+    background-color: transparent;
+  }
+}
+
+.dialogForm {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-5);
+}
+
+.dialogForm h2 {
+  font-size: var(--text-lg);
+}
+
+.field {
+  display: grid;
+  gap: var(--space-1);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.field input {
+  min-height: 2.25rem;
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background-color: var(--surface-sunken);
+  color: var(--text);
+  font-size: 1rem;
+}
+
+.field small {
+  font-size: var(--text-xs);
+}
+
+.dialogActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.secondary,
+.danger {
+  min-height: 2.5rem;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.secondary {
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--text);
+}
+
+.secondary:hover {
+  background: var(--hover);
+}
+
+.danger {
+  border: 1px solid var(--error);
+  background: var(--error-soft);
+  color: var(--error);
+}
+
+.danger:hover:not(:disabled) {
+  background: var(--error);
+  color: var(--surface-raised);
+}
+
+.danger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* A saved conversation for review (Users & chats): Chat's bubbles plus a small line under each */
+.thread {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-width: 48rem;
+}
+
+.turn {
+  display: flex;
+  flex-direction: column; /* lets the question bubble sit right (align-self in chat.module.css) */
+  gap: var(--space-1);
+}
+
+.turnMeta {
+  color: var(--text-subtle);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.turnMetaUser {
+  align-self: flex-end;
+}
+
+/* The small red button in a table row (ConfirmAction): opens its confirmation dialog */
+.dangerSmall {
+  min-height: 1.75rem;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border); /* red text marks it; the outline turns red on hover */
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--error);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.dangerSmall:hover {
+  border-color: var(--error);
+  background: var(--error-soft);
+}
+
+/* Documents: file names wrap, but never to one word per line */
+.fileCell {
+  min-width: 14rem;
+}
+
+/* Apps & keys */
+.cardHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+}
+
+/* outside tables (an app card's buttons) the row may wrap: four buttons don't fit a phone */
+.cardHead .rowActions {
+  flex-wrap: wrap;
+}
+
+.cardHead h2 {
+  font-size: var(--text-lg);
+}
+
+.dimmed {
+  opacity: 0.6; /* revoked / expired keys: still listed, with their state in words */
+}
+
+/* A dimmed row fades cell by cell, so a pinned actions cell (below) stays solid over the scrolled columns */
+tr.dimmed {
+  opacity: 1;
+}
+
+tr.dimmed > td:not(.actionsCell) {
+  opacity: 0.6;
+}
+
+/* Row actions pinned to the right edge: in a narrow window the middle columns scroll under them instead of
+   pushing the buttons out of sight (.rowActions stays on one line). Solid background = the layer it sits on. */
+.actionsCell {
+  position: sticky;
+  right: 0;
+  background: var(--surface);
+  box-shadow: inset 1px 0 0 var(--border-subtle);
+}
+
+/* A row with nothing to do (revoked key, nothing to approve) doesn't pin an empty box over the other columns */
+td.actionsCell:not(:has(button, a)) {
+  position: static;
+  box-shadow: none;
+}
+
+.table tbody tr:hover > .actionsCell {
+  background: linear-gradient(var(--hover), var(--hover)), var(--surface);
+}
+
+.companyGroup .actionsCell {
+  background: linear-gradient(var(--surface-nested), var(--surface-nested)), var(--surface);
+}
+
+.companyGroup .table tbody tr:hover > .actionsCell {
+  background:
+    linear-gradient(var(--hover), var(--hover)),
+    linear-gradient(var(--surface-nested), var(--surface-nested)),
+    var(--surface);
+}
+
+/* A row opened by a link (Overview's latest errors -> /requests#request_id) stands out */
+.table tbody tr:target {
+  background: var(--accent-soft);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+/* Tools & MCP: the tool's name with what the model reads under it, at a readable width */
+.toolCell {
+  min-width: 18rem;
+}
+
+.toolCell p {
+  max-width: 60ch;
+  margin-top: var(--space-1);
+}
+
+/* "No (why)": wraps, but never to one word per line */
+.reasonCell {
+  min-width: 10rem;
+}
+
+.rowActions {
+  display: flex;
+  flex-wrap: nowrap; /* one line: the table scrolls in its card instead of growing tall rows */
+  gap: var(--space-1);
+}
+
+.smallButton {
+  min-height: 1.75rem;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border); /* a faint outline, so it reads as a button before hover (Vince, R2b) */
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.smallButton:hover {
+  border-color: var(--accent);
+  background: var(--hover);
+  color: var(--text);
+}
+
+.checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.checks legend {
+  margin-bottom: var(--space-1);
+  padding: 0;
+}
+
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.inline input[type="number"] {
+  width: 6rem;
+}
+
+.field textarea {
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background-color: var(--surface-sunken);
+  color: var(--text);
+  font-size: 1rem;
+  resize: vertical;
+}
+
+/* Toasts: bottom right, newest last; rise in on arrival */
+.toasts {
+  position: fixed;
+  right: var(--float-gap);
+  bottom: calc(var(--float-gap) + env(safe-area-inset-bottom, 0px));
+  z-index: 50;
+  display: grid;
+  justify-items: end;
+  gap: var(--space-2);
+  max-width: min(26rem, calc(100vw - 2 * var(--float-gap)));
+  pointer-events: none; /* only the toasts themselves take clicks */
+}
+
+.toastOk,
+.toastError {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  box-shadow: var(--elevation-3);
+  font-size: var(--text-sm);
+  pointer-events: auto;
+  animation: toast-in var(--medium) var(--ease);
+}
+
+.toastOk {
+  border-left: 3px solid var(--ok);
+}
+
+.toastError {
+  border-left: 3px solid var(--error);
+}
+
+.toastOk > span {
+  color: var(--text);
+}
+
+.toastError > span {
+  color: var(--error);
+}
+
+.toastOk button,
+.toastError button {
+  flex: none;
+  min-width: 1.5rem;
+  min-height: 1.5rem;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: none;
+  color: var(--text-muted);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.toastOk button:hover,
+.toastError button:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.75rem);
+  }
+}
+
+/* Progress bar (uploads): a real percentage, or a moving segment while indexing */
+.progress {
+  position: relative;
+  height: 0.4rem;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken);
+}
+
+.progress > span {
+  display: block;
+  height: 100%;
+  width: 0;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width var(--fast) var(--ease);
+}
+
+.progressBusy > span {
+  position: absolute;
+  width: 35%;
+  animation: progress-busy 1.4s var(--ease) infinite;
+}
+
+@keyframes progress-busy {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(300%);
+  }
+}
+
+/* Table rows answer the pointer */
+.table tbody tr {
+  transition: background-color var(--fast) var(--ease);
+}
+
+.table tbody tr:hover {
+  background: var(--hover);
+}
+
+/* Solid buttons lift a little on hover (design system: dark/solid buttons float; outlined ones stay put) */
+.apply {
+  transition:
+    transform var(--fast) var(--ease),
+    box-shadow var(--fast) var(--ease),
+    opacity var(--fast) var(--ease);
+}
+
+.apply:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: var(--elevation-2);
+}
+
+.apply:active:not(:disabled) {
+  transform: none;
+}
+
+.clear,
+.secondary,
+.danger,
+.smallButton,
+.dangerSmall,
+.pager a {
+  transition:
+    background-color var(--fast) var(--ease),
+    border-color var(--fast) var(--ease),
+    color var(--fast) var(--ease);
+}
+
+.pager a:hover {
+  border-color: var(--accent);
+  background: var(--hover);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progressBusy > span {
+    width: 100%;
+    opacity: 0.5;
+    animation: none;
+  }
+}
+
+/* Documents: the collections, each with its counts and (super admin) Delete or why it stays */
+/* Apps & keys: search box, and the folded "Disconnected apps" group */
+.search input {
+  width: 100%;
+  min-height: 2.5rem;
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background-color: var(--surface-sunken);
+  color: var(--text);
+  font-size: 1rem;
+  transition: border-color var(--fast) var(--ease);
+}
+
+.search input:focus-visible {
+  border-color: var(--accent);
+}
+
+.disconnected {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.disconnected > summary {
+  padding: var(--space-2) var(--space-1);
+  color: var(--text-muted);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.disconnectedList {
+  display: grid;
+  gap: var(--space-5);
+  opacity: 0.75; /* history: still readable, visibly not in use */
+}
+
+/* Apps & keys: one block per client company inside an app card */
+.companyGroup {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  background: var(--surface-nested);
+}
+
+.companyGroup h3 {
+  font-size: var(--text-md);
+}
+
+/* A panel's toolbar: its filters (left) and pager (right) on top, a hairline, then the rows */
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-4);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.toolbar .filters {
+  flex: 1 1 auto;
+}
+
+.panelTitle {
+  font-size: var(--text-md);
+}
+
+/* Phones: a panel's filters sit two per row (labels above), so the rows show without scrolling past a form */
+@container page (max-width: 40rem) {
+  .toolbar .filters {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: end;
+  }
+
+  .toolbar .filters select,
+  .toolbar .filters input:not([type="checkbox"]) {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .toolbar .filters select {
+    white-space: nowrap; /* "All companies" stays one line; a long choice is cut with … */
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+/* Loading: placeholder blocks shaped like a page (loading.tsx); a slow pulse, still under reduced motion */
+.skeleton {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.skeletonTitle,
+.skeletonBar,
+.skeletonLine {
+  border-radius: var(--radius-pill);
+  background: var(--surface-nested);
+  animation: skeleton-pulse 1.4s var(--ease) infinite alternate;
+}
+
+.skeletonTitle {
+  width: 12rem;
+  height: 2rem;
+  background: var(--surface);
+}
+
+.skeletonBar {
+  width: min(28rem, 100%);
+  height: 2.25rem;
+  margin-bottom: var(--space-2);
+}
+
+.skeletonLine {
+  height: 1.1rem;
+}
+
+.skeletonLine:nth-child(odd) {
+  width: 92%;
+}
+
+@keyframes skeleton-pulse {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeletonTitle,
+  .skeletonBar,
+  .skeletonLine {
+    animation: none;
+  }
+}
+
+/* A page that broke (error.tsx) */
+.pageError {
+  max-width: 36rem;
+}
+
+/* Upload: a drop zone; the real file input covers it, transparent */
+.dropZone {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 4.5rem;
+  padding: var(--space-3) var(--space-4);
+  border: 1.5px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  color: var(--text-muted);
+  transition:
+    border-color var(--fast) var(--ease),
+    background-color var(--fast) var(--ease);
+}
+
+.dropZone > span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.dropZone strong {
+  color: var(--text);
+  font-size: var(--text-sm);
+}
+
+.dropName {
+  overflow-wrap: anywhere;
+}
+
+.dropZone input[type="file"] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.dropZone input[type="file"]:disabled {
+  cursor: not-allowed;
+}
+
+.dropZone:hover,
+.dropZoneActive {
+  border-color: var(--accent);
+  background: var(--hover);
+}
+
+.dropZone:has(input:focus-visible) {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* Long text that must stay whole (routes in the Overview's errors): wraps instead of pushing columns away */
+.wrapAnywhere {
+  overflow-wrap: anywhere;
+}
+
+/* Request log: the table and, when a row is open (?req=), its details panel beside it */
+.split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 20rem;
+  gap: var(--space-3);
+  align-items: start;
+}
+
+/* app · company / user: may wrap to two lines rather than clip the Total column */
+.whoCell {
+  min-width: 9rem;
+}
+
+/* long paths wrap (after a "/", see BreakAfterSlashes) instead of pushing the who / total columns out of view */
+.requestCell {
+  min-width: 13rem;
+}
+
+.rowOpen > td {
+  background: var(--accent-soft);
+}
+
+.rowOpen > td:first-child {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+/* A floating panel (rounder than cards, raised); stays in view while the long table scrolls */
+.detailPanel {
+  position: sticky;
+  top: var(--float-gap);
+  display: grid;
+  align-content: start;
+  gap: var(--space-3);
+  max-height: calc(100svh - 2 * var(--float-gap));
+  overflow-y: auto;
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-float);
+  background: var(--surface-raised);
+  box-shadow: var(--elevation-2);
+  animation: panel-in var(--medium) var(--ease);
+}
+
+.detailPanel h2 {
+  font-size: var(--text-lg);
+}
+
+.detailHeading {
+  margin-top: var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.detailList {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.detailList > div {
+  display: grid;
+  grid-template-columns: 8rem minmax(0, 1fr);
+  gap: var(--space-3);
+}
+
+.detailList dt {
+  color: var(--text-muted);
+}
+
+.detailList dd {
+  min-width: 0;
+  margin: 0;
+}
+
+/* an id with its Copy chip: the chip may drop under a long id */
+.detailList dd.withIcon {
+  flex-wrap: wrap;
+}
+
+/* Documents: the owner column (with the Global note under it) never squeezes to one word per line */
+.ownerCell {
+  min-width: 10rem;
+}
+
+/* a number outside a table column, in the same monospace digits */
+.num {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+}
+
+/* status words with their icon (check, triangle, cross) on one line */
+.withIcon {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+}
+
+.withIcon svg {
+  flex: none;
+}
+
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: translateX(0.75rem);
+  }
+}
+
+/* Under 1400 px the table needs the whole width (measured: the five columns + a 20rem panel fit from 1400 up):
+   the panel floats over the bottom right corner instead */
+@container page (max-width: 87.4rem) {
+  .split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .detailPanel {
+    position: fixed;
+    top: auto;
+    right: var(--float-gap);
+    bottom: var(--float-gap);
+    z-index: 6;
+    width: min(26rem, calc(100vw - 2 * var(--float-gap)));
+    max-height: 70svh;
+    box-shadow: var(--elevation-3);
+  }
+}
+
+/* Copy button (copy-button.tsx): a visible chip from the start (outlined, nested fill), not quiet until hovered
+   like the row buttons: it sits alone next to an id and has to be found */
+.copyButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 1.75rem;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  background: var(--surface-nested);
+  color: var(--text);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--fast) var(--ease),
+    border-color var(--fast) var(--ease);
+}
+
+.copyButton:hover {
+  border-color: var(--accent);
+  background: var(--hover);
+}
+
+.copyButton svg {
+  flex: none;
+}
+
+/* In an actions cell, why there is no button (e.g. a collection that can't be deleted): plain words, no outline,
+   so it doesn't look like a button or a status */
+.actionNote {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.75rem;
+  padding: 0 var(--space-2);
+  color: var(--text-subtle);
+  font-size: var(--text-xs);
+  font-style: italic;
+  white-space: nowrap;
+}
+
+/* Apps & keys: each app is a fold (app-details.tsx). Closed: one line to scan (name, id, users / keys / last used).
+   Open: profile and actions, then the keys per company. Same surface as a card. */
+.appCard {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--elevation-1);
+}
+
+/* Closed card, read top-down: initials tile | name, id / company, three numbers | usage pill | chevron */
+.appCard > summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-md);
+  list-style: none; /* our own chevron instead of the browser's triangle */
+  cursor: pointer;
+  transition: background-color var(--fast) var(--ease);
+}
+
+.appCard > summary::-webkit-details-marker {
+  display: none;
+}
+
+/* chevron (a grid item at the far right): points down when closed, up when open */
+.appCard > summary::after {
+  content: "";
+  grid-column: -2;
+  grid-row: 1;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin: 0 var(--space-1) 0.2rem;
+  border-right: 2px solid var(--text-muted);
+  border-bottom: 2px solid var(--text-muted);
+  rotate: 45deg;
+  transition: rotate var(--fast) var(--ease);
+}
+
+.appCard[open] > summary::after {
+  rotate: 225deg;
+  margin-bottom: -0.2rem;
+}
+
+.appCard > summary:hover {
+  background: var(--hover);
+}
+
+/* open: a hairline between the overview and what's inside */
+.appCard[open] > summary {
+  border-bottom: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+}
+
+.appAvatar {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--surface-nested);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.appMain {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.appName {
+  font-size: var(--text-lg);
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.appMeta {
+  color: var(--text-subtle);
+  font-size: var(--text-xs);
+}
+
+/* the three numbers: value bold, its word muted */
+.appStats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  margin-top: var(--space-1);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.appStats b {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.appUsage {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.appUsage_ok {
+  border-color: transparent;
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.appUsage_idle {
+  color: var(--text-muted);
+}
+
+.appUsage_off {
+  border-style: dashed;
+  color: var(--text-subtle);
+}
+
+/* inside a company group: "May use" + one tag per collection */
+.mayUse {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+}
+
+.tag {
+  padding: 0 var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  font-size: var(--text-xs);
+  line-height: 1.7;
+}
+
+/* phones: the pill drops under the name, the chevron stays top right */
+@container page (max-width: 40rem) {
+  .appCard > summary {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .appUsage {
+    grid-column: 2;
+    justify-self: start;
+  }
+}
+
+.appBody {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+}
+
+/* Companies: a grid of company cards (2 across on a desktop, 1 in narrow windows) */
+.companyGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 26rem), 1fr));
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.companyGrid > li {
+  display: grid; /* cards in a row share one height */
+}
+
+.companyCard {
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--elevation-1);
+}
+
+.companyHead {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-3);
+}
+
+.companyFacts {
+  display: grid;
+  align-content: start;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.companyFacts > div {
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr);
+  align-items: baseline;
+  gap: var(--space-3);
+}
+
+.companyFacts dt {
+  color: var(--text-muted);
+}
+
+.companyFacts dd {
+  margin: 0;
+}
+
+/* a row of tags that wraps */
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+}
+
+.companyLinks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-subtle);
+  font-size: var(--text-sm);
+}
+
+.companyLinks a {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+/* Breadcrumbs (breadcrumbs.tsx): "Users & chats › vince › What is…"; the separators are CSS, the last step is the page */
+.crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.crumbs li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.crumbs li + li::before {
+  content: "›";
+  color: var(--text-subtle);
+}
+
+.crumbs a {
+  color: var(--text-muted);
+  text-decoration: none;
+}
+
+.crumbs a:hover {
+  color: var(--text);
+  text-decoration: underline;
+}
+
+/* the current page: a long first question is cut with "…" instead of wrapping the trail */
+.crumbs [aria-current="page"] {
+  max-width: 32ch;
+  overflow: hidden;
+  color: var(--text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The main link of a row (a user, a conversation): bold, no underline until hovered */
+.rowLink {
+  color: var(--text);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.rowLink:hover {
+  text-decoration: underline;
+}
+
+/* A page title with a tile (a user's page): tile | title + one muted line */
+.titleRow {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.titleRow h1 {
+  font-size: var(--text-xl);
+  overflow-wrap: anywhere;
+}
+
+/* Danger zone: irreversible actions, last on the page, set apart in red */
+.dangerZone {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-5);
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--error);
+  border-radius: var(--radius-md);
+  background: var(--error-soft);
+}
+
+.dangerZone h2 {
+  color: var(--error);
+}
+
+/* Accounts: a person cell (small tile, name, username) and the role as a pill */
+.person {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.avatarSm {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--surface-nested);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.personName {
+  margin-right: var(--space-2);
+  font-weight: 700;
+}
+
+/* the super admin role stands out (accent outline, sparing); supervisors use the plain .tag */
+.roleAdmin {
+  padding: 0 var(--space-2);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-pill);
+  background: var(--accent-soft);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  line-height: 1.7;
+}
+
+/* "On this page" jump links (Tools & MCP); a card title reached by a link stops below the phone top bar */
+.jumpLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.jumpLinks a {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+.card h2[id] {
+  scroll-margin-top: calc(var(--float-gap) + 4.5rem);
+}
+
+/* Tools & MCP: the Try it panel (a question as a test employee, then its answer and the tools that ran) */
+.tryForm {
+  display: grid;
+  gap: var(--space-3);
+  max-width: 44rem;
+}
+
+.tryResult {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.tryAnswer {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  white-space: pre-wrap;
+}
+
+/* 8.6e-3 security password gate: the bar under the page title, locked buttons, the read-only code view */
+.gateBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-nested);
+}
+
+.gateBar p {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.gateBar svg {
+  flex: none;
+}
+
+.gateOpen {
+  border-color: var(--accent);
+}
+
+.gateActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.lockedButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.lockedButton:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.smallButton.lockedButton:disabled:hover,
+.dangerSmall.lockedButton:disabled:hover {
+  border-color: var(--border);
+  background: transparent;
+}
+
+.smallButton.lockedButton:disabled:hover {
+  color: var(--text-muted);
+}
+
+.dangerSmall.lockedButton:disabled:hover {
+  color: var(--error);
+}
+
+.codeDialog {
+  width: min(56rem, calc(100vw - 2 * var(--float-gap)));
+}
+
+.codeView {
+  max-height: 60vh;
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  overflow: auto;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  white-space: pre;
+  tab-size: 4;
+}

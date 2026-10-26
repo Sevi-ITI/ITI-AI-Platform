@@ -12,7 +12,9 @@ export type World = {
   walls: THREE.Mesh[];
   rings: Record<string, THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial>>;
   wingFloors: Record<WingId, THREE.Mesh<THREE.BoxGeometry, THREE.MeshStandardMaterial>>;
-  beaconRing: THREE.Mesh;
+  beacon: THREE.Mesh<THREE.SphereGeometry, THREE.MeshStandardMaterial>;
+  beaconRing: THREE.Mesh<THREE.TorusGeometry, THREE.MeshStandardMaterial>;
+  beaconAlarm: boolean; // pulses faster when not "ok"
   screens: THREE.Mesh<THREE.BoxGeometry, THREE.MeshStandardMaterial>[];
   needles: THREE.Mesh[];
   blastDoor: THREE.Mesh;
@@ -81,7 +83,7 @@ export function buildWorld(scene: THREE.Scene): World {
   Object.assign(sun.shadow.camera, { near: 5, far: 75, left: -18, right: 18, top: 18, bottom: -18 });
   scene.add(sun);
 
-  // Plinth, grid, the central plaza and its beacon (neutral until the health check is wired in G3)
+  // Plinth, grid, the central plaza and its beacon (accent until the first health check, then setBeacon)
   const plinth = mesh(new THREE.BoxGeometry(24, 0.6, 24), material(0x111a34, { roughness: 0.85 }), 0, -0.3, 0);
   plinth.receiveShadow = true;
   scene.add(plinth);
@@ -98,7 +100,8 @@ export function buildWorld(scene: THREE.Scene): World {
   );
   pylon.castShadow = true;
   scene.add(pylon);
-  scene.add(mesh(new THREE.SphereGeometry(0.62, 24, 24), glow(COLORS.accent, 0.6), 0, 4.9, 0));
+  const beacon = mesh(new THREE.SphereGeometry(0.62, 24, 24), glow(COLORS.accent, 0.6), 0, 4.9, 0);
+  scene.add(beacon);
   const beaconRing = mesh(new THREE.TorusGeometry(0.95, 0.06, 12, 32), glow(COLORS.accent, 0.5), 0, 4.9, 0);
   beaconRing.rotation.x = Math.PI / 2;
   scene.add(beaconRing);
@@ -282,7 +285,19 @@ export function buildWorld(scene: THREE.Scene): World {
   blastDoor.visible = false;
   scene.add(blastDoor);
 
-  return { rooms, walls, rings, wingFloors, beaconRing, screens, needles, blastDoor };
+  return { rooms, walls, rings, wingFloors, beacon, beaconRing, beaconAlarm: false, screens, needles, blastDoor };
+}
+
+const BEACON_COLORS = { ok: COLORS.ok, warn: COLORS.warn, error: COLORS.error };
+
+/** The roof beacon shows the system's health (null = not checked yet: accent). The top bar's pill says it in words. */
+export function setBeacon(world: World, tone: "ok" | "warn" | "error" | null): void {
+  const color = tone ? BEACON_COLORS[tone] : COLORS.accent;
+  for (const m of [world.beacon.material, world.beaconRing.material]) {
+    m.color.setHex(color);
+    m.emissive.setHex(color);
+  }
+  world.beaconAlarm = tone === "warn" || tone === "error";
 }
 
 /** Dim the wings this role may not enter and close the blast door for non-super-admins. */
@@ -322,7 +337,9 @@ export function updateWalls(
 /** Idle life: the beacon ring turns, screens flicker, needles swing. Skipped when motion is reduced. */
 export function animateWorld(world: World, seconds: number): void {
   world.beaconRing.rotation.z = seconds * 1.4;
-  world.beaconRing.scale.setScalar(1 + Math.sin(seconds * 2.5) * 0.06);
+  world.beaconRing.scale.setScalar(
+    world.beaconAlarm ? 1 + Math.sin(seconds * 6) * 0.16 : 1 + Math.sin(seconds * 2.5) * 0.06,
+  );
   world.screens.forEach((screen, i) => {
     screen.material.emissiveIntensity = 0.45 + 0.35 * Math.sin(seconds * 3.2 + i * 1.7);
   });

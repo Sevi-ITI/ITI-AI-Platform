@@ -6,7 +6,7 @@ import * as THREE from "three";
 
 import { CAMERA, CameraController } from "@/hq/scene/camera";
 import { buildEnvironment, updateTraffic } from "@/hq/scene/environment";
-import { animateWorld, applyActive, applyRole, buildWorld, updateWalls, type World } from "@/hq/scene/world";
+import { animateWorld, applyActive, applyRole, buildWorld, setBeacon, updateWalls, type World } from "@/hq/scene/world";
 import { Xia } from "@/hq/scene/xia";
 import { canEnter, canEnterWing, type Role, type Station, STATIONS, type WingId } from "@/hq/stations";
 
@@ -27,6 +27,7 @@ export type SceneControls = {
 type Props = {
   role: Role;
   active: Station | undefined;
+  health: "ok" | "warn" | "error" | null; // the roof beacon's color (null = not checked yet)
   panelOpen: boolean; // the HUD panel covers the right side: rooms are framed to its left
   onControls: (controls: SceneControls | null) => void; // the camera bar's handle on the scene
   onOpenRoom: (station: Station) => void;
@@ -228,6 +229,10 @@ export default function HqScene(props: Props) {
   useEffect(() => {
     if (runningRef.current) applyRole(runningRef.current.world, props.role);
   }, [props.role]);
+
+  useEffect(() => {
+    if (runningRef.current) setBeacon(runningRef.current.world, props.health);
+  }, [props.health]);
 
   // A new room (from any click, link or back/forward): light its ring, walk Xia there, frame it.
   const activeId = props.active?.id;

@@ -11,6 +11,9 @@ import type { View } from "@/hq/view";
 
 import type { SceneControls, WallMode } from "./hq-scene";
 import styles from "./hq.module.css";
+import { StatusErrorIcon, StatusOkIcon, StatusWarnIcon } from "./kit/icons";
+import Toaster from "./kit/toast";
+import { useHealth } from "./use-health";
 import { setView } from "./view-actions";
 
 // three.js only runs in the browser, and only when the 3D view is on: the list view never downloads it.
@@ -40,6 +43,7 @@ export default function HqShell({ name, role, view, children }: Props) {
   const [notice, setNotice] = useState<string | null>(null);
   const controls = useRef<SceneControls | null>(null);
   const noticeTimer = useRef<number | undefined>(undefined);
+  const health = useHealth();
 
   // Any room change (a click, a link, back / forward) shows the panel again. Set while rendering, React's way of
   // adjusting state to a new prop, so there is no extra render with the old panel state.
@@ -111,6 +115,28 @@ export default function HqShell({ name, role, view, children }: Props) {
     </div>
   );
 
+  // The system's health in words + a shape (check, triangle, cross); the roof beacon repeats it in 3D. A click opens
+  // Overview (not for testers: they can't open it).
+  const HealthIcon = health?.tone === "ok" ? StatusOkIcon : health?.tone === "warn" ? StatusWarnIcon : StatusErrorIcon;
+  const healthContent = (
+    <>
+      {health ? <HealthIcon /> : <span className={styles.healthChecking} aria-hidden="true" />}
+      {health ? health.text : "Checking…"}
+    </>
+  );
+  const healthClass = `${styles.card} ${styles.healthPill} ${health ? styles[`health_${health.tone}`] : ""}`;
+  const healthTitle = health ? `${health.text}\n${health.detail}` : "Checking the system…";
+  const healthPill =
+    role === "tester" ? (
+      <span className={healthClass} title={healthTitle} role="status">
+        {healthContent}
+      </span>
+    ) : (
+      <Link href="/" className={healthClass} title={healthTitle}>
+        {healthContent}
+      </Link>
+    );
+
   const noticeLine = (
     <p className={styles.notice} role="status" aria-live="polite" data-shown={notice ? "" : undefined}>
       {notice}
@@ -125,6 +151,7 @@ export default function HqShell({ name, role, view, children }: Props) {
         </a>
         <aside className={styles.sidebar}>
           {brand}
+          {healthPill}
           {accountBar}
           {noWebgl && <p className={styles.locked}>This browser can&apos;t show the 3D HQ, so here is the list.</p>}
           <nav aria-label="Rooms">
@@ -150,6 +177,7 @@ export default function HqShell({ name, role, view, children }: Props) {
           <div className={styles.panelBody}>{body}</div>
         </main>
         {noticeLine}
+        <Toaster />
       </div>
     );
   }
@@ -162,6 +190,7 @@ export default function HqShell({ name, role, view, children }: Props) {
       <HqScene
         role={role}
         active={station}
+        health={health?.tone ?? null}
         panelOpen={panelOpen}
         onControls={(c) => {
           controls.current = c;
@@ -176,10 +205,14 @@ export default function HqShell({ name, role, view, children }: Props) {
       />
 
       <div className={styles.topBar}>
-        {brand}
+        <div className={styles.topLeft}>
+          {brand}
+          {healthPill}
+        </div>
         {accountBar}
       </div>
       {noticeLine}
+      <Toaster />
 
       {/* Wings dock: every room, grouped by wing; locked ones say so */}
       {!dockOpen && (
