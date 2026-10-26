@@ -1,14 +1,17 @@
+import { cookies } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { displayMessage } from "@/lib/api/api-error";
 import { logOut } from "@/lib/session/actions";
 import { currentAccount } from "@/lib/session/current-account";
+import { VIEW_COOKIE, viewFrom } from "@/hq/view";
 
+import HqShell from "./hq-shell";
 import styles from "./hq.module.css";
 
-// Every HQ page sits inside this: who is logged in (GET /v1/console/me) and a way out. A 401 means the session
-// is over → /session-ended clears the cookie. The 3D building replaces this plain frame in G2.
+// Every HQ page sits inside this: who is logged in (GET /v1/console/me) decides which rooms open; the view cookie
+// decides 3D or list. A 401 means the session is over → /session-ended clears the cookie.
 export default async function HqLayout({ children }: { children: React.ReactNode }) {
   const me = await currentAccount();
   if (!me.ok) {
@@ -17,7 +20,7 @@ export default async function HqLayout({ children }: { children: React.ReactNode
     }
     return (
       <main className={styles.problem}>
-        <div className={styles.card}>
+        <div className={styles.problemCard}>
           <h1>The HQ can&apos;t load</h1>
           <p role="alert">{displayMessage(me.error)}</p>
           <Link href="/">Try again</Link>
@@ -32,26 +35,11 @@ export default async function HqLayout({ children }: { children: React.ReactNode
   }
 
   const account = me.data;
+  const view = viewFrom((await cookies()).get(VIEW_COOKIE)?.value);
 
   return (
-    <div className={styles.shell}>
-      <header className={styles.bar}>
-        <p className={styles.brand}>ITI AI HQ</p>
-        <div className={styles.who}>
-          <span>{account.display_name ?? account.username}</span>
-          <span className={styles.role} translate="no">
-            {account.role}
-          </span>
-          <form action={logOut}>
-            <button type="submit" className={styles.button}>
-              Log out
-            </button>
-          </form>
-        </div>
-      </header>
-      <main id="content" className={styles.content}>
-        {children}
-      </main>
-    </div>
+    <HqShell name={account.display_name ?? account.username} role={account.role} view={view}>
+      {children}
+    </HqShell>
   );
 }

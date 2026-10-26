@@ -1,0 +1,318 @@
+"use client";
+
+import dynamic from "next/dynamic";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { useRef, useState } from "react";
+
+import { logOut } from "@/lib/session/actions";
+import { canEnter, canEnterWing, type Role, type Station, STATIONS, stationForPath, WINGS } from "@/hq/stations";
+import type { View } from "@/hq/view";
+
+import type { SceneControls, WallMode } from "./hq-scene";
+import styles from "./hq.module.css";
+import { setView } from "./view-actions";
+
+// three.js only runs in the browser, and only when the 3D view is on: the list view never downloads it.
+const HqScene = dynamic(() => import("./hq-scene"), {
+  ssr: false,
+  loading: () => <p className={styles.loading}>Opening the HQ…</p>,
+});
+
+const WALL_LABELS: Record<WallMode, string> = { auto: "Walls: auto", down: "Walls: down", up: "Walls: up" };
+const NEXT_WALLS: Record<WallMode, WallMode> = { auto: "down", down: "up", up: "auto" };
+
+type Props = { name: string; role: Role; view: View; children: React.ReactNode };
+
+// Everything around a page: the 3D HQ with its floating HUD (top bar, wings dock, camera bar, the page in a panel
+// on the right) or the plain list view (a sidebar of rooms and the page). The URL decides which room is open.
+export default function HqShell({ name, role, view, children }: Props) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const station = stationForPath(pathname);
+
+  const [noWebgl, setNoWebgl] = useState(false);
+  const [dockOpen, setDockOpen] = useState(false);
+  const [barOpen, setBarOpen] = useState(false);
+  const [panelOpen, setPanelOpen] = useState(true);
+  const [shownPath, setShownPath] = useState(pathname);
+  const [walls, setWalls] = useState<WallMode>("auto");
+  const [notice, setNotice] = useState<string | null>(null);
+  const controls = useRef<SceneControls | null>(null);
+  const noticeTimer = useRef<number | undefined>(undefined);
+
+  // Any room change (a click, a link, back / forward) shows the panel again. Set while rendering, React's way of
+  // adjusting state to a new prop, so there is no extra render with the old panel state.
+  if (shownPath !== pathname) {
+    setShownPath(pathname);
+    setPanelOpen(true);
+  }
+  const in3d = view === "3d" && !noWebgl;
+
+  const tell = (message: string) => {
+    setNotice(message);
+    window.clearTimeout(noticeTimer.current);
+    noticeTimer.current = window.setTimeout(() => setNotice(null), 4000);
+  };
+
+  const header = (
+    <header className={styles.panelHeader}>
+      <p className={styles.breadcrumbs}>
+        ITI AI HQ › {WINGS.find((w) => w.id === station?.wing)?.title ?? "Lobby"} ›{" "}
+        <span translate="no">{station?.route ?? pathname}</span>
+      </p>
+      <h1 className={styles.panelTitle} id="room-title" tabIndex={-1}>
+        {station?.title ?? "ITI AI HQ"}
+      </h1>
+      {station && (
+        <p className={styles.panelDesc}>
+          {station.roomObject}: {station.desc}
+        </p>
+      )}
+    </header>
+  );
+
+  const body =
+    station && !canEnter(station, role) ? (
+      <p role="alert" className={styles.locked}>
+        🔒 This room is locked for your role ({role.replace("_", " ")}).
+      </p>
+    ) : (
+      children
+    );
+
+  const accountBar = (
+    <div className={`${styles.card} ${styles.accountBar}`}>
+      <span className={styles.who}>
+        {name} <span className={styles.role}>{role.replace("_", " ")}</span>
+      </span>
+      <form action={setView.bind(null, in3d ? "list" : "3d")}>
+        <button type="submit" className={styles.button}>
+          {in3d ? "☰ List view" : "◧ 3D HQ"}
+        </button>
+      </form>
+      <form action={logOut}>
+        <button type="submit" className={styles.button}>
+          Log out
+        </button>
+      </form>
+    </div>
+  );
+
+  const brand = (
+    <div className={`${styles.card} ${styles.brand}`}>
+      <span className={styles.brandMark} aria-hidden="true">
+        ITI
+      </span>
+      <span className={styles.brandText}>
+        <strong>ITI AI HQ</strong>
+        <span>Intellismart Technology Inc.</span>
+      </span>
+    </div>
+  );
+
+  const noticeLine = (
+    <p className={styles.notice} role="status" aria-live="polite" data-shown={notice ? "" : undefined}>
+      {notice}
+    </p>
+  );
+
+  if (!in3d) {
+    return (
+      <div className={styles.listShell}>
+        <a href="#room-title" className={styles.skip}>
+          Skip to the page
+        </a>
+        <aside className={styles.sidebar}>
+          {brand}
+          {accountBar}
+          {noWebgl && <p className={styles.locked}>This browser can&apos;t show the 3D HQ, so here is the list.</p>}
+          <nav aria-label="Rooms">
+            {WINGS.filter((w) => canEnterWing(w.id, role)).map((w) => (
+              <div key={w.id} className={styles.wingGroup}>
+                <p className={styles.wingHeader}>{w.title}</p>
+                {STATIONS.filter((s) => s.wing === w.id && canEnter(s, role)).map((s) => (
+                  <Link
+                    key={s.id}
+                    href={s.route}
+                    className={styles.roomLink}
+                    aria-current={s.id === station?.id ? "page" : undefined}
+                  >
+                    {s.title}
+                  </Link>
+                ))}
+              </div>
+            ))}
+          </nav>
+        </aside>
+        <main className={styles.listMain}>
+          {header}
+          <div className={styles.panelBody}>{body}</div>
+        </main>
+        {noticeLine}
+      </div>
+    );
+  }
+
+  return (
+    <div className={styles.hq}>
+      <a href="#room-title" className={styles.skip}>
+        Skip to the page
+      </a>
+      <HqScene
+        role={role}
+        active={station}
+        panelOpen={panelOpen}
+        onControls={(c) => {
+          controls.current = c;
+        }}
+        onOpenRoom={(s: Station) => router.push(s.route)}
+        onBlocked={tell}
+        onInteract={() => {
+          setDockOpen(false);
+          setBarOpen(false);
+        }}
+        onNoWebgl={() => setNoWebgl(true)}
+      />
+
+      <div className={styles.topBar}>
+        {brand}
+        {accountBar}
+      </div>
+      {noticeLine}
+
+      {/* Wings dock: every room, grouped by wing; locked ones say so */}
+      {!dockOpen && (
+        <button
+          type="button"
+          className={`${styles.card} ${styles.dockToggle}`}
+          aria-expanded={false}
+          aria-controls="wings-dock"
+          onClick={() => setDockOpen(true)}
+        >
+          ☰ Wings
+        </button>
+      )}
+      <nav
+        id="wings-dock"
+        aria-label="Wings and rooms"
+        className={`${styles.card} ${styles.dock}`}
+        data-open={dockOpen ? "" : undefined}
+        inert={!dockOpen}
+      >
+        <div className={styles.dockHead}>
+          <strong>HQ wings</strong>
+          <button type="button" className={styles.button} onClick={() => setDockOpen(false)}>
+            ‹ Hide
+          </button>
+        </div>
+        {WINGS.map((w) => (
+          <div key={w.id} className={styles.wingGroup}>
+            <p className={styles.wingHeader}>
+              {w.title} {!canEnterWing(w.id, role) && <span aria-label="locked">🔒</span>}
+            </p>
+            {STATIONS.filter((s) => s.wing === w.id).map((s) =>
+              canEnter(s, role) ? (
+                <Link
+                  key={s.id}
+                  href={s.route}
+                  className={styles.roomLink}
+                  aria-current={s.id === station?.id ? "page" : undefined}
+                  onClick={() => setDockOpen(false)}
+                >
+                  {s.title}
+                  <span className={styles.roomMeta}>{s.roomObject}</span>
+                </Link>
+              ) : (
+                <span key={s.id} className={`${styles.roomLink} ${styles.roomLocked}`}>
+                  {s.title} 🔒<span className={styles.roomMeta}>{s.roomObject}</span>
+                </span>
+              ),
+            )}
+          </div>
+        ))}
+      </nav>
+
+      {/* Camera bar (keyboard: Q / E orbit, R / F tilt, WASD pan, Home reset) */}
+      {!barOpen && (
+        <button
+          type="button"
+          className={`${styles.card} ${styles.barToggle}`}
+          aria-label="Show the camera controls"
+          aria-expanded={false}
+          aria-controls="camera-bar"
+          onClick={() => setBarOpen(true)}
+        >
+          ▲
+        </button>
+      )}
+      <div
+        id="camera-bar"
+        role="toolbar"
+        aria-label="Camera"
+        className={`${styles.card} ${styles.cameraBar}`}
+        data-open={barOpen ? "" : undefined}
+        inert={!barOpen}
+      >
+        <button type="button" className={styles.button} aria-label="Hide the camera controls" onClick={() => setBarOpen(false)}>
+          ▼
+        </button>
+        <button type="button" className={styles.button} onClick={() => controls.current?.orbit(-1)}>
+          ↺ Orbit (Q)
+        </button>
+        <button type="button" className={styles.button} onClick={() => controls.current?.orbit(1)}>
+          ↻ Orbit (E)
+        </button>
+        <button type="button" className={styles.button} onClick={() => controls.current?.tilt(4)}>
+          ▲ Tilt (R)
+        </button>
+        <button type="button" className={styles.button} onClick={() => controls.current?.tilt(-4)}>
+          ▼ Tilt (F)
+        </button>
+        <button type="button" className={styles.button} onClick={() => controls.current?.zoom(0.9)}>
+          ＋ Zoom
+        </button>
+        <button type="button" className={styles.button} onClick={() => controls.current?.zoom(1.11)}>
+          － Zoom
+        </button>
+        <button
+          type="button"
+          className={styles.button}
+          onClick={() => {
+            const next = NEXT_WALLS[walls];
+            setWalls(next);
+            controls.current?.setWalls(next);
+          }}
+        >
+          {WALL_LABELS[walls]}
+        </button>
+        <button type="button" className={`${styles.button} ${styles.primary}`} onClick={() => controls.current?.reset()}>
+          ⌂ Reset (Home)
+        </button>
+        <span className={styles.hint}>Drag to pan · right-drag to orbit · tap the floor to walk</span>
+      </div>
+
+      {/* The open page */}
+      {panelOpen ? (
+        <aside className={`${styles.card} ${styles.panel}`} aria-label={station?.title ?? "Page"}>
+          <div className={styles.panelTop}>
+            {header}
+            <div className={styles.panelButtons}>
+              <button type="button" className={styles.button} onClick={() => controls.current?.focusRoom()}>
+                ◎ Focus room
+              </button>
+              <button type="button" className={styles.button} onClick={() => setPanelOpen(false)}>
+                ✕ Hide
+              </button>
+            </div>
+          </div>
+          <div className={styles.panelBody}>{body}</div>
+        </aside>
+      ) : (
+        <button type="button" className={`${styles.card} ${styles.panelToggle}`} onClick={() => setPanelOpen(true)}>
+          {station?.title ?? "Page"} ›
+        </button>
+      )}
+    </div>
+  );
+}

@@ -1,15 +1,13 @@
+import type { Metadata } from "next";
+
 import { testersGoToChat } from "@/lib/session/testers-go-to-chat";
 
-import styles from "./hq.module.css";
+import RoomPlaceholder from "./room-placeholder";
 
-// The HQ lobby. Empty in G1: the building and its rooms come in G2.
-export default async function HqHome() {
+export const metadata: Metadata = { title: "Overview" };
+
+// The Overview room: a placeholder until its data is wired in (G3 onward).
+export default async function OverviewRoom() {
   await testersGoToChat();
-
-  return (
-    <section className={styles.card}>
-      <h1>Lobby</h1>
-      <p>You are logged in to the HQ. The building and its rooms are built in the next steps.</p>
-    </section>
-  );
+  return <RoomPlaceholder />;
 }
