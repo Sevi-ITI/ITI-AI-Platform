@@ -14,10 +14,12 @@ from dotenv import dotenv_values
 ENV_FILE = Path(__file__).resolve().parents[2] / ".env"  # rag/ -> app/ -> backend/  (the same .env as the service)
 DEFAULTS = {
     "ITI_OLLAMA_URL": "http://127.0.0.1:11434",
+    # Where the model server may run: this computer, or the "ollama" container of the same compose stack (9.5).
+    # Comma-separated. Add a host only for a machine we run ourselves (cloud C2: the laptop's private address).
+    "ITI_OLLAMA_ALLOWED_HOSTS": "127.0.0.1,localhost,::1,ollama",
     "ITI_CHAT_MODEL": "qwen3.5:4b",  # the MVP's model (spec change SC-4)
     "ITI_EMBED_MODEL": "bge-m3",  # changing it means indexing every document again
 }
-LOCAL_HOSTS = {"127.0.0.1", "localhost", "::1"}
 
 
 @dataclass(frozen=True)
@@ -35,9 +37,10 @@ def load_settings(environ=None, env_file: Path = ENV_FILE) -> Settings:
               for name, default in DEFAULTS.items()}
     url = values["ITI_OLLAMA_URL"].rstrip("/")
     host = urlparse(url).hostname
-    if host not in LOCAL_HOSTS:
-        # Hard rule: nothing leaves the laptop, so the model must run on this computer.
-        raise ValueError(f"ITI_OLLAMA_URL must point to this computer (127.0.0.1 or localhost), not {host!r}")
+    allowed = {h.strip().lower() for h in values["ITI_OLLAMA_ALLOWED_HOSTS"].split(",") if h.strip()}
+    if host not in allowed:
+        # Hard rule: the model runs only on a machine we run ourselves, never on a hosted AI service.
+        raise ValueError(f"ITI_OLLAMA_URL host {host!r} is not in ITI_OLLAMA_ALLOWED_HOSTS ({', '.join(sorted(allowed))})")
     return Settings(ollama_url=url, chat_model=values["ITI_CHAT_MODEL"], embed_model=values["ITI_EMBED_MODEL"])
 
 

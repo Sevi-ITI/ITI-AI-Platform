@@ -16,6 +16,8 @@ KNOWN_PAGE = 13  # the PDF viewer's page number, not the number printed in the f
 
 
 def test_pages_are_numbered_from_one_with_source_name():
+    if not FIXTURE.exists():
+        pytest.skip("sample.pdf not added (git-ignored, so also absent in the Docker image)")
     result = load_pdf(FIXTURE)
     assert result.pages, "no text extracted; is sample.pdf a scanned PDF?"
     assert result.pages[0].page == 1
@@ -23,6 +25,8 @@ def test_pages_are_numbered_from_one_with_source_name():
 
 
 def test_known_phrase_is_on_the_right_page():
+    if not FIXTURE.exists():
+        pytest.skip("sample.pdf not added (git-ignored, so also absent in the Docker image)")
     result = load_pdf(FIXTURE)
     hits = [p.page for p in result.pages if KNOWN_PHRASE.lower() in p.text.lower()]
     assert hits == [KNOWN_PAGE]

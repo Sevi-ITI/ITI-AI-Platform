@@ -3,7 +3,7 @@ import requests
 
 from app.rag.config import SETTINGS
 
-# Local Ollama only: nothing leaves the laptop (rag/config.py refuses any other address).
+# Only an Ollama we run ourselves: rag/config.py refuses any host not in ITI_OLLAMA_ALLOWED_HOSTS.
 OLLAMA_URL = SETTINGS.ollama_url
 EMBED_MODEL = SETTINGS.embed_model  # set ITI_EMBED_MODEL in .env; changing it means re-indexing everything
 EMBED_DIM = 1024  # the default bge-m3 returns 1,024 numbers per text
