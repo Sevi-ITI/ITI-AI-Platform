@@ -1,10 +1,13 @@
 import * as THREE from "three";
 
+import { recolor, recolorTree, SKY } from "@/hq/scene/palette";
 import { canEnterWing, type Role, STATIONS, type WingId } from "@/hq/stations";
+import type { Theme } from "@/hq/theme";
 
 // The HQ building: lights, floor, four wings, walls that drop when they hide the view, a ring under every room
-// and each room's prop (a wall of screens for Overview, a vault for Apps & keys...). Dark theme colors; the props
-// are fixed shapes for now (G2): bookshelves and company models follow real data in later steps.
+// and each room's prop (a wall of screens for Overview, a vault for Apps & keys...). Built in dark theme colors;
+// applyTheme swaps them (palette.ts). The props are fixed shapes for now (G2): bookshelves and company models
+// follow real data in later steps.
 
 export type World = {
   /** Room props, clickable: each mesh carries userData.stationId. */
@@ -18,6 +21,10 @@ export type World = {
   screens: THREE.Mesh<THREE.BoxGeometry, THREE.MeshStandardMaterial>[];
   needles: THREE.Mesh[];
   blastDoor: THREE.Mesh;
+  hemi: THREE.HemisphereLight;
+  sun: THREE.DirectionalLight;
+  grids: Record<Theme, THREE.GridHelper>; // a grid's colors are baked in, so each theme has its own
+  theme: Theme;
 };
 
 const COLORS = {
@@ -87,9 +94,15 @@ export function buildWorld(scene: THREE.Scene): World {
   const plinth = mesh(new THREE.BoxGeometry(24, 0.6, 24), material(0x111a34, { roughness: 0.85 }), 0, -0.3, 0);
   plinth.receiveShadow = true;
   scene.add(plinth);
-  const grid = new THREE.GridHelper(24, 24, COLORS.accent, 0x1e2a4a);
-  grid.position.y = 0.01;
-  scene.add(grid);
+  const grids: World["grids"] = {
+    dark: new THREE.GridHelper(24, 24, COLORS.accent, 0x1e2a4a),
+    light: new THREE.GridHelper(24, 24, 0x9a6b12, 0xd5cbb8),
+  };
+  grids.light.visible = false;
+  for (const grid of Object.values(grids)) {
+    grid.position.y = 0.01;
+    scene.add(grid);
+  }
   scene.add(mesh(new THREE.CylinderGeometry(2.1, 2.3, 0.2, 24), material(0x1e2b52, { roughness: 0.6 }), 0, 0.1, 0));
   const pylon = mesh(
     new THREE.CylinderGeometry(0.28, 0.45, 4.6, 16),
@@ -285,7 +298,36 @@ export function buildWorld(scene: THREE.Scene): World {
   blastDoor.visible = false;
   scene.add(blastDoor);
 
-  return { rooms, walls, rings, wingFloors, beacon, beaconRing, beaconAlarm: false, screens, needles, blastDoor };
+  return {
+    rooms,
+    walls,
+    rings,
+    wingFloors,
+    beacon,
+    beaconRing,
+    beaconAlarm: false,
+    screens,
+    needles,
+    blastDoor,
+    hemi,
+    sun,
+    grids,
+    theme: "dark",
+  };
+}
+
+/** Swap every color in the scene (sky, lights, grid, meshes) to the theme's. The camera and Xia stay put. */
+export function applyTheme(scene: THREE.Scene, world: World, theme: Theme): void {
+  world.theme = theme;
+  const sky = SKY[theme];
+  (scene.background as THREE.Color).setHex(sky.background);
+  world.hemi.color.setHex(sky.sky);
+  world.hemi.groundColor.setHex(sky.ground);
+  world.hemi.intensity = sky.hemi;
+  world.sun.intensity = sky.sun;
+  world.grids.dark.visible = theme === "dark";
+  world.grids.light.visible = theme === "light";
+  recolorTree(scene, theme);
 }
 
 const BEACON_COLORS = { ok: COLORS.ok, warn: COLORS.warn, error: COLORS.error };
@@ -294,8 +336,9 @@ const BEACON_COLORS = { ok: COLORS.ok, warn: COLORS.warn, error: COLORS.error };
 export function setBeacon(world: World, tone: "ok" | "warn" | "error" | null): void {
   const color = tone ? BEACON_COLORS[tone] : COLORS.accent;
   for (const m of [world.beacon.material, world.beaconRing.material]) {
-    m.color.setHex(color);
-    m.emissive.setHex(color);
+    m.userData.dark = color;
+    m.userData.darkEmissive = color;
+    recolor(m, world.theme);
   }
   world.beaconAlarm = tone === "warn" || tone === "error";
 }
@@ -303,7 +346,8 @@ export function setBeacon(world: World, tone: "ok" | "warn" | "error" | null): v
 /** Dim the wings this role may not enter and close the blast door for non-super-admins. */
 export function applyRole(world: World, role: Role): void {
   for (const [wing, floor] of Object.entries(world.wingFloors) as [WingId, World["wingFloors"][WingId]][]) {
-    floor.material.color.setHex(canEnterWing(wing, role) ? floor.userData.color : COLORS.lockedFloor);
+    floor.material.userData.dark = canEnterWing(wing, role) ? floor.userData.color : COLORS.lockedFloor;
+    recolor(floor.material, world.theme);
   }
   world.blastDoor.visible = !canEnterWing("admin", role);
 }

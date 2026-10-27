@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 
 import { comfortaa, comfortaaExt } from "@/app/fonts/comfortaa";
+import { THEME_COOKIE, themeFrom } from "@/hq/theme";
 
 import "./globals.css";
 
@@ -9,10 +11,11 @@ export const metadata: Metadata = {
   description: "The ITI AI Console as a game: one room per console page",
 };
 
-// Dark only for now: the light theme (and its toggle) comes with the HQ scene in G2.
-export default function RootLayout({ children }: LayoutProps<"/">) {
+// The theme comes from the person's cookie (dark by default), so the first paint is already right.
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  const theme = themeFrom((await cookies()).get(THEME_COOKIE)?.value);
   return (
-    <html lang="en" data-theme="dark" className={`${comfortaa.variable} ${comfortaaExt.variable}`}>
+    <html lang="en" data-theme={theme} className={`${comfortaa.variable} ${comfortaaExt.variable}`}>
       <body>{children}</body>
     </html>
   );

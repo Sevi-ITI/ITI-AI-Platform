@@ -68,6 +68,7 @@ export class Xia {
     base.position.y = 0.02;
     this.group.add(base);
     this.group.position.set(this.position.x, 0.14, this.position.y);
+    this.group.userData.keepColors = true; // the same Xia in both themes (palette.ts skips her)
     scene.add(this.group);
 
     const arrow = new THREE.Mesh(
@@ -78,6 +79,7 @@ export class Xia {
     arrow.position.y = 0.28;
     this.marker.add(ring(0.35, 0.52, 0x6e76f0), arrow);
     this.marker.visible = false;
+    this.marker.userData.keepColors = true;
     scene.add(this.marker);
   }
 

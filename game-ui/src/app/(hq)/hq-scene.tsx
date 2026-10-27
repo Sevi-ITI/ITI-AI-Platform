@@ -6,9 +6,19 @@ import * as THREE from "three";
 
 import { CAMERA, CameraController } from "@/hq/scene/camera";
 import { buildEnvironment, updateTraffic } from "@/hq/scene/environment";
-import { animateWorld, applyActive, applyRole, buildWorld, setBeacon, updateWalls, type World } from "@/hq/scene/world";
+import {
+  animateWorld,
+  applyActive,
+  applyRole,
+  applyTheme,
+  buildWorld,
+  setBeacon,
+  updateWalls,
+  type World,
+} from "@/hq/scene/world";
 import { Xia } from "@/hq/scene/xia";
 import { canEnter, canEnterWing, type Role, type Station, STATIONS, type WingId } from "@/hq/stations";
+import type { Theme } from "@/hq/theme";
 
 import styles from "./hq.module.css";
 
@@ -26,6 +36,7 @@ export type SceneControls = {
 
 type Props = {
   role: Role;
+  theme: Theme;
   active: Station | undefined;
   health: "ok" | "warn" | "error" | null; // the roof beacon's color (null = not checked yet)
   panelOpen: boolean; // the HUD panel covers the right side: rooms are framed to its left
@@ -37,6 +48,7 @@ type Props = {
 };
 
 type Running = {
+  scene: THREE.Scene;
   camera: THREE.PerspectiveCamera;
   controller: CameraController;
   world: World;
@@ -93,7 +105,7 @@ export default function HqScene(props: Props) {
     const xia = new Xia(scene);
     let walls: WallMode = "auto";
     let followXia = false; // the camera follows Xia on walks the person started by tapping the floor
-    runningRef.current = { camera, controller, world, xia };
+    runningRef.current = { scene, camera, controller, world, xia };
 
     const shift = () => (latest.current.panelOpen ? 3.4 : 0.8);
     latest.current.onControls({
@@ -233,6 +245,12 @@ export default function HqScene(props: Props) {
   useEffect(() => {
     if (runningRef.current) setBeacon(runningRef.current.world, props.health);
   }, [props.health]);
+
+  // Recolor in place (no rebuild), so the camera and Xia stay where they are.
+  useEffect(() => {
+    const running = runningRef.current;
+    if (running) applyTheme(running.scene, running.world, props.theme);
+  }, [props.theme]);
 
   // A new room (from any click, link or back/forward): light its ring, walk Xia there, frame it.
   const activeId = props.active?.id;

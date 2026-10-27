@@ -7,12 +7,14 @@ import { useRef, useState } from "react";
 
 import { logOut } from "@/lib/session/actions";
 import { canEnter, canEnterWing, type Role, type Station, STATIONS, stationForPath, WINGS } from "@/hq/stations";
+import type { Theme } from "@/hq/theme";
 import type { View } from "@/hq/view";
 
 import type { SceneControls, WallMode } from "./hq-scene";
 import styles from "./hq.module.css";
-import { StatusErrorIcon, StatusOkIcon, StatusWarnIcon } from "./kit/icons";
+import { MoonIcon, StatusErrorIcon, StatusOkIcon, StatusWarnIcon, SunIcon } from "./kit/icons";
 import Toaster from "./kit/toast";
+import { toggleTheme } from "./theme-actions";
 import { useHealth } from "./use-health";
 import { setView } from "./view-actions";
 
@@ -25,11 +27,11 @@ const HqScene = dynamic(() => import("./hq-scene"), {
 const WALL_LABELS: Record<WallMode, string> = { auto: "Walls: auto", down: "Walls: down", up: "Walls: up" };
 const NEXT_WALLS: Record<WallMode, WallMode> = { auto: "down", down: "up", up: "auto" };
 
-type Props = { name: string; role: Role; view: View; children: React.ReactNode };
+type Props = { name: string; role: Role; view: View; theme: Theme; children: React.ReactNode };
 
 // Everything around a page: the 3D HQ with its floating HUD (top bar, wings dock, camera bar, the page in a panel
 // on the right) or the plain list view (a sidebar of rooms and the page). The URL decides which room is open.
-export default function HqShell({ name, role, view, children }: Props) {
+export default function HqShell({ name, role, view, theme, children }: Props) {
   const pathname = usePathname();
   const router = useRouter();
   const station = stationForPath(pathname);
@@ -93,6 +95,16 @@ export default function HqShell({ name, role, view, children }: Props) {
       <form action={setView.bind(null, in3d ? "list" : "3d")}>
         <button type="submit" className={styles.button}>
           {in3d ? "☰ List view" : "◧ 3D HQ"}
+        </button>
+      </form>
+      <form action={toggleTheme}>
+        <button
+          type="submit"
+          className={`${styles.button} ${styles.iconButton}`}
+          aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+          title={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+        >
+          {theme === "dark" ? <SunIcon /> : <MoonIcon />}
         </button>
       </form>
       <form action={logOut}>
@@ -189,6 +201,7 @@ export default function HqShell({ name, role, view, children }: Props) {
       </a>
       <HqScene
         role={role}
+        theme={theme}
         active={station}
         health={health?.tone ?? null}
         panelOpen={panelOpen}

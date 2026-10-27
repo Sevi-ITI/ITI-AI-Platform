@@ -44,6 +44,7 @@ export function buildEnvironment(scene: THREE.Scene): Environment {
   const road = std(0x141b2d, 0.88);
   const divider = std(0x26324d, 0.65);
   const dash = new THREE.MeshBasicMaterial({ color: 0xe9b25c });
+  dash.userData.light = 0xfffdf8; // white lane dashes on a grey road (the amber stays amber elsewhere)
 
   env.add(box(150, 0.4, 150, grass, 0, -0.75, 0));
   for (const [x, z, w, d] of [
