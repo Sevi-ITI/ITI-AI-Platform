@@ -134,6 +134,10 @@ services:
     environment:
       ITI_CONSOLE_UPSTREAM: console:3000
       ITI_API_UPSTREAM: api:8000
+      # Site names and certificate of THIS machine (deploy/.env; left out = the laptop's values in the Caddyfile):
+      ITI_CONSOLE_SITES:
+      ITI_API_SITES:
+      ITI_TLS:
     ports:
       - "${ITI_CONSOLE_HTTPS_PORT:-443}:443"  # testers: login + Chat only (the Caddyfile hides every admin page)
       - "${ITI_API_HTTPS_PORT:-8443}:8443"  # the C# apps
@@ -141,6 +145,7 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
       - caddy-config:/config
+      - ./certs:/certs:ro  # company certificate files, only when ITI_TLS names them (never committed)
     depends_on:
       console:
         condition: service_healthy

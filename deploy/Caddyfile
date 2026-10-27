@@ -5,16 +5,20 @@
 # console:3000 and api:8000; run natively they are unset and the defaults (127.0.0.1) apply.
 # Check: C:\Tools\caddy\caddy.exe validate --config deploy\Caddyfile
 # Names: the laptop's own DNS name works today; iti-ai / iti-ai-api work once the CNAMEs exist in ho.intellismartinc.com.
+# Another machine sets its own names and certificate in deploy/.env (unset = this laptop's values below):
+#   ITI_CONSOLE_SITES / ITI_API_SITES  the addresses, comma-separated, e.g. https://ai.example.local (API: ...:8443)
+#   ITI_TLS  internal = Caddy's own CA (default) · /certs/site.pem /certs/site.key = company certificate files
+#            (deploy/certs, mounted read-only) · an email address = a public certificate for a public DNS name
 {
 	auto_https disable_redirects # nothing on port 80
-	skip_install_trust # don't touch this laptop's trust store; IT pushes root.crt by GPO
+	skip_install_trust # never touch this machine's trust store; the users' PCs get root.crt from IT
 }
 
 # Console, for testers: LAN visitors reach ONLY the login, Chat and what those pages load. Every admin page is
 # redirected to /chat here, even for a super admin; admin work is done on the laptop itself (http://127.0.0.1:3000).
 # FastAPI still checks every permission; this is a second wall.
-https://ITI-Vinas.ho.intellismartinc.com, https://iti-ai.ho.intellismartinc.com {
-	tls internal
+{$ITI_CONSOLE_SITES:https://ITI-Vinas.ho.intellismartinc.com, https://iti-ai.ho.intellismartinc.com} {
+	tls {$ITI_TLS:internal}
 
 	request_body {
 		max_size 60MB # the API's upload limit is 50 MB
@@ -35,8 +39,8 @@ https://ITI-Vinas.ho.intellismartinc.com, https://iti-ai.ho.intellismartinc.com 
 
 # API, for the C# apps (firewall: only their machines reach 8443). Swagger and the admin / console routes are
 # hidden: the C# apps need only the v1 contract (integration-kit/openapi-v1.json).
-https://ITI-Vinas.ho.intellismartinc.com:8443, https://iti-ai-api.ho.intellismartinc.com:8443 {
-	tls internal
+{$ITI_API_SITES:https://ITI-Vinas.ho.intellismartinc.com:8443, https://iti-ai-api.ho.intellismartinc.com:8443} {
+	tls {$ITI_TLS:internal}
 
 	request_body {
 		max_size 60MB

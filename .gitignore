@@ -21,4 +21,5 @@ CLAUDE.md
 bin/
 obj/
 sa console.sql
-
+# certificate files for the Caddy container (private keys): never committed
+deploy/certs/
