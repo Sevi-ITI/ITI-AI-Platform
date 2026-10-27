@@ -1,10 +1,13 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { useRef, useState } from "react";
 
-import type { components } from "@/lib/api/schema";
 
+import type { components } from "@/lib/api/schema";
+import chat from "../chat/chat.module.css";
 import dash from "../dashboard.module.css";
 import FormDialog, { LOCKED_HINT } from "../form-dialog";
 import { LockIcon, StatusOkIcon, StatusWarnIcon } from "../icons";
@@ -484,7 +487,10 @@ function TryResult({ result }: { result: TryOut }) {
           {result.offered.length === 0 && " No tool was offered with these scopes (connection off, records DB not set, or tool switched off)."}
         </p>
       ) : (
-        <p className={dash.tryAnswer}>{result.answer}</p>
+                // Markdown, as in Chat (tables, bold, lists); raw HTML in an answer is never rendered
+        <div className={`${dash.tryAnswer} ${chat.markdown}`}>
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{result.answer}</ReactMarkdown>
+        </div>
       )}
       <dl className={dash.facts}>
         <div>

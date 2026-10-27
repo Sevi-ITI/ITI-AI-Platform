@@ -124,8 +124,9 @@ services:
 
   # The front door (9.5.5): the only container reachable from the network. Profile "door": started only when
   # COMPOSE_PROFILES includes it, so it never fights the native Caddy for 443 / 8443 by accident.
-  # Its certificate authority (copied once from the native Caddy, D3) lives in the caddy-data volume: office PCs keep
-  # trusting it. That volume holds root.key: never copy it into git, an image or the package.
+  # OFF by default (9.5.5, Vince 2026-10-27): the office PCs do not trust our Caddy root yet, so the laptop keeps the
+  # native Caddy. Its certificate authority (copied once from the native Caddy, D3) lives in the caddy-data volume,
+  # which holds root.key: never copy it into git, an image or the package.
   caddy:
     image: caddy:2.11.7
     profiles: ["door"]
