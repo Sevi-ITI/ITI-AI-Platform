@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { logOut } from "@/lib/session/actions";
 import { canEnter, canEnterWing, type Role, type Station, STATIONS, stationForPath, WINGS } from "@/hq/stations";
@@ -54,6 +54,8 @@ export default function HqShell({ name, role, view, theme, phtAuto, phtSim, chil
   const [notice, setNotice] = useState<string | null>(null);
   const controls = useRef<SceneControls | null>(null);
   const noticeTimer = useRef<number | undefined>(undefined);
+  const hqRef = useRef<HTMLDivElement>(null);
+  const topBarRef = useRef<HTMLDivElement>(null);
   const health = useHealth();
   useAutoTheme(phtAuto, phtSim, theme);
 
@@ -64,6 +66,16 @@ export default function HqShell({ name, role, view, theme, phtAuto, phtSim, chil
     setPanelOpen(true);
   }
   const in3d = view === "3d" && !noWebgl;
+
+  // The top bar wraps to two rows in a narrow window: keep the dock and the panel below wherever it ends.
+  useEffect(() => {
+    const hq = hqRef.current;
+    const bar = topBarRef.current;
+    if (!hq || !bar) return;
+    const observer = new ResizeObserver(() => hq.style.setProperty("--hud-bottom", `${bar.offsetTop + bar.offsetHeight}px`));
+    observer.observe(bar);
+    return () => observer.disconnect();
+  }, [in3d]);
 
   const tell = (message: string) => {
     setNotice(message);
@@ -207,7 +219,7 @@ export default function HqShell({ name, role, view, theme, phtAuto, phtSim, chil
   }
 
   return (
-    <div className={styles.hq}>
+    <div className={styles.hq} ref={hqRef}>
       <a href="#room-title" className={styles.skip}>
         Skip to the page
       </a>
@@ -230,7 +242,7 @@ export default function HqShell({ name, role, view, theme, phtAuto, phtSim, chil
         onNoWebgl={() => setNoWebgl(true)}
       />
 
-      <div className={styles.topBar}>
+      <div className={styles.topBar} ref={topBarRef}>
         <div className={styles.topLeft}>
           {brand}
           {healthPill}

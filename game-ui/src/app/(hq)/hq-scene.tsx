@@ -8,6 +8,7 @@ import { clockText, phtNow } from "@/hq/pht";
 import { CAMERA, CameraController } from "@/hq/scene/camera";
 import { buildClockTower, type ClockTower, updateClock } from "@/hq/scene/clock";
 import { buildEnvironment, updateTraffic } from "@/hq/scene/environment";
+import { buildStaff, updateStaff } from "@/hq/scene/staff";
 import { applySun } from "@/hq/scene/sun";
 import {
   animateWorld,
@@ -115,6 +116,7 @@ export default function HqScene(props: Props) {
     const environment = buildEnvironment(scene);
     const xia = new Xia(scene);
     const tower = buildClockTower(scene);
+    const staff = buildStaff(scene);
     world.rooms.push(tower.group); // clickable like a room: it opens /clock-tower
     let walls: WallMode = "auto";
     let followXia = false; // the camera follows Xia on walks the person started by tapping the floor
@@ -232,6 +234,7 @@ export default function HqScene(props: Props) {
       }
       if (!still) {
         updateTraffic(environment, dt);
+        updateStaff(staff, dt);
         animateWorld(world, seconds);
       }
       controller.update(dt);

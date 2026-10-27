@@ -4,6 +4,9 @@
 /* ---------- 3D view ---------- */
 
 .hq {
+  /* Where the top bar ends: the dock, its toggle and the panel start below it. hq-shell.tsx measures it, because the
+     bar wraps to two rows in a narrow window (one row ends at 4.75rem). */
+  --hud-bottom: 4.75rem;
   position: fixed;
   inset: 0;
   overflow: clip; /* not hidden: hidden still lets focus or scrollIntoView shift the whole HQ */
@@ -328,13 +331,13 @@
 }
 
 .dockToggle {
-  top: 5.5rem;
+  top: calc(var(--hud-bottom) + var(--space-3));
   left: var(--float-gap);
 }
 
 .dock {
   position: absolute;
-  top: 5.5rem;
+  top: calc(var(--hud-bottom) + var(--space-3));
   bottom: 5rem;
   left: var(--float-gap);
   display: flex;
@@ -451,7 +454,7 @@ a.roomLink:hover {
 /* The open page (right) */
 .panel {
   position: absolute;
-  top: 5.5rem;
+  top: calc(var(--hud-bottom) + var(--space-3));
   right: var(--float-gap);
   bottom: var(--float-gap);
   display: flex;
@@ -461,7 +464,7 @@ a.roomLink:hover {
 }
 
 .panelToggle {
-  top: 5.5rem;
+  top: calc(var(--hud-bottom) + var(--space-3));
   right: var(--float-gap);
 }
 
