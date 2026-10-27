@@ -17,6 +17,12 @@
   text-wrap: balance; /* long names wrap evenly, no one-word last line */
 }
 
+/* game-ui (G5): a page title under the panel's <h1> is an <h2>, one size smaller */
+.header h2 {
+  font-size: var(--text-lg);
+  text-wrap: balance;
+}
+
 .muted {
   color: var(--text-muted);
 }
@@ -1886,6 +1892,11 @@ td.actionsCell:not(:has(button, a)) {
 
 .titleRow h1 {
   font-size: var(--text-xl);
+  overflow-wrap: anywhere;
+}
+
+.titleRow h2 {
+  font-size: var(--text-lg);
   overflow-wrap: anywhere;
 }
 

@@ -1,0 +1,135 @@
+// Copied from admin-ui src/app/(console)/users/[app]/[user]/[conversation]/page.tsx (G5). Same FastAPI calls and data; its title is an <h2> (the panel has the <h1>).
+import Link from "next/link";
+
+import { displayMessage } from "@/lib/api/api-error";
+import { callApi, endSessionOn401 } from "@/lib/api/client";
+import { formatDateTime, formatStamp } from "@/lib/format";
+import { testersGoToChat } from "@/lib/session/testers-go-to-chat";
+
+import Breadcrumbs from "../../../../kit/breadcrumbs";
+import Message from "../../../../chat/message";
+import styles from "../../../../kit/dashboard.module.css";
+import { StatusOkIcon } from "../../../../kit/icons";
+import { Problem } from "../../../../kit/widgets";
+
+export async function generateMetadata({ params }: { params: Promise<{ app: string; user: string }> }) {
+  const { user } = await params;
+  return { title: `Conversation of ${user}` }; // already decoded here (unlike the page's params)
+}
+
+// What rag decided for each answer (AdminMessage.reason), in words. Unknown values show as they are.
+const OUTCOMES: Record<string, { label: string; ok: boolean }> = {
+  answered: { label: "Answered", ok: true },
+  no_relevant_chunks: { label: "“I don’t know”: no matching passages", ok: false },
+  model_refused: { label: "“I don’t know”: the model found no answer", ok: false },
+  check_failed: { label: "“I don’t know”: the answer failed the check", ok: false },
+  blank: { label: "“I don’t know”: empty answer", ok: false },
+  records_answered: { label: "Answered from records", ok: true },
+  records_empty: { label: "Records: nothing found or unavailable", ok: false },
+  records_and_documents: { label: "Answered from records + documents", ok: true },
+};
+
+// One conversation as the user saw it (questions, answers, sources), plus each answer's outcome, time and
+// request id for review. Read-only. Params typed by hand: route types are generated at build time.
+export default async function ThreadPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ app: string; user: string; conversation: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  await testersGoToChat(); // testers have only the Chat page
+  const [{ app, user, conversation }, query] = await Promise.all([params, searchParams]);
+  const companyId = (typeof query.company === "string" && query.company.trim()) || "iti";
+  const appId = decodeURIComponent(app);
+  const userId = decodeURIComponent(user);
+  const conversationId = decodeURIComponent(conversation);
+
+  const [messages, summaries] = await Promise.all([
+    callApi((api) =>
+      api.GET("/v1/admin/conversations/{conversation_id}/messages", {
+        params: { path: { conversation_id: conversationId } },
+      }),
+    ),
+    // ponytail: the collection and start time come from this user's 200 newest conversations; an older
+    // one still shows its messages, just without that line.
+    callApi((api) =>
+      api.GET("/v1/admin/conversations", {
+        params: { query: { app_id: appId, company_id: companyId, user_id: userId, limit: 200 } },
+      }),
+    ),
+  ]);
+  endSessionOn401(messages, summaries);
+
+  const summary = summaries.ok ? summaries.data.find((c) => c.conversation_id === conversationId) : undefined;
+  const userPage = `/users/${encodeURIComponent(appId)}/${encodeURIComponent(userId)}?company=${encodeURIComponent(companyId)}`;
+  const requestLog = `/requests?app=${encodeURIComponent(appId)}&company=${encodeURIComponent(companyId)}&user=${encodeURIComponent(userId)}`;
+
+  return (
+    <>
+      <Breadcrumbs
+        trail={[
+          { label: "Users & chats", href: "/users" },
+          { label: userId, href: userPage },
+          { label: summary ? summary.first_question : "Conversation" },
+        ]}
+      />
+      <header className={styles.header}>
+        <h2>Conversation</h2>
+        {summary && (
+          <p className={styles.muted}>
+            Collection{" "}
+            <span className="mono" translate="no">
+              {summary.collection}
+            </span>
+            , started {formatDateTime(summary.created_at)}
+          </p>
+        )}
+      </header>
+
+      {!messages.ok ? (
+        <section className={styles.card}>
+          <Problem message={displayMessage(messages.error)} />
+          <Link href={userPage}>Back to this user&apos;s conversations</Link>
+        </section>
+      ) : messages.data.length === 0 ? (
+        <p className={styles.muted}>This conversation has no messages.</p>
+      ) : (
+        <section className={styles.thread} aria-label="Messages">
+          {messages.data.map((m, i) => {
+            const outcome = m.reason ? (OUTCOMES[m.reason] ?? { label: m.reason, ok: false }) : null;
+            return (
+              <div key={`${m.request_id}-${m.role}-${i}`} className={styles.turn}>
+                <Message role={m.role === "user" ? "user" : "assistant"} content={m.content} citations={m.citations} />
+                <p className={m.role === "user" ? `${styles.turnMeta} ${styles.turnMetaUser}` : styles.turnMeta}>
+                  {outcome && (
+                    <>
+                      <span className={outcome.ok ? `${styles.withIcon} ${styles.ok}` : undefined}>
+                        {outcome.ok ? <StatusOkIcon /> : "○"} {outcome.label}
+                      </span>
+                      {" · "}
+                    </>
+                  )}
+                  {formatStamp(m.created_at)}
+                  {m.role !== "user" && (
+                    <>
+                      {" · "}
+                      {/* opens that request's details panel in the Request log */}
+                      <Link
+                        href={`${requestLog}&req=${encodeURIComponent(m.request_id)}`}
+                        className="mono"
+                        translate="no"
+                      >
+                        {m.request_id}
+                      </Link>
+                    </>
+                  )}
+                </p>
+              </div>
+            );
+          })}
+        </section>
+      )}
+    </>
+  );
+}

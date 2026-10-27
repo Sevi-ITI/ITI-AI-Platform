@@ -1,13 +1,285 @@
-import type { Metadata } from "next";
+// Copied from admin-ui src/app/(console)/companies/page.tsx (G5). Same FastAPI calls and data; the panel header shows the room title.
+import Link from "next/link";
 
+import { displayMessage } from "@/lib/api/api-error";
+import { callApi, endSessionOn401 } from "@/lib/api/client";
+import type { components } from "@/lib/api/schema";
+import { formatCount, formatDateTime, initials } from "@/lib/format";
+import { currentAccount } from "@/lib/session/current-account";
 import { testersGoToChat } from "@/lib/session/testers-go-to-chat";
 
-import RoomPlaceholder from "../room-placeholder";
+import ConfirmAction from "../kit/confirm-action";
+import styles from "../kit/dashboard.module.css";
+import GateBar from "../kit/gate-bar";
+import { Problem } from "../kit/widgets";
+import { deleteCompany, deleteCompanyDatabase } from "./actions";
+import CompanyList from "./company-list";
+import { type AppOption, AddCompanyButton, DatabaseDialog, DatabaseTestButton, EditCompanyButton } from "./dialogs";
 
-export const metadata: Metadata = { title: "Companies" };
+export const metadata = { title: "Companies" };
 
-// The Companies room: a placeholder until its data is wired in (G3 onward).
-export default async function CompaniesRoom() {
-  await testersGoToChat();
-  return <RoomPlaceholder />;
+// ITI's client companies (ITI itself included): their own collections and how many active keys serve them.
+// A company's collections are private to it; Global collections are listed once, at the bottom.
+export default async function CompaniesPage() {
+  await testersGoToChat(); // testers have only the Chat page
+  const [companies, collections, apps, databases, gate, me] = await Promise.all([
+    callApi((api) => api.GET("/v1/admin/companies")),
+    callApi((api) => api.GET("/v1/admin/collections")),
+    callApi((api) => api.GET("/v1/admin/apps")),
+    callApi((api) => api.GET("/v1/admin/tools/company-databases")), // 8.6M, super admin only (supervisors: 403)
+    callApi((api) => api.GET("/v1/admin/tools/gate")), // changing a database needs the security password
+    currentAccount(),
+  ]);
+  endSessionOn401(companies, collections, apps, databases, gate, me);
+
+  const canEdit = me.ok && me.data.role === "super_admin";
+  const locked = !(gate.ok && gate.data.unlocked_until); // FastAPI decides; this only greys out the buttons
+  const databasesOf = (companyId: string) => (databases.ok ? databases.data.filter((d) => d.company_id === companyId) : null);
+  // apps that can be linked: every app except the console (people log in to it; it has no keys)
+  const appOptions: AppOption[] = (apps.ok ? apps.data : [])
+    .filter((a) => a.app_id !== "iti-console")
+    .map((a) => ({ app_id: a.app_id, name: a.display_name ?? a.app_id }));
+  const appNames = new Map(appOptions.map((a) => [a.app_id, a.name]));
+  const globals = collections.ok ? collections.data.filter((c) => !c.company_id).map((c) => c.name) : [];
+
+  return (
+    <>
+      <header className={styles.header}>
+        {canEdit && <AddCompanyButton apps={appOptions} />}
+      </header>
+      {canEdit && gate.ok && <GateBar gate={gate.data} />}
+      <p className={styles.muted}>
+        Each client company has its own collections; its people reach them only through keys made for that company.
+      </p>
+
+      {!companies.ok ? (
+        <Problem message={displayMessage(companies.error)} />
+      ) : (
+        // One card per company (was a table whose link and action columns ran off the right edge). ITI itself first,
+        // then A to Z, like the console first on Apps & keys.
+        <CompanyList
+          items={[...companies.data]
+            .sort(
+              (a, b) =>
+                Number(b.company_id === "iti") - Number(a.company_id === "iti") ||
+                a.name.localeCompare(b.name, "en", { sensitivity: "base" }),
+            )
+            .map((c) => ({
+              id: c.company_id,
+              // what the search box can find it by (lowercase)
+              text: [c.name, c.company_id, c.notes, ...c.collections, ...c.shared_collections, ...c.app_ids]
+                .filter(Boolean)
+                .join(" ")
+                .toLowerCase(),
+              card: (
+                <CompanyCard
+                  c={c}
+                  canEdit={canEdit}
+                  apps={appOptions}
+                  appNames={appNames}
+                  databases={databasesOf(c.company_id)}
+                  locked={locked}
+                />
+              ),
+            }))}
+        />
+      )}
+
+      <section className={styles.card} aria-labelledby="global-title">
+        <h2 id="global-title" className={styles.panelTitle}>
+          Global collections
+        </h2>
+        <p className={styles.tags}>
+          {globals.length
+            ? globals.map((name) => (
+                <span key={name} className={`${styles.tag} mono`} translate="no">
+                  {name}
+                </span>
+              ))
+            : "None yet."}
+        </p>
+        <p className={styles.muted}>
+          Any company&apos;s key may be given these (e.g. the labor code). Make a collection Global on the Documents
+          page with Move….
+        </p>
+      </section>
+    </>
+  );
 }
+
+type Company = components["schemas"]["CompanyInfo"];
+type Database = components["schemas"]["CompanyDatabaseOut"];
+
+// The systems whose database is per company (backend: app/tools/shared.py COMPANY_DATABASES).
+// ponytail: listed here too; serve it from FastAPI when a second system comes.
+const SYSTEMS = ["hrdotnet"];
+
+// A company at a glance: who (tile, name, id, added, notes), what it reaches (its collections, those shared with it,
+// active keys), and where to look next (its keys, users, requests: the filters that already exist).
+function CompanyCard({
+  c,
+  canEdit,
+  apps,
+  appNames,
+  databases,
+  locked,
+}: {
+  c: Company;
+  canEdit: boolean;
+  apps: AppOption[];
+  appNames: Map<string, string>;
+  databases: Database[] | null; // null = not readable (supervisors)
+  locked: boolean;
+}) {
+  const id = encodeURIComponent(c.company_id);
+  return (
+    <article className={styles.companyCard} aria-labelledby={`company-${c.company_id}`}>
+      <div className={styles.companyHead}>
+        <span className={styles.appAvatar} aria-hidden="true">
+          {initials(c.name)}
+        </span>
+        <div className={styles.appMain}>
+          <h2 id={`company-${c.company_id}`} className={styles.appName}>
+            {c.name}
+          </h2>
+          <p className={styles.appMeta}>
+            <span className="mono" translate="no">
+              {c.company_id}
+            </span>{" "}
+            · added {formatDateTime(c.created_at)}
+            {c.company_id === "iti" && " · ITI itself"}
+          </p>
+        </div>
+        {canEdit && (
+          <div className={styles.rowActions}>
+            <EditCompanyButton companyId={c.company_id} name={c.name} notes={c.notes} apps={apps} linked={c.app_ids} />
+            {c.company_id !== "iti" && (
+              <ConfirmAction
+                label="Delete"
+                title={`Delete ${c.name}?`}
+                confirmLabel="Delete company"
+                action={deleteCompany.bind(null, c.company_id)}
+                done={`${c.name} deleted`}
+              >
+                <p>
+                  Only a company with no collections and no working keys can be deleted; its revoked keys are deleted
+                  with it. If something is left, the reason is shown here: delete or move its collections and revoke its
+                  apps&apos; keys first.
+                </p>
+              </ConfirmAction>
+            )}
+          </div>
+        )}
+      </div>
+
+      {c.notes && <p className={styles.muted}>{c.notes}</p>}
+
+      <dl className={styles.companyFacts}>
+        <div>
+          <dt>Its collections</dt>
+          <dd className={styles.tags}>
+            {c.collections.length ? (
+              c.collections.map((name) => (
+                <span key={name} className={`${styles.tag} mono`} translate="no">
+                  {name}
+                </span>
+              ))
+            ) : (
+              <span className={styles.muted}>none yet</span>
+            )}
+          </dd>
+        </div>
+        {c.shared_collections.length > 0 && (
+          <div>
+            <dt>Shared with it</dt>
+            <dd className={styles.tags}>
+              {c.shared_collections.map((name) => (
+                <span key={name} className={`${styles.tag} mono`} translate="no">
+                  {name}
+                </span>
+              ))}
+            </dd>
+          </div>
+        )}
+        <div>
+          <dt>Linked apps</dt>
+          <dd className={styles.tags}>
+            {c.app_ids.length ? (
+              c.app_ids.map((a) => (
+                <span key={a} className={styles.tag}>
+                  {appNames.get(a) ?? a}
+                </span>
+              ))
+            ) : (
+              <span className={styles.muted}>none yet (Edit to link one)</span>
+            )}
+          </dd>
+        </div>
+        <div>
+          <dt>Active keys</dt>
+          <dd>
+            <b className={styles.num}>{formatCount(c.active_keys)}</b>
+            {c.active_keys === 0 && <span className={styles.muted}> (its people can&apos;t reach the AI yet)</span>}
+          </dd>
+        </div>
+        {databases &&
+          SYSTEMS.map((system) => {
+            const d = databases.find((x) => x.system === system);
+            return (
+              <div key={system}>
+                <dt>
+                  Its <span className="mono">{system}</span> database
+                </dt>
+                <dd>
+                  {!d ? (
+                    <span className={styles.muted}>not set: its people get none of the {system} tools</span>
+                  ) : (
+                    <>
+                      <span className="mono" translate="no">
+                        {d.mode === "direct" ? `direct · ${d.url_env}` : `relay · ${d.relay_url} · ${d.token_env}`}
+                      </span>
+                      {!d.secret_set && <span className={styles.warn}> · not set in backend\.env</span>}
+                      {!d.enabled && <span className={styles.muted}> · switched off</span>}
+                    </>
+                  )}
+                  {canEdit && (
+                    <span className={styles.rowActions}>
+                      <DatabaseDialog companyId={c.company_id} system={system} database={d} locked={locked} />
+                      {d && <DatabaseTestButton companyId={c.company_id} system={system} />}
+                      {d && (
+                        <ConfirmAction
+                          locked={locked}
+                          label="Remove"
+                          title={`Remove the ${system} database of ${c.name}?`}
+                          confirmLabel="Remove"
+                          action={deleteCompanyDatabase.bind(null, c.company_id, system)}
+                          done={`${c.name}: ${system} database removed`}
+                        >
+                          <p>Its people then get none of the {system} tools. The secret stays in backend\.env.</p>
+                        </ConfirmAction>
+                      )}
+                    </span>
+                  )}
+                </dd>
+              </div>
+            );
+          })}
+      </dl>
+
+      {/* the filters that already exist, opened on this company */}
+      <nav className={styles.companyLinks} aria-label={`${c.name}: see its`}>
+        <span className={styles.muted}>See its</span>
+        <Link href={`/apps?q=${id}`} className={styles.smallButton}>
+          Keys →
+        </Link>
+        <Link href={`/users?company=${id}`} className={styles.smallButton}>
+          Users →
+        </Link>
+        <Link href={`/requests?company=${id}`} className={styles.smallButton}>
+          Requests →
+        </Link>
+      </nav>
+    </article>
+  );
+}
+
