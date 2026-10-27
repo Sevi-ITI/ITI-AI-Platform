@@ -270,6 +270,14 @@
   border-color: var(--accent);
 }
 
+/* The clock tower pin's live time (hq-scene.tsx writes it once a second) */
+.pinTime {
+  margin-left: var(--space-1);
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
 /* A round button with only an icon (the theme toggle); its aria-label names it */
 .iconButton {
   display: inline-grid;

@@ -102,10 +102,11 @@ export class CameraController {
     this.snapIfReduced();
   }
 
-  /** Close up on a room. shiftRight moves the focus right so the room sits left of the HUD panel. */
-  focusOn(x: number, z: number, shiftRight: number): void {
+  /** Close up on a room. shiftRight moves the focus right so the room sits left of the HUD panel; a tall room (the
+   *  clock tower) asks for a longer distance. */
+  focusOn(x: number, z: number, shiftRight: number, distance: number = CAMERA.focusDistance): void {
     this.followTo(x, z, shiftRight);
-    this.targetDist = CAMERA.focusDistance;
+    this.targetDist = distance;
     this.clamp();
     this.snapIfReduced();
   }

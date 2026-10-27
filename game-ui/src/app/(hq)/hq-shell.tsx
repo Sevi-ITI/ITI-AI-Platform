@@ -15,6 +15,7 @@ import styles from "./hq.module.css";
 import { MoonIcon, StatusErrorIcon, StatusOkIcon, StatusWarnIcon, SunIcon } from "./kit/icons";
 import Toaster from "./kit/toast";
 import { toggleTheme } from "./theme-actions";
+import { useAutoTheme } from "./use-auto-theme";
 import { useHealth } from "./use-health";
 import { setView } from "./view-actions";
 
@@ -27,11 +28,19 @@ const HqScene = dynamic(() => import("./hq-scene"), {
 const WALL_LABELS: Record<WallMode, string> = { auto: "Walls: auto", down: "Walls: down", up: "Walls: up" };
 const NEXT_WALLS: Record<WallMode, WallMode> = { auto: "down", down: "up", up: "auto" };
 
-type Props = { name: string; role: Role; view: View; theme: Theme; children: React.ReactNode };
+type Props = {
+  name: string;
+  role: Role;
+  view: View;
+  theme: Theme;
+  phtAuto: boolean; // the theme follows Manila's time of day (clock tower, V2)
+  phtSim: number | null; // a simulated time of day in minutes (clock tower), null = live
+  children: React.ReactNode;
+};
 
 // Everything around a page: the 3D HQ with its floating HUD (top bar, wings dock, camera bar, the page in a panel
 // on the right) or the plain list view (a sidebar of rooms and the page). The URL decides which room is open.
-export default function HqShell({ name, role, view, theme, children }: Props) {
+export default function HqShell({ name, role, view, theme, phtAuto, phtSim, children }: Props) {
   const pathname = usePathname();
   const router = useRouter();
   const station = stationForPath(pathname);
@@ -46,6 +55,7 @@ export default function HqShell({ name, role, view, theme, children }: Props) {
   const controls = useRef<SceneControls | null>(null);
   const noticeTimer = useRef<number | undefined>(undefined);
   const health = useHealth();
+  useAutoTheme(phtAuto, phtSim, theme);
 
   // Any room change (a click, a link, back / forward) shows the panel again. Set while rendering, React's way of
   // adjusting state to a new prop, so there is no extra render with the old panel state.
@@ -92,11 +102,13 @@ export default function HqShell({ name, role, view, theme, children }: Props) {
       <span className={styles.who}>
         {name} <span className={styles.role}>{role.replace("_", " ")}</span>
       </span>
-      <form action={setView.bind(null, in3d ? "list" : "3d")}>
-        <button type="submit" className={styles.button}>
-          {in3d ? "☰ List view" : "◧ 3D HQ"}
-        </button>
-      </form>
+      {role === "super_admin" && (
+        <form action={setView.bind(null, in3d ? "list" : "3d")}>
+          <button type="submit" className={styles.button}>
+            {in3d ? "☰ List view" : "◧ 3D HQ"}
+          </button>
+        </form>
+      )}
       <form action={toggleTheme}>
         <button
           type="submit"
@@ -202,6 +214,7 @@ export default function HqShell({ name, role, view, theme, children }: Props) {
       <HqScene
         role={role}
         theme={theme}
+        phtSim={phtSim}
         active={station}
         health={health?.tone ?? null}
         panelOpen={panelOpen}

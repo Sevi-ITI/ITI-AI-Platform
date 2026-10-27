@@ -114,6 +114,16 @@ export const STATIONS: Station[] = [
     desc: "Tools the model can use, the records source, MCP connections, SQL tools, Try it and the change log.",
     pos: [7.2, 2.0, 5.2],
   },
+  {
+    // Outside the building, north of the plaza; not an admin-ui page (V2, Vince: "it is for ME"), super admins only
+    id: "clock",
+    route: "/clock-tower",
+    title: "PHT Clock Tower",
+    wing: "monitor",
+    roomObject: "Clock tower",
+    desc: "Philippine time (Asia/Manila), the sun's phase, the theme that follows the time and a simulated time.",
+    pos: [0, 11.6, -23.3], // = CLOCK_POSITION in scene/clock.ts
+  },
 ];
 
 /** May this role open this wing? Same rule as admin-ui's navigation. */
@@ -123,8 +133,10 @@ export function canEnterWing(wing: WingId, role: Role): boolean {
   return true;
 }
 
-/** May this role open this room? Testers: Chat only (not Documents, although it shares their wing). */
+/** May this role open this room? Testers: Chat only (not Documents, although it shares their wing). The clock tower:
+ *  super admins only. */
 export function canEnter(station: Station, role: Role): boolean {
+  if (station.id === "clock") return role === "super_admin";
   if (role === "tester") return station.id === "chat";
   return canEnterWing(station.wing, role);
 }

@@ -139,6 +139,7 @@ export function buildWorld(scene: THREE.Scene): World {
 
   const rings = {} as World["rings"];
   for (const st of STATIONS) {
+    if (st.id === "clock") continue; // outside the building, on its own pedestal (clock.ts)
     const ring = new THREE.Mesh(
       new THREE.RingGeometry(1.35, 1.58, 32),
       new THREE.MeshBasicMaterial({ color: COLORS.accent, side: THREE.DoubleSide, transparent: true, opacity: 0.22 }),
@@ -316,15 +317,11 @@ export function buildWorld(scene: THREE.Scene): World {
   };
 }
 
-/** Swap every color in the scene (sky, lights, grid, meshes) to the theme's. The camera and Xia stay put. */
+/** Swap every color in the scene (background, grid, meshes) to the theme's; the lights follow with applySun
+ *  (sun.ts). The camera and Xia stay put. */
 export function applyTheme(scene: THREE.Scene, world: World, theme: Theme): void {
   world.theme = theme;
-  const sky = SKY[theme];
-  (scene.background as THREE.Color).setHex(sky.background);
-  world.hemi.color.setHex(sky.sky);
-  world.hemi.groundColor.setHex(sky.ground);
-  world.hemi.intensity = sky.hemi;
-  world.sun.intensity = sky.sun;
+  (scene.background as THREE.Color).setHex(SKY[theme].background);
   world.grids.dark.visible = theme === "dark";
   world.grids.light.visible = theme === "light";
   recolorTree(scene, theme);

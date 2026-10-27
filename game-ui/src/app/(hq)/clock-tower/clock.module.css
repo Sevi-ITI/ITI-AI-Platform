@@ -1,0 +1,188 @@
+/* The clock tower room (V2). Tokens only; the panel body is the @container "page". */
+
+.room {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.card {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.card > h2 {
+  font-size: var(--text-md);
+}
+
+.now {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-5);
+}
+
+.analog {
+  width: 11rem;
+  height: 11rem;
+  flex: none;
+  color: var(--text);
+}
+
+.face {
+  fill: var(--surface-nested);
+  stroke: var(--border-strong);
+  stroke-width: 2;
+}
+
+.tick,
+.tickMajor {
+  stroke: currentColor;
+  stroke-linecap: round;
+}
+
+.tick {
+  stroke-width: 1;
+  opacity: 0.45;
+}
+
+.tickMajor {
+  stroke-width: 2.4;
+}
+
+.numeral {
+  fill: currentColor;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  text-anchor: middle;
+}
+
+.hourHand,
+.minuteHand,
+.secondHand {
+  stroke-linecap: round;
+}
+
+.hourHand {
+  stroke: currentColor;
+  stroke-width: 5;
+}
+
+.minuteHand {
+  stroke: currentColor;
+  stroke-width: 3;
+}
+
+.secondHand {
+  stroke: var(--error);
+  stroke-width: 1.5;
+}
+
+.pin {
+  fill: var(--accent);
+}
+
+.digital {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.time {
+  font-family: var(--font-mono);
+  font-size: var(--text-xl);
+  font-weight: 700;
+}
+
+.muted {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.live {
+  color: var(--ok);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.simulated {
+  justify-self: start;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  cursor: pointer;
+}
+
+.check input {
+  width: 1.1rem;
+  height: 1.1rem;
+  accent-color: var(--accent);
+}
+
+.slider {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.slider input {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.button {
+  min-height: 2.5rem;
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.button:hover:not(:disabled) {
+  background: var(--hover);
+}
+
+.button[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.button:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.primary {
+  border-color: transparent;
+  background: var(--button-primary-bg);
+  color: var(--button-primary-text);
+  font-weight: 700;
+}
+
+.primary:hover:not(:disabled) {
+  background: var(--button-primary-bg);
+  filter: brightness(1.08);
+}

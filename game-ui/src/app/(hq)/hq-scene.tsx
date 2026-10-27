@@ -4,8 +4,11 @@ import Link from "next/link";
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 
+import { clockText, phtNow } from "@/hq/pht";
 import { CAMERA, CameraController } from "@/hq/scene/camera";
+import { buildClockTower, type ClockTower, updateClock } from "@/hq/scene/clock";
 import { buildEnvironment, updateTraffic } from "@/hq/scene/environment";
+import { applySun } from "@/hq/scene/sun";
 import {
   animateWorld,
   applyActive,
@@ -37,6 +40,7 @@ export type SceneControls = {
 type Props = {
   role: Role;
   theme: Theme;
+  phtSim: number | null; // simulated time of day in minutes (clock tower), null = live Manila time
   active: Station | undefined;
   health: "ok" | "warn" | "error" | null; // the roof beacon's color (null = not checked yet)
   panelOpen: boolean; // the HUD panel covers the right side: rooms are framed to its left
@@ -53,6 +57,7 @@ type Running = {
   controller: CameraController;
   world: World;
   xia: Xia;
+  tower: ClockTower;
 };
 
 const NEAR_ROOM = 2.1; // Xia this close to a room after a walk = she opens it
@@ -60,6 +65,11 @@ const NEAR_ROOM = 2.1; // Xia this close to a room after a walk = she opens it
 function wingAt(x: number, z: number): WingId {
   if (z < 0) return x < 0 ? "monitor" : "knowledge";
   return x < 0 ? "clients" : "admin";
+}
+
+/** How far the camera stands from a room it frames: the 12 m clock tower needs more room than a desk. */
+function focusDistance(station: Station): number {
+  return station.id === "clock" ? 34 : CAMERA.focusDistance;
 }
 
 /** Where Xia stands to use a room: 1.1 m in front of it, toward the plaza. */
@@ -72,6 +82,7 @@ export default function HqScene(props: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const pinRefs = useRef<Record<string, HTMLElement | null>>({});
   const xiaTagRef = useRef<HTMLDivElement>(null);
+  const clockTimeRef = useRef<HTMLSpanElement>(null);
   const runningRef = useRef<Running | null>(null);
   const latest = useRef(props); // the animation loop and event handlers read the newest props from here
 
@@ -103,9 +114,11 @@ export default function HqScene(props: Props) {
     const world = buildWorld(scene);
     const environment = buildEnvironment(scene);
     const xia = new Xia(scene);
+    const tower = buildClockTower(scene);
+    world.rooms.push(tower.group); // clickable like a room: it opens /clock-tower
     let walls: WallMode = "auto";
     let followXia = false; // the camera follows Xia on walks the person started by tapping the floor
-    runningRef.current = { scene, camera, controller, world, xia };
+    runningRef.current = { scene, camera, controller, world, xia, tower };
 
     const shift = () => (latest.current.panelOpen ? 3.4 : 0.8);
     latest.current.onControls({
@@ -115,7 +128,7 @@ export default function HqScene(props: Props) {
       reset: () => controller.resetHome(),
       focusRoom: () => {
         const room = latest.current.active;
-        if (room) controller.focusOn(room.pos[0], room.pos[2], shift());
+        if (room) controller.focusOn(room.pos[0], room.pos[2], shift(), focusDistance(room));
       },
       setWalls: (mode) => {
         walls = mode;
@@ -191,6 +204,8 @@ export default function HqScene(props: Props) {
     };
     let frame = 0;
     let last = performance.now();
+    let lastSecond = -1; // the clock's hands and label move once a second, the sun once a minute
+    let lastSunMinute = -1;
     const loop = (now: number) => {
       frame = requestAnimationFrame(loop);
       const dt = Math.min((now - last) / 1000, 0.1);
@@ -198,6 +213,18 @@ export default function HqScene(props: Props) {
       if (document.hidden) return;
       const seconds = now / 1000;
       const still = reduced();
+
+      const second = Math.floor(Date.now() / 1000);
+      if (second !== lastSecond) {
+        lastSecond = second;
+        const pht = phtNow(latest.current.phtSim);
+        updateClock(tower, pht);
+        if (clockTimeRef.current) clockTimeRef.current.textContent = clockText(pht, false);
+        if (pht.minutes !== lastSunMinute) {
+          lastSunMinute = pht.minutes;
+          applySun(world, pht, world.theme);
+        }
+      }
 
       xia.update(dt, seconds, still);
       if (followXia && xia.isMoving && !controller.isDragging) {
@@ -246,11 +273,15 @@ export default function HqScene(props: Props) {
     if (runningRef.current) setBeacon(runningRef.current.world, props.health);
   }, [props.health]);
 
-  // Recolor in place (no rebuild), so the camera and Xia stay where they are.
+  // Recolor in place (no rebuild), so the camera and Xia stay where they are; the light follows the (simulated) time.
   useEffect(() => {
     const running = runningRef.current;
-    if (running) applyTheme(running.scene, running.world, props.theme);
-  }, [props.theme]);
+    if (!running) return;
+    applyTheme(running.scene, running.world, props.theme);
+    const pht = phtNow(props.phtSim);
+    applySun(running.world, pht, props.theme);
+    updateClock(running.tower, pht);
+  }, [props.theme, props.phtSim]);
 
   // A new room (from any click, link or back/forward): light its ring, walk Xia there, frame it.
   const activeId = props.active?.id;
@@ -263,7 +294,7 @@ export default function HqScene(props: Props) {
     const [x, z] = standingSpot(room);
     const instant = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     running.xia.walkTo(x, z, instant);
-    running.controller.focusOn(room.pos[0], room.pos[2], latest.current.panelOpen ? 3.4 : 0.8);
+    running.controller.focusOn(room.pos[0], room.pos[2], latest.current.panelOpen ? 3.4 : 0.8, focusDistance(room));
   }, [activeId]);
 
   return (
@@ -292,6 +323,7 @@ export default function HqScene(props: Props) {
             >
               <span className={styles.pinDot} aria-hidden="true" />
               {st.title}
+              {st.id === "clock" && <span ref={clockTimeRef} className={styles.pinTime} />}
             </Link>
           ) : (
             <button

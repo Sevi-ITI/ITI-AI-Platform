@@ -5,7 +5,8 @@ import { redirect } from "next/navigation";
 import { displayMessage } from "@/lib/api/api-error";
 import { logOut } from "@/lib/session/actions";
 import { currentAccount } from "@/lib/session/current-account";
-import { THEME_COOKIE, themeFrom } from "@/hq/theme";
+import { autoFrom, PHT_AUTO_COOKIE, PHT_SIM_COOKIE, simFrom } from "@/hq/pht";
+import { shownTheme } from "@/hq/theme";
 import { VIEW_COOKIE, viewFrom } from "@/hq/view";
 
 import HqShell from "./hq-shell";
@@ -37,11 +38,21 @@ export default async function HqLayout({ children }: { children: React.ReactNode
 
   const account = me.data;
   const store = await cookies();
-  const view = viewFrom(store.get(VIEW_COOKIE)?.value);
-  const theme = themeFrom(store.get(THEME_COOKIE)?.value);
+  // The 3D HQ is for super admins (Vince, 2026-10-27); supervisors and testers always get the list view.
+  const view = account.role === "super_admin" ? viewFrom(store.get(VIEW_COOKIE)?.value) : "list";
+  const theme = shownTheme(store);
+  const phtAuto = autoFrom(store.get(PHT_AUTO_COOKIE)?.value);
+  const phtSim = simFrom(store.get(PHT_SIM_COOKIE)?.value);
 
   return (
-    <HqShell name={account.display_name ?? account.username} role={account.role} view={view} theme={theme}>
+    <HqShell
+      name={account.display_name ?? account.username}
+      role={account.role}
+      view={view}
+      theme={theme}
+      phtAuto={phtAuto}
+      phtSim={phtSim}
+    >
       {children}
     </HqShell>
   );

@@ -19,6 +19,7 @@ const LIGHT: Record<number, number> = {
   0x4b56d2: 0x7a5410, // the screens' indigo glow → a deeper gold
   0x111a34: 0xe5dfd3, // plinth
   0x1e2b52: 0xe2dacb, // plaza
+  0x1b274a: 0xe5dfd3, // clock tower shaft
   0x26335e: 0xcbbfa8, // pylon
   0x202d56: 0xded6c6, // walls
   0x070c1d: 0xd8d3c8, // a locked wing's floor
@@ -35,10 +36,10 @@ const LIGHT: Record<number, number> = {
   0x3b855f: 0x5ca16b, // leaves
 };
 
-/** The sky and the lights. Dark keeps G2's values; light is a bright day (intensities × π, as in world.ts). */
-export const SKY: Record<Theme, { background: number; sky: number; ground: number; hemi: number; sun: number }> = {
-  dark: { background: 0x0a1128, sky: 0xdde6ff, ground: 0x111a34, hemi: 0.85 * Math.PI, sun: 0.95 * Math.PI },
-  light: { background: 0xe8e2d5, sky: 0xf5f2ec, ground: 0xd5cbb8, hemi: 0.8 * Math.PI, sun: 0.9 * Math.PI },
+/** The background and the light bounced off the ground. The sun and sky light follow the time of day (sun.ts). */
+export const SKY: Record<Theme, { background: number; ground: number }> = {
+  dark: { background: 0x0a1128, ground: 0x111a34 },
+  light: { background: 0xe8e2d5, ground: 0xd5cbb8 },
 };
 
 type Tinted = THREE.Material & { color?: THREE.Color; emissive?: THREE.Color };
