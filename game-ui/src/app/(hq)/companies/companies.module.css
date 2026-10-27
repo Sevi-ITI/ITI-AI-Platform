@@ -1,0 +1,112 @@
+/* Companies, game-ui's own card (not a copy of admin-ui): the same look as Apps & keys (apps.module.css): buttons at
+   the top right, plain " | " lines instead of chips, quiet links. Tokens only; @container page = the room panel. */
+
+.top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.card {
+  gap: var(--space-3);
+}
+
+/* tile + name | the company's buttons at the top right */
+.head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-3);
+}
+
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+/* label: value lines, as on Apps & keys */
+.facts {
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr);
+  gap: var(--space-2) var(--space-3);
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.facts dt {
+  color: var(--text-subtle);
+}
+
+.facts dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* the database line, its buttons after it */
+.dbLine {
+  margin-right: var(--space-3);
+}
+
+.dbButtons {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+  vertical-align: middle;
+}
+
+.activeOn {
+  color: var(--ok);
+  font-weight: 700;
+}
+
+/* See its keys | users | requests: quiet text links */
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px dashed var(--border-subtle);
+  color: var(--text-subtle);
+  font-size: var(--text-xs);
+}
+
+.links a {
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
+.links a:hover {
+  color: var(--text);
+}
+
+.globals {
+  gap: var(--space-2);
+}
+
+.globals h2 {
+  font-size: var(--text-md);
+}
+
+@container page (max-width: 44rem) {
+  .head {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .buttons {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+
+  /* labels stay beside their values (stacked, a card grew from 292 to 391 px in the 3D panel) */
+  .facts {
+    grid-template-columns: 5.5rem minmax(0, 1fr);
+    gap: var(--space-1) var(--space-2);
+  }
+}

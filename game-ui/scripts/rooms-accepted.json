@@ -2,7 +2,6 @@
   { "file": "src/app/(hq)/page.tsx", "side": "admin", "text": "<hX>Overview</hX>", "why": "the room panel shows the title as the page's <h1>" },
   { "file": "src/app/(hq)/performance/page.tsx", "side": "admin", "text": "<hX>Performance</hX>", "why": "the room panel shows the title" },
   { "file": "src/app/(hq)/requests/page.tsx", "side": "admin", "text": "<hX>Request log</hX>", "why": "the room panel shows the title" },
-  { "file": "src/app/(hq)/companies/page.tsx", "side": "admin", "text": "<hX>Companies</hX>", "why": "the room panel shows the title" },
   { "file": "src/app/(hq)/users/page.tsx", "side": "admin", "text": "<hX>Users &amp; chats</hX>", "why": "the room panel shows the title" },
   { "file": "src/app/(hq)/accounts/page.tsx", "side": "admin", "text": "<hX>Accounts</hX>", "why": "the room panel shows the title" },
   { "file": "src/app/(hq)/kit/dashboard.module.css", "side": "game", "text": ".header h2 {", "why": "G5: sub-page titles under the panel's <h1> are <h2>, one size smaller" },

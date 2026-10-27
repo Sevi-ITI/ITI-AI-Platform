@@ -1,5 +1,10 @@
-// Copied from admin-ui src/app/(console)/companies/page.tsx (G5). Same FastAPI calls and data; the panel header shows the room title.
+// Companies, decluttered for game-ui like Apps & keys (Vince, 2026-10-28). Not a copy of admin-ui's page any more:
+// the same FastAPI calls (check:parity) and the same dialogs and actions (dialogs.tsx, actions.ts, company-list.tsx:
+// copies, check:rooms), a calmer card: name and buttons at the top, then plain " | " lines instead of rows of chips
+// (its collections, shared with it, its apps, its keys, its HRDotNet database), and quiet links to its keys, users
+// and requests.
 import Link from "next/link";
+import { Fragment } from "react";
 
 import { displayMessage } from "@/lib/api/api-error";
 import { callApi, endSessionOn401 } from "@/lib/api/client";
@@ -13,10 +18,29 @@ import styles from "../kit/dashboard.module.css";
 import GateBar from "../kit/gate-bar";
 import { Problem } from "../kit/widgets";
 import { deleteCompany, deleteCompanyDatabase } from "./actions";
+import css from "./companies.module.css";
 import CompanyList from "./company-list";
 import { type AppOption, AddCompanyButton, DatabaseDialog, DatabaseTestButton, EditCompanyButton } from "./dialogs";
 
 export const metadata = { title: "Companies" };
+
+type Company = components["schemas"]["CompanyInfo"];
+type Database = components["schemas"]["CompanyDatabaseOut"];
+
+// The systems whose database is per company (backend: app/tools/shared.py COMPANY_DATABASES).
+// ponytail: listed here too; serve it from FastAPI when a second system comes.
+const SYSTEMS = ["hrdotnet"];
+
+/** "a | b | c" in mono (collection ids), or the words for none */
+function idList(names: string[], none: string) {
+  return names.length ? (
+    <span className="mono" translate="no">
+      {names.join(" | ")}
+    </span>
+  ) : (
+    <span className={styles.muted}>{none}</span>
+  );
+}
 
 // ITI's client companies (ITI itself included): their own collections and how many active keys serve them.
 // A company's collections are private to it; Global collections are listed once, at the bottom.
@@ -44,19 +68,20 @@ export default async function CompaniesPage() {
 
   return (
     <>
-      <header className={styles.header}>
+      <div className={css.top}>
+        <p className={styles.muted}>
+          {companies.ok
+            ? `${companies.data.length} companies · ${formatCount(companies.data.reduce((n, c) => n + c.active_keys, 0))} active keys · each reaches only its own collections, through keys made for it`
+            : ""}
+        </p>
         {canEdit && <AddCompanyButton apps={appOptions} />}
-      </header>
+      </div>
       {canEdit && gate.ok && <GateBar gate={gate.data} />}
-      <p className={styles.muted}>
-        Each client company has its own collections; its people reach them only through keys made for that company.
-      </p>
 
       {!companies.ok ? (
         <Problem message={displayMessage(companies.error)} />
       ) : (
-        // One card per company (was a table whose link and action columns ran off the right edge). ITI itself first,
-        // then A to Z, like the console first on Apps & keys.
+        // ITI itself first, then A to Z, like the console first on Apps & keys
         <CompanyList
           items={[...companies.data]
             .sort(
@@ -85,37 +110,20 @@ export default async function CompaniesPage() {
         />
       )}
 
-      <section className={styles.card} aria-labelledby="global-title">
-        <h2 id="global-title" className={styles.panelTitle}>
-          Global collections
-        </h2>
-        <p className={styles.tags}>
-          {globals.length
-            ? globals.map((name) => (
-                <span key={name} className={`${styles.tag} mono`} translate="no">
-                  {name}
-                </span>
-              ))
-            : "None yet."}
-        </p>
-        <p className={styles.muted}>
-          Any company&apos;s key may be given these (e.g. the labor code). Make a collection Global on the Documents
-          page with Move….
+      <section className={`${styles.card} ${css.globals}`} aria-labelledby="global-title">
+        <h2 id="global-title">Global collections</h2>
+        <p>{idList(globals, "none yet")}</p>
+        <p className={styles.kpiNote}>
+          Any company&apos;s key may be given these (e.g. the labor code). Make a collection Global on Documents with
+          Move….
         </p>
       </section>
     </>
   );
 }
 
-type Company = components["schemas"]["CompanyInfo"];
-type Database = components["schemas"]["CompanyDatabaseOut"];
-
-// The systems whose database is per company (backend: app/tools/shared.py COMPANY_DATABASES).
-// ponytail: listed here too; serve it from FastAPI when a second system comes.
-const SYSTEMS = ["hrdotnet"];
-
-// A company at a glance: who (tile, name, id, added, notes), what it reaches (its collections, those shared with it,
-// active keys), and where to look next (its keys, users, requests: the filters that already exist).
+// A company at a glance: who (tile, name, id, added) with its buttons at the top right, what it reaches (plain
+// lines), and where to look next (its keys, users, requests: the filters that already exist).
 function CompanyCard({
   c,
   canEdit,
@@ -133,8 +141,8 @@ function CompanyCard({
 }) {
   const id = encodeURIComponent(c.company_id);
   return (
-    <article className={styles.companyCard} aria-labelledby={`company-${c.company_id}`}>
-      <div className={styles.companyHead}>
+    <article className={`${styles.companyCard} ${css.card}`} aria-labelledby={`company-${c.company_id}`}>
+      <div className={css.head}>
         <span className={styles.appAvatar} aria-hidden="true">
           {initials(c.name)}
         </span>
@@ -145,13 +153,13 @@ function CompanyCard({
           <p className={styles.appMeta}>
             <span className="mono" translate="no">
               {c.company_id}
-            </span>{" "}
-            · added {formatDateTime(c.created_at)}
-            {c.company_id === "iti" && " · ITI itself"}
+            </span>
+            {" | "}added {formatDateTime(c.created_at)}
+            {c.company_id === "iti" && " | ITI itself"}
           </p>
         </div>
         {canEdit && (
-          <div className={styles.rowActions}>
+          <div className={css.buttons}>
             <EditCompanyButton companyId={c.company_id} name={c.name} notes={c.notes} apps={apps} linked={c.app_ids} />
             {c.company_id !== "iti" && (
               <ConfirmAction
@@ -172,78 +180,61 @@ function CompanyCard({
         )}
       </div>
 
-      {c.notes && <p className={styles.muted}>{c.notes}</p>}
-
-      <dl className={styles.companyFacts}>
-        <div>
-          <dt>Its collections</dt>
-          <dd className={styles.tags}>
-            {c.collections.length ? (
-              c.collections.map((name) => (
-                <span key={name} className={`${styles.tag} mono`} translate="no">
-                  {name}
-                </span>
-              ))
-            ) : (
-              <span className={styles.muted}>none yet</span>
-            )}
-          </dd>
-        </div>
-        {c.shared_collections.length > 0 && (
-          <div>
-            <dt>Shared with it</dt>
-            <dd className={styles.tags}>
-              {c.shared_collections.map((name) => (
-                <span key={name} className={`${styles.tag} mono`} translate="no">
-                  {name}
-                </span>
-              ))}
-            </dd>
-          </div>
+      <dl className={css.facts}>
+        {c.notes && (
+          <>
+            <dt>Notes</dt>
+            <dd>{c.notes}</dd>
+          </>
         )}
-        <div>
-          <dt>Linked apps</dt>
-          <dd className={styles.tags}>
-            {c.app_ids.length ? (
-              c.app_ids.map((a) => (
-                <span key={a} className={styles.tag}>
-                  {appNames.get(a) ?? a}
-                </span>
-              ))
-            ) : (
-              <span className={styles.muted}>none yet (Edit to link one)</span>
-            )}
-          </dd>
-        </div>
-        <div>
-          <dt>Active keys</dt>
-          <dd>
-            <b className={styles.num}>{formatCount(c.active_keys)}</b>
-            {c.active_keys === 0 && <span className={styles.muted}> (its people can&apos;t reach the AI yet)</span>}
-          </dd>
-        </div>
+        <dt>Collections</dt>
+        <dd>{idList(c.collections, "none yet")}</dd>
+        {c.shared_collections.length > 0 && (
+          <>
+            <dt>Shared with it</dt>
+            <dd>{idList(c.shared_collections, "")}</dd>
+          </>
+        )}
+        <dt>Apps</dt>
+        <dd>
+          {c.app_ids.length ? (
+            c.app_ids.map((a) => appNames.get(a) ?? a).join(" | ")
+          ) : (
+            <span className={styles.muted}>none yet: Edit to link one</span>
+          )}
+        </dd>
+        <dt>Keys</dt>
+        <dd>
+          {c.active_keys > 0 ? (
+            <span className={css.activeOn}>{formatCount(c.active_keys)} active</span>
+          ) : (
+            <span className={styles.muted}>0 active: its people can&apos;t reach the AI yet</span>
+          )}
+        </dd>
         {databases &&
           SYSTEMS.map((system) => {
             const d = databases.find((x) => x.system === system);
             return (
-              <div key={system}>
+              <Fragment key={system}>
                 <dt>
-                  Its <span className="mono">{system}</span> database
+                  <span className="mono">{system}</span> database
                 </dt>
                 <dd>
-                  {!d ? (
-                    <span className={styles.muted}>not set: its people get none of the {system} tools</span>
-                  ) : (
-                    <>
-                      <span className="mono" translate="no">
-                        {d.mode === "direct" ? `direct · ${d.url_env}` : `relay · ${d.relay_url} · ${d.token_env}`}
-                      </span>
-                      {!d.secret_set && <span className={styles.warn}> · not set in backend\.env</span>}
-                      {!d.enabled && <span className={styles.muted}> · switched off</span>}
-                    </>
-                  )}
+                  <span className={css.dbLine}>
+                    {!d ? (
+                      <span className={styles.muted}>not set: its people get none of the {system} tools</span>
+                    ) : (
+                      <>
+                        <span className="mono" translate="no">
+                          {d.mode === "direct" ? `direct | ${d.url_env}` : `relay | ${d.relay_url} | ${d.token_env}`}
+                        </span>
+                        {!d.secret_set && <span className={styles.warn}> | not set in backend\.env</span>}
+                        {!d.enabled && <span className={styles.muted}> | switched off</span>}
+                      </>
+                    )}
+                  </span>
                   {canEdit && (
-                    <span className={styles.rowActions}>
+                    <span className={css.dbButtons}>
                       <DatabaseDialog companyId={c.company_id} system={system} database={d} locked={locked} />
                       {d && <DatabaseTestButton companyId={c.company_id} system={system} />}
                       {d && (
@@ -261,25 +252,20 @@ function CompanyCard({
                     </span>
                   )}
                 </dd>
-              </div>
+              </Fragment>
             );
           })}
       </dl>
 
-      {/* the filters that already exist, opened on this company */}
-      <nav className={styles.companyLinks} aria-label={`${c.name}: see its`}>
-        <span className={styles.muted}>See its</span>
-        <Link href={`/apps?q=${id}`} className={styles.smallButton}>
-          Keys →
-        </Link>
-        <Link href={`/users?company=${id}`} className={styles.smallButton}>
-          Users →
-        </Link>
-        <Link href={`/requests?company=${id}`} className={styles.smallButton}>
-          Requests →
-        </Link>
+      {/* the filters that already exist, opened on this company: quiet links, not buttons */}
+      <nav className={css.links} aria-label={`${c.name}: see its`}>
+        <span>See its</span>
+        <Link href={`/apps?q=${id}`}>keys</Link>
+        <span aria-hidden="true">|</span>
+        <Link href={`/users?company=${id}`}>users</Link>
+        <span aria-hidden="true">|</span>
+        <Link href={`/requests?company=${id}`}>requests</Link>
       </nav>
     </article>
   );
 }
-
