@@ -7,6 +7,7 @@ overwritten); every tool's scope is checked twice (when offered and when run); t
 and time only, never values."""
 
 import json
+import re
 import time
 from collections.abc import Sequence
 from datetime import date
@@ -35,9 +36,11 @@ MAX_ROUNDS = 3
 # model is told its result is final), and the last call gets ANSWER_NOW first.
 REPEATED = "You already called this tool with these arguments: its result above is final. Answer from it now."
 DOCUMENTS_LATER = ("The company documents part of the question is answered separately, after your answer. Answer ONLY "
-                   "the part about the employee's own records; don't mention policies or documents.")
+                   "the part about the employee's own records; don't mention policies or documents, and don't end "
+                   "with an offer of more help (it is added after the policy part).")
 ANSWER_NOW = ("Answer my question now, using only the tool results above. Don't say you will look something up: "
               "give the answer (if a result is empty, say nothing is on file for that period).")
+ISO_DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
 
 # --- the documents signal -------------------------------------------------------------------------------------
 # Offered next to the tools. The model calls it for any question that is not about the user's own records; the
@@ -155,7 +158,7 @@ def app_list_of(principal: AppPrincipal) -> set[str] | None:
     return None if principal.key_id is None else app_tool_names(principal.app_id)
 
 
-def tools_for(principal: AppPrincipal) -> list[ToolSpec]:
+def tools_for(principal: AppPrincipal) -> list[ToolSpec | None]:
     """Local tools (if on) + the usable MCP servers' tools (approved, if from another machine), only those switched
     on, whose scope the key has and that are on the key's app's tool list.
     Console sessions get none in chat: they have no "records:read" and their user id is a username."""
@@ -251,6 +254,22 @@ def describe_result(name: str, result: dict) -> tuple[str, str, bool]:
             pass
     return f"{server}:{base}", f"{server.capitalize()}: {base}", bool(result)
 
+def friendly_dates(value):
+    """Every YYYY-MM-DD text in a tool result -> "Oct 12, 2026" (Vince, 2026-10-27: how employees read dates).
+    Done after the tool ran, so tools keep ISO inside (their SQL, fromisoformat, run_tool's tests). Only a whole
+    text that is a real date changes; times, timestamps and other text stay as they are."""
+    if isinstance(value, dict):
+        return {key: friendly_dates(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [friendly_dates(item) for item in value]
+    if isinstance(value, str) and ISO_DATE.fullmatch(value):
+        try:
+            day = date.fromisoformat(value)
+        except ValueError:
+            return value
+        return f"{day:%b %d, %Y}"
+    return value
+
 
 # --- the model ------------------------------------------------------------------------------------------------
 
@@ -326,7 +345,7 @@ def answer_with_tools(
                 continue
             already_called.add(same)
             try:
-                result = run_tool(principal, employee_id, name, arguments)
+                result = friendly_dates(run_tool(principal, employee_id, name, arguments))
                 doc_id, title, has_data = describe_result(name, result)
                 sources.append({"doc_id": doc_id, "title": title})
                 found = found or has_data

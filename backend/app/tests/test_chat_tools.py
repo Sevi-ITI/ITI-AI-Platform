@@ -10,7 +10,8 @@ import pytest
 from sqlalchemy import select
 
 import app.tools.host as awt
-from app.chat.d_service.with_documents import POLICY_NOT_FOUND
+from app.chat.d_service.records_part import records_part
+from app.chat.d_service.with_documents import CLOSING, POLICY_INTRO, POLICY_NOT_FOUND
 from app.core.a_config.get_settings import get_settings
 from app.core.c_database.get_sessionmaker import get_sessionmaker
 from app.core.d_metrics.request_log import RequestLog
@@ -123,7 +124,7 @@ def test_records_answer_with_a_records_citation(client, hr_records, model, recor
     body = r.json()
     assert body["found"] is True and body["answer"].startswith("You were absent")
     assert body["citations"] == [{
-        "doc_id": "records:explain_my_deductions", "title": "Records: payslip 2026-09-30", "page": None,
+        "doc_id": "records:explain_my_deductions", "title": "Records: payslip Sep 30, 2026", "page": None,
         "snippet": "From the ITI records database, for the logged-in employee only.",
     }]
     assert ran == [("E-1001", "explain_my_deductions", {})]  # the employee id comes from ITI-User-Id
@@ -136,7 +137,7 @@ def test_records_answer_with_a_records_citation(client, hr_records, model, recor
     assert (log.tools, log.reason, log.found) == ("explain_my_deductions", "records_answered", True)
     conv = body["conversation_id"]
     saved = client.get(f"/v1/conversations/{conv}/messages", headers=hr_records).json()
-    assert saved[-1]["citations"][0]["title"] == "Records: payslip 2026-09-30"
+    assert saved[-1]["citations"][0]["title"] == "Records: payslip Sep 30, 2026"
 
 
 def test_the_request_log_api_shows_the_tools(client, hr_records, make_key, model, records_on, ran):
@@ -191,7 +192,7 @@ def test_stream_sends_a_records_answer_as_one_token(client, hr_records, model, r
     got = events(client.post("/v1/chat/stream", headers=hr_records, json=Q))
     assert [e for e, _ in got] == ["meta", "token", "done"]
     assert got[1][1] == {"text": "You were absent on 2026-09-03."}
-    assert got[2][1]["found"] is True and got[2][1]["citations"][0]["title"] == "Records: payslip 2026-09-30"
+    assert got[2][1]["found"] is True and got[2][1]["citations"][0]["title"] == "Records: payslip Sep 30, 2026"
 
 
 def test_stream_documents_question_streams_as_before(client, hr_records, model, records_on, ran):
@@ -254,7 +255,7 @@ def both(query, tool):
 def test_a_policy_and_records_question_gets_both_answers(client, hr_records, model, records_on, ran):
     model.replies = [both("leave policy", "explain_my_deductions"), say("You were absent on 2026-09-03: 850.00.")]
     body = client.post("/v1/chat", headers=hr_records, json=Q).json()
-    assert body["answer"] == "You were absent on 2026-09-03: 850.00.\n\n**From company policy:**\n\n15 days [1]."
+    assert body["answer"] == f"You were absent on 2026-09-03: 850.00.\n\n{POLICY_INTRO}\n\n15 days [1].\n\n{CLOSING}"
     assert [c["doc_id"] for c in body["citations"]] == ["Leave Policy.pdf", "records:explain_my_deductions"]  # [1] first
     assert body["found"] is True
     assert json.loads(model.seen[1][0][-2]["content"]) == {"note": awt.DOCUMENTS_LATER}  # answer only the records part
@@ -265,7 +266,7 @@ def test_a_policy_and_records_question_gets_both_answers(client, hr_records, mod
 def test_a_policy_part_not_in_the_documents_says_so(client, hr_records, model, records_on, ran):
     model.replies = [both("unknown rule", "explain_my_deductions"), say("You were absent on 2026-09-03: 850.00.")]
     body = client.post("/v1/chat", headers=hr_records, json=Q).json()
-    assert body["answer"] == f"You were absent on 2026-09-03: 850.00.\n\n{POLICY_NOT_FOUND}"
+    assert body["answer"] == f"You were absent on 2026-09-03: 850.00.\n\n{POLICY_NOT_FOUND}\n\n{CLOSING}"
     assert [c["doc_id"] for c in body["citations"]] == ["records:explain_my_deductions"]
     assert last_log().reason == "records_answered"
 
@@ -273,12 +274,39 @@ def test_a_policy_part_not_in_the_documents_says_so(client, hr_records, model, r
 def test_a_records_only_question_gets_no_policy_part(client, hr_records, model, records_on, ran):
     model.replies = [call("explain_my_deductions"), say("You were absent on 2026-09-03: 850.00.")]
     body = client.post("/v1/chat", headers=hr_records, json=Q).json()
-    assert "From company policy" not in body["answer"] and len(body["citations"]) == 1
+    assert POLICY_INTRO not in body["answer"] and len(body["citations"]) == 1
 
 
 def test_stream_sends_both_parts_as_one_token(client, hr_records, model, records_on, ran):
     model.replies = [both("leave policy", "explain_my_deductions"), say("You were absent on 2026-09-03: 850.00.")]
     got = events(client.post("/v1/chat/stream", headers=hr_records, json=Q))
     assert [e for e, _ in got] == ["meta", "token", "done"]
-    assert got[1][1]["text"] == got[2][1]["answer"] and got[2][1]["answer"].endswith("**From company policy:**\n\n15 days [1].")
+    assert got[1][1]["text"] == got[2][1]["answer"] and got[2][1]["answer"].endswith(f"15 days [1].\n\n{CLOSING}")
     assert [c["doc_id"] for c in got[2][1]["citations"]] == ["Leave Policy.pdf", "records:explain_my_deductions"]
+
+# --- records_part (2026-10-27): the records answer before a policy part, no policy talk, no closing offer -----------
+
+
+def test_records_part_drops_policy_talk_and_the_closing_offer():
+    answer = ("**Employee Number:** 10230306\n**Position:** HR SUPERVISOR\n\n"
+              "Regarding your dress code question, I've checked the company policies.\n\n"
+              "Is there anything else I can help you with?")
+    assert records_part(answer) == "**Employee Number:** 10230306\n**Position:** HR SUPERVISOR"
+
+
+def test_records_part_keeps_facts_even_when_they_mention_policy():
+    answer = "Per policy, your shift is **8:00 AM - 5:00 PM**.\n\nMay iba pa ba akong maitutulong?"
+    assert records_part(answer) == "Per policy, your shift is **8:00 AM - 5:00 PM**."
+
+
+def test_records_part_never_returns_nothing():
+    assert records_part("Is there anything else I can help you with?") == "Is there anything else I can help you with?"
+
+# --- friendly_dates (2026-10-27): DB dates read "Oct 12, 2026" ----------------------------------------------------
+
+
+def test_friendly_dates_changes_only_whole_real_dates():
+    result = {"pay_date": "2026-10-02", "days": [{"date": "2026-12-25", "hours": 3, "bad": "2026-13-40"}],
+              "time_in": "8:00 AM", "at": "2026-10-02 08:00"}
+    assert awt.friendly_dates(result) == {"pay_date": "Oct 02, 2026", "days": [{"date": "Dec 25, 2026", "hours": 3,
+                                          "bad": "2026-13-40"}], "time_in": "8:00 AM", "at": "2026-10-02 08:00"}
