@@ -108,7 +108,47 @@ services:
       api:
         condition: service_healthy
 
+  # The game console (9.5.3b): the same functions as the Console, this laptop only (127.0.0.1).
+  game:
+    image: iti-ai-game:${ITI_IMAGE_TAG:-dev}
+    build: ../game-ui
+    restart: unless-stopped
+    environment:
+      ITI_API_URL: http://api:8000
+      CONSOLE_COOKIE_SECURE: ${CONSOLE_COOKIE_SECURE:-false}
+    ports:
+      - "127.0.0.1:4000:4000"
+    depends_on:
+      api:
+        condition: service_healthy
+
+  # The front door (9.5.5): the only container reachable from the network. Profile "door": started only when
+  # COMPOSE_PROFILES includes it, so it never fights the native Caddy for 443 / 8443 by accident.
+  # Its certificate authority (copied once from the native Caddy, D3) lives in the caddy-data volume: office PCs keep
+  # trusting it. That volume holds root.key: never copy it into git, an image or the package.
+  caddy:
+    image: caddy:2.11.7
+    profiles: ["door"]
+    restart: unless-stopped
+    environment:
+      ITI_CONSOLE_UPSTREAM: console:3000
+      ITI_API_UPSTREAM: api:8000
+    ports:
+      - "${ITI_CONSOLE_HTTPS_PORT:-443}:443"  # testers: login + Chat only (the Caddyfile hides every admin page)
+      - "${ITI_API_HTTPS_PORT:-8443}:8443"  # the C# apps
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      console:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+
 volumes:
   iti-pg:
   iti-ollama:
+  caddy-data:
+  caddy-config:
 

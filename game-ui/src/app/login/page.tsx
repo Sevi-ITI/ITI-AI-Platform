@@ -7,6 +7,8 @@ import styles from "./login.module.css";
 
 export const metadata: Metadata = { title: "Log in" };
 
+export const dynamic = "force-dynamic"; // check the AI service on every visit, not once at build time
+
 /** Is the AI service (FastAPI) answering? Its public /health check, at most 2 s so a stopped service never holds
  * up the login page. The page shows the answer only, never the internal address. (Same check as admin-ui.) */
 async function aiServiceUp(): Promise<boolean> {

@@ -1,6 +1,8 @@
 # ITI AI Platform on the LAN (Phase 9, laptop pilot). Caddy is the ONLY thing reachable from the network:
 # the console (443) and the API (8443) themselves stay on 127.0.0.1. No secrets in this file (it is committed).
 # Run:   C:\Tools\caddy\caddy.exe run --config deploy\Caddyfile        (from the repo root)
+# Or as the caddy service of deploy/docker-compose.yaml (9.5.5): there ITI_CONSOLE_UPSTREAM / ITI_API_UPSTREAM point to
+# console:3000 and api:8000; run natively they are unset and the defaults (127.0.0.1) apply.
 # Check: C:\Tools\caddy\caddy.exe validate --config deploy\Caddyfile
 # Names: the laptop's own DNS name works today; iti-ai / iti-ai-api work once the CNAMEs exist in ho.intellismartinc.com.
 {
@@ -20,7 +22,7 @@ https://ITI-Vinas.ho.intellismartinc.com, https://iti-ai.ho.intellismartinc.com 
 
 	@chat_only path /login /login/* /chat /chat/* /session-ended /api/chat /api/health /_next/* /favicon.ico
 	handle @chat_only {
-		reverse_proxy 127.0.0.1:3000 {
+		reverse_proxy {$ITI_CONSOLE_UPSTREAM:127.0.0.1:3000} {
 			transport http {
 				read_timeout 180s # answers can queue for 120 s
 			}
@@ -43,7 +45,7 @@ https://ITI-Vinas.ho.intellismartinc.com:8443, https://iti-ai-api.ho.intellismar
 	@not_for_apps path /docs /docs/* /redoc /openapi.json /v1/admin/* /v1/console/*
 	respond @not_for_apps 404
 
-	reverse_proxy 127.0.0.1:8000 {
+	reverse_proxy {$ITI_API_UPSTREAM:127.0.0.1:8000} {
 		transport http {
 			read_timeout 180s
 		}
