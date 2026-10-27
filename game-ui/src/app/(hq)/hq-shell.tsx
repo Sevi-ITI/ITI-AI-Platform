@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
+import { initials } from "@/lib/format";
 import { logOut } from "@/lib/session/actions";
 import { canEnter, canEnterWing, type Role, type Station, STATIONS, stationForPath, WINGS } from "@/hq/stations";
 import type { CityBlock } from "@/hq/scene/city";
@@ -13,7 +14,25 @@ import type { View } from "@/hq/view";
 
 import type { SceneControls, WallMode } from "./hq-scene";
 import styles from "./hq.module.css";
-import { MoonIcon, StatusErrorIcon, StatusOkIcon, StatusWarnIcon, SunIcon } from "./kit/icons";
+import {
+  AccountsIcon,
+  ChatIcon,
+  CompaniesIcon,
+  DocumentsIcon,
+  KeysIcon,
+  LogOutIcon,
+  MenuIcon,
+  MoonIcon,
+  OverviewIcon,
+  PerformanceIcon,
+  RequestLogIcon,
+  StatusErrorIcon,
+  StatusOkIcon,
+  StatusWarnIcon,
+  SunIcon,
+  ToolsIcon,
+  UsersIcon,
+} from "./kit/icons";
 import Toaster from "./kit/toast";
 import { toggleTheme } from "./theme-actions";
 import { useAutoTheme } from "./use-auto-theme";
@@ -25,6 +44,20 @@ const HqScene = dynamic(() => import("./hq-scene"), {
   ssr: false,
   loading: () => <p className={styles.loading}>Opening the HQ…</p>,
 });
+
+// The list view's room icons (the same icons as admin-ui's sidebar)
+const ROOM_ICONS: Record<string, () => React.ReactElement> = {
+  overview: OverviewIcon,
+  performance: PerformanceIcon,
+  requests: RequestLogIcon,
+  documents: DocumentsIcon,
+  chat: ChatIcon,
+  companies: CompaniesIcon,
+  apps: KeysIcon,
+  users: UsersIcon,
+  accounts: AccountsIcon,
+  tools: ToolsIcon,
+};
 
 const WALL_LABELS: Record<WallMode, string> = { auto: "Walls: auto", down: "Walls: down", up: "Walls: up" };
 const NEXT_WALLS: Record<WallMode, WallMode> = { auto: "down", down: "up", up: "auto" };
@@ -181,37 +214,92 @@ export default function HqShell({ name, role, view, theme, phtAuto, phtSim, city
     </p>
   );
 
+  // The list view fills the window: the sidebar always shows every room, and only the page itself scrolls (and only
+  // when it is longer than the window). On a phone the rooms fold into a menu (a native popover: Esc and a click
+  // outside close it, as in admin-ui).
   if (!in3d) {
+    const themeLabel = theme === "dark" ? "Switch to light theme" : "Switch to dark theme";
     return (
       <div className={styles.listShell}>
         <a href="#room-title" className={styles.skip}>
           Skip to the page
         </a>
         <aside className={styles.sidebar}>
-          {brand}
+          <div className={styles.sideTop}>
+            {brand}
+            <button
+              type="button"
+              className={`${styles.button} ${styles.menuButton}`}
+              popoverTarget="room-nav"
+              aria-label="Rooms"
+            >
+              <MenuIcon />
+            </button>
+          </div>
           {healthPill}
-          {accountBar}
           {noWebgl && <p className={styles.locked}>This browser can&apos;t show the 3D HQ, so here is the list.</p>}
-          <nav aria-label="Rooms">
+          <nav id="room-nav" popover="auto" aria-label="Rooms" className={styles.sideNav}>
             {WINGS.filter((w) => canEnterWing(w.id, role)).map((w) => (
               <div key={w.id} className={styles.wingGroup}>
-                <p className={styles.wingHeader}>{w.title}</p>
-                {STATIONS.filter((s) => s.wing === w.id && s.inLists !== false && canEnter(s, role)).map((s) => (
-                  <Link
-                    key={s.id}
-                    href={s.route}
-                    className={styles.roomLink}
-                    aria-current={s.id === station?.id ? "page" : undefined}
-                  >
-                    {s.title}
-                  </Link>
-                ))}
+                <p className={styles.wingHeader}>{w.title.split(" · ")[0]}</p>
+                {STATIONS.filter((s) => s.wing === w.id && s.inLists !== false && canEnter(s, role)).map((s) => {
+                  const Icon = ROOM_ICONS[s.id];
+                  return (
+                    <Link
+                      key={s.id}
+                      href={s.route}
+                      className={styles.roomLink}
+                      aria-current={s.id === station?.id ? "page" : undefined}
+                      onClick={(e) => {
+                        // on a phone the menu is open over the page: close it once a room is picked
+                        const menu = e.currentTarget.closest<HTMLElement>("[popover]");
+                        if (menu?.matches(":popover-open")) menu.hidePopover();
+                      }}
+                    >
+                      {Icon && <Icon />}
+                      {s.title}
+                    </Link>
+                  );
+                })}
               </div>
             ))}
           </nav>
+          <div className={`${styles.card} ${styles.sideAccount}`}>
+            <span className={styles.avatar} aria-hidden="true">
+              {initials(name)}
+            </span>
+            <span className={styles.sideWho}>
+              <strong>{name}</strong>
+              <span>{role.replace("_", " ")}</span>
+            </span>
+            {role === "super_admin" && (
+              <form action={setView.bind(null, "3d")}>
+                <button type="submit" className={`${styles.button} ${styles.iconButton}`} title="Open the 3D HQ">
+                  3D
+                  <span className="sr-only"> HQ</span>
+                </button>
+              </form>
+            )}
+            <form action={toggleTheme}>
+              <button type="submit" className={`${styles.button} ${styles.iconButton}`} aria-label={themeLabel} title={themeLabel}>
+                {theme === "dark" ? <SunIcon /> : <MoonIcon />}
+              </button>
+            </form>
+            <form action={logOut}>
+              <button type="submit" className={`${styles.button} ${styles.iconButton}`} aria-label="Log out" title="Log out">
+                <LogOutIcon />
+              </button>
+            </form>
+          </div>
         </aside>
         <main className={styles.listMain}>
-          {header}
+          {/* just the title and what the page is for: the sidebar already shows where you are */}
+          <header className={styles.panelHeader}>
+            <h1 className={styles.panelTitle} id="room-title" tabIndex={-1}>
+              {station?.title ?? "ITI AI HQ"}
+            </h1>
+            {station && <p className={styles.panelDesc}>{station.desc}</p>}
+          </header>
           <div className={styles.panelBody}>{body}</div>
         </main>
         {noticeLine}

@@ -1,4 +1,8 @@
-// Copied from admin-ui src/app/(console)/apps/page.tsx (G5). Same FastAPI calls and data; the panel header shows the room title.
+// Apps & keys, decluttered for game-ui (Vince, 2026-10-27: "the chips are way too messy per app"). Not a copy of
+// admin-ui's page any more: the same FastAPI calls (check:parity) and the same dialogs and actions (dialogs.tsx,
+// actions.ts: copies, check:rooms), a calmer layout: the apps in labelled groups; an open card is a short fact list
+// (companies and tools as plain text, not chips), New key on its own, the risky buttons at the bottom; one line per
+// key with its permissions in words.
 import { displayMessage } from "@/lib/api/api-error";
 import { callApi, endSessionOn401 } from "@/lib/api/client";
 import type { components } from "@/lib/api/schema";
@@ -13,7 +17,8 @@ import { StatusErrorIcon, StatusOkIcon, StatusWarnIcon } from "../kit/icons";
 import { Problem } from "../kit/widgets";
 import { revokeKey } from "./actions";
 import AppDetails from "./app-details";
-import AppList from "./app-list";
+import AppList, { type AppGroup } from "./app-list";
+import css from "./apps.module.css";
 import { type CollectionOption, usableBy } from "./collection-options";
 import {
   CreateAppButton,
@@ -32,10 +37,16 @@ export const metadata = { title: "Apps & keys" };
 type App = components["schemas"]["AppOverview"];
 type Key = components["schemas"]["KeyInfo"];
 
-// Every connected system (from its keys, its chats or a profile): profile, live counts and its keys grouped by the
-// client company each key serves (App -> Company -> Keys), with a search box. Apps with no active key and no profile (except the console) are "Disconnected": kept as history, folded at the bottom. A created app (it has a profile) waiting for its first key stays in the list.
-// Order of work: New app here, link it to companies on Companies, then New key inside the app's card.
-// Changes (create an app, create / rotate / revoke / edit a key, edit a profile, disconnect) are the super admin's.
+// A key's permissions in words (the scopes of the New key presets in dialogs.tsx)
+const SCOPE_WORDS: Record<string, string> = {
+  "chat:invoke": "Chat",
+  "documents:write": "Documents",
+  "records:read": "Own records",
+  "hrdotnet:read": "HRDotNet records",
+  admin: "Admin",
+};
+const permissions = (scopes: string[]) => scopes.map((s) => SCOPE_WORDS[s] ?? s).join(" + ");
+
 export default async function AppsPage({
   searchParams,
 }: {
@@ -48,7 +59,7 @@ export default async function AppsPage({
     callApi((api) => api.GET("/v1/admin/keys")),
     callApi((api) => api.GET("/v1/admin/collections")),
     callApi((api) => api.GET("/v1/admin/companies")),
-    // super admin only (supervisors get 403: the tools row is then left out)
+    // super admin only (supervisors get 403: the tools line is then left out)
     callApi((api) => api.GET("/v1/admin/tools/apps")),
     callApi((api) => api.GET("/v1/admin/tools/tools")),
     callApi((api) => api.GET("/v1/admin/tools/gate")), // 8.6e-3: a tool list needs the security password unlocked
@@ -61,7 +72,6 @@ export default async function AppsPage({
     ? collections.data.map((c) => ({ name: c.name, company_id: c.company_id ?? null, shared_with: c.shared_with }))
     : [];
   const companyNames = new Map((companies.ok ? companies.data : []).map((c) => [c.company_id, c.name]));
-  // 8.6e-2: each app's tool list (null = not shown: no permission or the API refused) and every tool that exists
   const appTools = toolLists.ok ? new Map(toolLists.data.map((l) => [l.app_id, l.tools])) : null;
   const toolOptions: ToolOption[] | null = allTools.ok
     ? allTools.data.map((t) => ({ name: t.name, scope: t.scope, in_use: t.in_use }))
@@ -69,8 +79,7 @@ export default async function AppsPage({
   const toolsLocked = !(gate.ok && gate.data.unlocked_until); // FastAPI decides; this only greys out Edit tools
   const now = new Date().getTime(); // a server component: rendered once per request
 
-  // Each card with the text it can be searched by (lowercase): app id, profile fields, key ids.
-  // Order (Vince): the console first, then In use, Idle, Not used yet, Disconnected; A to Z inside each group.
+  // The console first, then In use, Idle or not used yet, Disconnected (folded); A to Z inside each group.
   const ordered = [...(apps.ok ? apps.data : [])].sort(
     (a, b) =>
       Number(b.app_id === "iti-console") - Number(a.app_id === "iti-console") ||
@@ -85,10 +94,13 @@ export default async function AppsPage({
       .filter(Boolean)
       .join(" ")
       .toLowerCase();
+    const usage = usageOf(app, now);
+    const group: AppGroup =
+      app.app_id === "iti-console" ? "console" : usage.rank === 0 ? "in-use" : usage.rank === 3 ? "disconnected" : "idle";
     return {
       id: app.app_id,
       text,
-      disconnected: isDisconnected(app),
+      group,
       card: (
         <AppCard
           app={app}
@@ -108,9 +120,12 @@ export default async function AppsPage({
 
   return (
     <>
-      <header className={styles.header}>
+      <div className={css.top}>
+        <p className={styles.muted}>
+          {apps.ok ? `${apps.data.length} apps · ${formatCount(keys.ok ? keys.data.filter((k) => isLive(k, now)).length : 0)} active keys` : ""}
+        </p>
         {canEdit && apps.ok && <CreateAppButton existing={apps.data.map((a) => a.app_id)} />}
-      </header>
+      </div>
       {canEdit && gate.ok && <GateBar gate={gate.data} />}
 
       {!apps.ok ? (
@@ -118,11 +133,7 @@ export default async function AppsPage({
       ) : apps.data.length === 0 ? (
         <p className={styles.muted}>No apps yet. Create one with New app, link it to a company, then make its key.</p>
       ) : (
-        <AppList
-          active={items.filter((it) => !it.disconnected)}
-          disconnected={items.filter((it) => it.disconnected)}
-          initialQuery={typeof q === "string" ? q : ""}
-        />
+        <AppList items={items} initialQuery={typeof q === "string" ? q : ""} />
       )}
     </>
   );
@@ -147,6 +158,20 @@ function isDisconnected(app: App) {
 // An app counts as recently used (its card starts open) when a key was used within this many days.
 const RECENT_DAYS = 7;
 
+function isLive(k: Key, now: number) {
+  return !k.revoked_at && (k.expires_at === null || Date.parse(k.expires_at) > now);
+}
+
+/** "10 hrdotnet tools, 3 records tools": an app's tool list by source, instead of one chip per tool. */
+function toolSummary(tools: { name: string; missing: boolean }[]): string {
+  const bySource = new Map<string, number>();
+  for (const t of tools) {
+    const source = t.name.includes("__") ? t.name.split("__")[0] : "records";
+    bySource.set(source, (bySource.get(source) ?? 0) + 1);
+  }
+  return [...bySource.entries()].map(([source, n]) => `${n} ${source} ${n === 1 ? "tool" : "tools"}`).join(", ");
+}
+
 function AppCard({
   app,
   keys,
@@ -170,12 +195,16 @@ function AppCard({
   canEdit: boolean;
   now: number;
 }) {
-  const details = [app.description, app.company, app.owner_name && `Owner: ${app.owner_name}`, app.owner_email]
-    .filter(Boolean)
-    .join(" · ");
   const usage = usageOf(app, now);
   const recent = app.app_id === "iti-console" || usage.tone === "ok";
   const name = app.display_name ?? app.app_id;
+  const isConsole = app.app_id === "iti-console";
+  const about = [app.description, app.company, app.owner_name && `owner ${app.owner_name}`, app.owner_email]
+    .filter(Boolean)
+    .join(" | ");
+  const missing = tools?.filter((t) => t.missing) ?? [];
+  const canDisconnect = !isConsole && (app.active_keys > 0 || app.profile_updated_at || app.users > 0);
+  const canRemove = !isConsole && app.active_keys === 0 && app.users === 0;
 
   return (
     <AppDetails
@@ -216,263 +245,222 @@ function AppCard({
         </>
       }
     >
-      {(details || app.notes || canEdit || app.app_id !== "iti-console") && (
-        <div className={styles.cardHead}>
-          <div>
-            {details && <p className={styles.muted}>{details}</p>}
-            {app.notes && <p className={styles.muted}>{app.notes}</p>}
-            {app.app_id !== "iti-console" && (
-              <p className={styles.mayUse}>
-                <span className={styles.muted}>Linked companies</span>
-                {app.company_ids.length ? (
-                  app.company_ids.map((c) => (
-                    <span key={c} className={styles.tag}>
-                      {companyNames.get(c) ?? c}
-                    </span>
-                  ))
-                ) : (
-                  <span className={styles.muted}>none yet (link it on Companies before making a key)</span>
-                )}
-              </p>
-            )}
-            {app.app_id !== "iti-console" && tools && (
-              <p className={styles.mayUse}>
-                <span className={styles.muted}>Tools it may use</span>
-                {tools.length ? (
-                  tools.map((t) => (
-                    <span key={t.name} className={`${styles.tag} mono`} translate="no">
-                      {t.name}
-                      {t.missing && " (missing)"}
-                    </span>
-                  ))
-                ) : (
-                  <span className={styles.muted}>none (its keys answer from documents only)</span>
-                )}
-              </p>
-            )}
-          </div>
-          {canEdit && (
-            <div className={styles.rowActions}>
-              {app.app_id !== "iti-console" && (
-                <CreateKeyButton
-                  appId={app.app_id}
-                  companies={app.company_ids.map((c) => ({ company_id: c, name: companyNames.get(c) ?? c }))}
-                  collections={collections}
-                />
+      {/* the facts as plain lines (were rows of chips), the app's buttons at the top right beside them */}
+      <div className={css.cardTop}>
+      <dl className={css.facts}>
+        {about && (
+          <>
+            <dt>About</dt>
+            <dd>{about}</dd>
+          </>
+        )}
+        {app.notes && (
+          <>
+            <dt>Notes</dt>
+            <dd>{app.notes}</dd>
+          </>
+        )}
+        {!isConsole && (
+          <>
+            <dt>Companies</dt>
+            <dd>
+              {app.company_ids.length ? (
+                app.company_ids.map((c) => companyNames.get(c) ?? c).join(" | ")
+              ) : (
+                <span className={styles.muted}>none yet: link it on Companies before making a key</span>
               )}
-              {app.app_id !== "iti-console" && tools && toolOptions && (
-                <EditToolsButton
-                  appId={app.app_id}
-                  tools={toolOptions}
-                  checked={tools.map((t) => t.name)}
-                  missing={tools.filter((t) => t.missing).map((t) => t.name)}
-                  locked={toolsLocked}
-                />
+            </dd>
+          </>
+        )}
+        {!isConsole && tools && (
+          <>
+            <dt>Tools</dt>
+            <dd>
+              {tools.length ? (
+                <details className={css.inlineFold}>
+                  <summary>
+                    {toolSummary(tools)}
+                    {missing.length > 0 && <span className={styles.warn}> · {missing.length} missing</span>}
+                  </summary>
+                  <span className={`mono ${css.toolNames}`} translate="no">
+                    {tools.map((t) => `${t.name.split("__").pop()}${t.missing ? " (missing)" : ""}`).join(", ")}
+                  </span>
+                </details>
+              ) : (
+                <span className={styles.muted}>none: its keys answer from documents only</span>
               )}
-              <EditProfileButton appId={app.app_id} profile={app} />
-              {/* only when it would change something: an active key, a profile, or users' chats to erase */}
-              {app.app_id !== "iti-console" && (app.active_keys > 0 || app.profile_updated_at || app.users > 0) && (
-                <DisconnectAppButton
-                  appId={app.app_id}
-                  users={app.users}
-                  activeKeys={app.active_keys}
-                  hasAdminKey={keys.some(
-                    (k) =>
-                      k.scopes.includes("admin") && !k.revoked_at && (!k.expires_at || Date.parse(k.expires_at) > now),
-                  )}
-                />
-              )}
-              {/* a disconnected app with no chats left can go for good */}
-              {app.app_id !== "iti-console" && app.active_keys === 0 && app.users === 0 && (
-                <RemoveAppButton appId={app.app_id} keys={keys.length} />
-              )}
-            </div>
+            </dd>
+          </>
+        )}
+        {isConsole && (
+          <>
+            <dt>Keys</dt>
+            <dd className={styles.muted}>none: people log in to the console with their accounts</dd>
+          </>
+        )}
+      </dl>
+
+      {canEdit && (
+        <div className={css.actions}>
+          {!isConsole && (
+            <CreateKeyButton
+              appId={app.app_id}
+              companies={app.company_ids.map((c) => ({ company_id: c, name: companyNames.get(c) ?? c }))}
+              collections={collections}
+            />
           )}
+          {!isConsole && tools && toolOptions && (
+            <EditToolsButton
+              appId={app.app_id}
+              tools={toolOptions}
+              checked={tools.map((t) => t.name)}
+              missing={missing.map((t) => t.name)}
+              locked={toolsLocked}
+            />
+          )}
+          <EditProfileButton appId={app.app_id} profile={app} />
         </div>
       )}
+      </div>
 
+      {/* the keys: one line each, under the company it serves */}
       {keysError ? (
         <Problem message={keysError} />
-      ) : keys.length === 0 ? (
-        <p className={styles.muted}>
-          {app.app_id === "iti-console"
-            ? "The console itself: people log in with their accounts, no keys."
-            : app.company_ids.length
-              ? "No keys yet: make one with New key."
-              : "No keys yet: link this app to a company (Companies), then make its key with New key."}
-        </p>
       ) : (
-        // one small table per client company, alphabetical by company name
-        [...new Set(keys.map((k) => k.company_id))]
-          .sort((a, b) => (companyNames.get(a) ?? a).localeCompare(companyNames.get(b) ?? b))
-          .map((companyId) => {
-            const companyKeys = keys.filter((k) => k.company_id === companyId);
-            const live = companyKeys.filter((k) => isLive(k, now));
-            const mayUse = [...new Set(live.flatMap((k) => k.allowed_collections))].sort();
-            // revoked keys can't come back: folded under the company's table, still there as history
-            const current = companyKeys.filter((k) => !k.revoked_at);
-            const revoked = companyKeys.filter((k) => k.revoked_at);
-            const table = (rows: Key[]) => (
-              <KeyTable rows={rows} collections={collections} canEdit={canEdit} now={now} />
-            );
-            return (
-              <div key={companyId} className={styles.companyGroup}>
-                <h3>
-                  {companyNames.get(companyId) ?? companyId}{" "}
-                  <span className={`mono ${styles.muted}`} translate="no">
-                    {companyId}
-                  </span>
-                </h3>
-                <p className={styles.mayUse}>
-                  <span className={styles.muted}>May use</span>
-                  {mayUse.length ? (
-                    mayUse.map((c) => (
-                      <span key={c} className={`${styles.tag} mono`} translate="no">
-                        {c}
-                      </span>
-                    ))
-                  ) : (
-                    <span className={styles.muted}>nothing (no active key)</span>
+        !isConsole &&
+        (keys.length === 0 ? (
+          <p className={styles.muted}>
+            {app.company_ids.length ? "No keys yet: make one with New key." : "No keys yet: link this app to a company first."}
+          </p>
+        ) : (
+          [...new Set(keys.map((k) => k.company_id))]
+            .sort((a, b) => (companyNames.get(a) ?? a).localeCompare(companyNames.get(b) ?? b))
+            .map((companyId) => {
+              const companyKeys = keys.filter((k) => k.company_id === companyId);
+              const live = companyKeys.filter((k) => isLive(k, now));
+              // expired (Edit can renew one) and revoked (can't come back) keys: folded, kept as history
+              const old = companyKeys.filter((k) => !isLive(k, now));
+              const expired = old.filter((k) => !k.revoked_at).length;
+              return (
+                <div key={companyId} className={css.keyGroup}>
+                  <h3 className={css.keyGroupTitle}>
+                    Keys for {companyNames.get(companyId) ?? companyId}
+                    <span className={live.length ? `${css.activeCount} ${css.activeOn}` : css.activeCount}>
+                      {live.length} active
+                    </span>
+                  </h3>
+                  {live.length > 0 && (
+                    <ul className={css.keys}>
+                      {live.map((k) => (
+                        <KeyRow key={k.key_id} k={k} collections={usableBy(collections, k.company_id)} canEdit={canEdit} now={now} />
+                      ))}
+                    </ul>
                   )}
-                </p>
-                {current.length > 0 && table(current)}
-                {revoked.length > 0 && (
-                  <details className={styles.more}>
-                    <summary>
-                      Show {revoked.length} revoked {revoked.length === 1 ? "key" : "keys"}
-                    </summary>
-                    {table(revoked)}
-                  </details>
-                )}
-              </div>
-            );
-          })
+                  {old.length > 0 && (
+                    <details className={css.inlineFold}>
+                      <summary>
+                        {[expired && `${expired} expired`, old.length - expired && `${old.length - expired} revoked`]
+                          .filter(Boolean)
+                          .join(", ")}{" "}
+                        {old.length === 1 ? "key" : "keys"}
+                      </summary>
+                      <ul className={css.keys}>
+                        {old.map((k) => (
+                          <KeyRow key={k.key_id} k={k} collections={usableBy(collections, k.company_id)} canEdit={canEdit} now={now} />
+                        ))}
+                      </ul>
+                    </details>
+                  )}
+                </div>
+              );
+            })
+        ))
+      )}
+
+      {/* the risky ones last, set apart */}
+      {canEdit && (canDisconnect || canRemove) && (
+        <div className={css.danger}>
+          <span className={styles.kpiNote}>Stop this app</span>
+          {canDisconnect && (
+            <DisconnectAppButton
+              appId={app.app_id}
+              users={app.users}
+              activeKeys={app.active_keys}
+              hasAdminKey={keys.some(
+                (k) => k.scopes.includes("admin") && !k.revoked_at && (!k.expires_at || Date.parse(k.expires_at) > now),
+              )}
+            />
+          )}
+          {canRemove && <RemoveAppButton appId={app.app_id} keys={keys.length} />}
+        </div>
       )}
     </AppDetails>
   );
 }
 
-function KeyTable({
-  rows,
-  collections,
-  canEdit,
-  now,
-}: {
-  rows: Key[];
-  collections: CollectionOption[];
-  canEdit: boolean;
-  now: number;
-}) {
-  return (
-    <div className={styles.tableWrap}>
-      <table className={styles.table}>
-        <thead>
-          <tr>
-            <th scope="col">Key</th>
-            <th scope="col">Permissions</th>
-            <th scope="col">Collections</th>
-            <th scope="col">State</th>
-            <th scope="col" className={styles.nowrap}>
-              Last used
-            </th>
-            <th scope="col" className={styles.number}>
-              24 h
-            </th>
-            {canEdit && <th scope="col" className={styles.actionsCell}>{/* actions */}</th>}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((k) => (
-            <KeyRow key={k.key_id} k={k} collections={usableBy(collections, k.company_id)} canEdit={canEdit} now={now} />
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function isLive(k: Key, now: number) {
-  return !k.revoked_at && (k.expires_at === null || Date.parse(k.expires_at) > now);
-}
-
-function KeyRow({
-  k,
-  collections,
-  canEdit,
-  now,
-}: {
-  k: Key;
-  collections: CollectionOption[];
-  canEdit: boolean;
-  now: number;
-}) {
+/** One key on one line: id, permissions in words, how many collections, state, use, and its buttons. */
+function KeyRow({ k, collections, canEdit, now }: { k: Key; collections: CollectionOption[]; canEdit: boolean; now: number }) {
   const expired = k.expires_at !== null && Date.parse(k.expires_at) <= now;
   const active = !k.revoked_at && !expired;
-  const expiresLabel = k.expires_at ? `expires ${formatDay(k.expires_at)}` : "never expires";
-
+  const n = k.allowed_collections.length;
   return (
-    <tr className={active ? undefined : styles.dimmed}>
-      <td className={`mono ${styles.nowrap}`} translate="no" title={`Created ${formatDateTime(k.created_at)}`}>
-        {k.key_id}
-      </td>
-      <td className="mono">{k.scopes.join(", ")}</td>
-      <td className="mono">{k.allowed_collections.length ? k.allowed_collections.join(", ") : "–"}</td>
-      <td className={styles.nowrap}>
-        {/* the state on one line, its date under it (keeps the column narrow) */}
+    <li className={`${css.key} ${active ? "" : styles.dimmed}`}>
+      <div className={css.keyMain}>
+        <span className="mono" translate="no" title={`Created ${formatDateTime(k.created_at)}`}>
+          {k.key_id}
+        </span>
+        <span className={css.keyWhat}>
+          {permissions(k.scopes)}
+          <span className={styles.muted}>
+            {" · "}
+            <span title={k.allowed_collections.join(", ")}>{n ? `${n} ${n === 1 ? "collection" : "collections"}` : "no collections"}</span>
+          </span>
+        </span>
+      </div>
+      <div className={css.keyState}>
         {k.revoked_at ? (
           <span className={`${styles.withIcon} ${styles.muted}`}>
-            <StatusErrorIcon /> Revoked
+            <StatusErrorIcon /> Revoked {formatDay(k.revoked_at)}
           </span>
         ) : expired ? (
           <span className={`${styles.withIcon} ${styles.warn}`}>
-            <StatusWarnIcon /> Expired
+            <StatusWarnIcon /> Expired {formatDay(k.expires_at!)}
           </span>
         ) : (
           <span className={`${styles.withIcon} ${styles.ok}`}>
             <StatusOkIcon /> Active
           </span>
         )}
-        <div className={styles.kpiNote}>
-          {k.revoked_at
-            ? formatDay(k.revoked_at)
-            : expired
-              ? formatDay(k.expires_at!)
-              : expiresLabel}
+        <span className={styles.kpiNote}>
+          {k.last_used_at ? `used ${formatDateTime(k.last_used_at)}` : "never used"} · {formatCount(k.requests_24h)} in 24 h
+          {active && (k.expires_at ? ` · expires ${formatDay(k.expires_at)}` : "")}
+        </span>
+      </div>
+      {canEdit && !k.revoked_at && (
+        <div className={css.keyActions}>
+          {/* an expired key can be renewed here (new expiry); a revoked one can't come back */}
+          <EditKeyButton
+            keyId={k.key_id}
+            company={k.company_id}
+            collections={collections}
+            current={k.allowed_collections}
+            expiresLabel={k.expires_at ? `${expired ? "expired" : "expires"} ${formatDay(k.expires_at)}` : "never expires"}
+          />
+          <RotateKeyButton keyId={k.key_id} appId={k.app_id} />
+          <ConfirmAction
+            label="Revoke"
+            title="Revoke this key?"
+            confirmLabel="Revoke key"
+            action={revokeKey.bind(null, k.key_id)}
+            done={`Key ${k.key_id} revoked`}
+          >
+            <p>
+              <span className="mono">{k.key_id}</span> ({k.app_id}) stops working at once: every request with it gets
+              &quot;invalid API key&quot;. This can&apos;t be undone; the app needs a new key.
+            </p>
+          </ConfirmAction>
         </div>
-      </td>
-      <td className={styles.nowrap}>{k.last_used_at ? formatDateTime(k.last_used_at) : "never"}</td>
-      <td className={styles.number}>{formatCount(k.requests_24h)}</td>
-      {canEdit && (
-        <td className={styles.actionsCell}>
-          {!k.revoked_at && (
-            <div className={styles.rowActions}>
-              {/* an expired key can be renewed here (new expiry); a revoked one can't come back */}
-              <EditKeyButton
-                keyId={k.key_id}
-                company={k.company_id}
-                collections={collections}
-                current={k.allowed_collections}
-                expiresLabel={
-                  k.expires_at ? `${expired ? "expired" : "expires"} ${formatDay(k.expires_at)}` : "never expires"
-                }
-              />
-              <RotateKeyButton keyId={k.key_id} appId={k.app_id} />
-              <ConfirmAction
-                label="Revoke"
-                title="Revoke this key?"
-                confirmLabel="Revoke key"
-                action={revokeKey.bind(null, k.key_id)}
-                done={`Key ${k.key_id} revoked`}
-              >
-                <p>
-                  <span className="mono">{k.key_id}</span> ({k.app_id}) stops working at once: every request with it
-                  gets &quot;invalid API key&quot;. This can&apos;t be undone; the app needs a new key.
-                </p>
-              </ConfirmAction>
-            </div>
-          )}
-        </td>
       )}
-    </tr>
+    </li>
   );
 }

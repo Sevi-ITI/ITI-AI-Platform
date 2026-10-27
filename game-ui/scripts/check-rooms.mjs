@@ -41,6 +41,18 @@ for (const room of ROOMS) {
     PAIRS.push([`(console)/${room}/${rel}`, `(hq)/${room}/${rel}`]);
   }
 }
+// game-ui's own redesigns: no longer copies, so not compared (their API calls still are: check:parity; their dialogs
+// and actions still are, above). Each needs its actions ticked by hand (docs\game-ui\G7-retire-admin-ui-checklist.md).
+const REDESIGNED = new Set([
+  "(hq)/tools/page.tsx",
+  "(hq)/documents/page.tsx",
+  "(hq)/apps/page.tsx",
+  "(hq)/apps/app-list.tsx",
+]);
+for (let k = PAIRS.length - 1; k >= 0; k--) {
+  if (REDESIGNED.has(PAIRS[k][1])) PAIRS.splice(k, 1);
+}
+
 // outside src/app
 const EXTRA = [[join(ADMIN, "src", "lib", "format.ts"), join(GAME, "src", "lib", "format.ts")]];
 
@@ -122,6 +134,6 @@ const stale = accepted.filter((_, k) => !used.has(k));
 for (const s of stale) console.log(`STALE accepted entry (no longer differs): ${s.file} [${s.side}] ${s.text}`);
 for (const m of missing) console.log(`MISSING in game-ui: ${m}`);
 console.log(
-  `${compared} copied files compared with admin-ui; ${drift} with drift, ${missing.length} missing, ${stale.length} stale accepted entries.`,
+  `${compared} copied files compared with admin-ui; ${drift} with drift, ${missing.length} missing, ${stale.length} stale accepted entries; ${REDESIGNED.size} redesigned pages not compared (${[...REDESIGNED].join(", ")}).`,
 );
 process.exit(drift || missing.length || stale.length ? 1 : 0);

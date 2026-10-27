@@ -1,0 +1,190 @@
+/* Tools & MCP, game-ui's own layout (not a copy of admin-ui): one card per source, its tools folded under it,
+   one line per tool. Tokens only; the page sits in the room panel / list view (@container page). */
+
+.recordsCard {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.recordsText {
+  display: grid;
+  gap: var(--space-1);
+  max-width: 38rem;
+}
+
+.recordsText h2 {
+  font-size: var(--text-md);
+}
+
+.sources {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.sourcesHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.sourcesHead h2 {
+  font-size: var(--text-md);
+}
+
+.source {
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+}
+
+/* name + where | state | buttons; stacks in a narrow panel */
+.sourceHead {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-2) var(--space-4);
+}
+
+.sourceName,
+.sourceState {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.sourceName strong {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* a source's tools, folded */
+.fold > summary {
+  width: fit-content;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.fold > summary:hover {
+  background: var(--hover);
+}
+
+.toolList {
+  display: grid;
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--border-subtle);
+}
+
+/* one tool: name + brief + apps | state | switch and buttons */
+.toolRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 11rem auto;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.toolMain {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.toolName {
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.brief {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.toolState {
+  font-size: var(--text-sm);
+}
+
+.toolActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+/* Try it and the change log: folded cards */
+.foldCard > summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+  cursor: pointer;
+  list-style: none;
+}
+
+.foldCard > summary::-webkit-details-marker {
+  display: none;
+}
+
+.foldCard > summary::before {
+  content: "▸";
+  color: var(--text-subtle);
+  transition: transform var(--fast) var(--ease);
+}
+
+.foldCard[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.foldCard > summary h2 {
+  font-size: var(--text-md);
+}
+
+.changeList {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.changeList li {
+  display: grid;
+  grid-template-columns: 9rem minmax(0, 14rem) minmax(0, 1fr);
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: var(--text-sm);
+}
+
+.changeLines {
+  font-size: var(--text-xs);
+}
+
+@container page (max-width: 44rem) {
+  .sourceHead,
+  .toolRow,
+  .changeList li {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .toolActions {
+    justify-content: flex-start;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .foldCard > summary::before {
+    transition: none;
+  }
+}

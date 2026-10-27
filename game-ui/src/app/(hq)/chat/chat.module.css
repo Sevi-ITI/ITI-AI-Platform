@@ -26,7 +26,7 @@
   gap: var(--space-3);
   justify-self: end;
   width: 14rem;
-  height: calc(100svh - 2 * var(--float-gap));
+  height: calc(100svh - var(--room-chrome, 2 * var(--float-gap))); /* game-ui: the list view sets --room-chrome */
   margin-block: calc(-1 * var(--space-3));
   margin-inline-end: calc(-1 * var(--space-2));
   overflow-y: auto;
@@ -99,7 +99,7 @@
   flex-direction: column;
   gap: var(--space-4);
   width: min(100%, 48rem);
-  min-height: calc(100svh - 2 * var(--float-gap) - 2 * var(--space-3)); /* the box sits at the bottom */
+  min-height: calc(100svh - var(--room-chrome, 2 * var(--float-gap)) - 2 * var(--space-3)); /* the box sits at the bottom */
   margin-inline: auto;
 }
 
