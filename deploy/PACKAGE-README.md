@@ -1,4 +1,4 @@
-# ITI AI Platform: the package (step 9.5.7)
+# ITI-AI-Package: the ITI AI Platform package (step 9.5.7)
 
 One folder that runs the whole platform with Docker: the API, the ITI AI Console, the game console, Postgres +
 pgvector, Ollama, migrations, and a Caddy front door that is **off by default**.
@@ -7,7 +7,7 @@ pgvector, Ollama, migrations, and a Caddy front door that is **off by default**.
 
 | Path | What |
 |---|---|
-| `iti-ai-<tag>.tar` | all six images (`docker save`): iti-ai-api, iti-ai-console, iti-ai-game, pgvector, ollama, caddy |
+| `ITI-AI-Package-<tag>.tar` | all six images (`docker save`): iti-ai-api, iti-ai-console, iti-ai-game, pgvector, ollama, caddy |
 | `deploy/docker-compose.yaml` | the stack (one file for every machine) |
 | `deploy/.env.example` | the machine's settings: copy to `deploy/.env` |
 | `deploy/Caddyfile`, `deploy/check-cert.ps1` | the front door and its certificate check (only with profile `door`) |
@@ -19,7 +19,7 @@ No secrets, no documents, no models, no database. The models are pulled once int
 ## Install (Windows PowerShell, from this folder)
 
 1. Docker Desktop (with the NVIDIA GPU support for Ollama). Then load the images:
-   `docker load -i iti-ai-<tag>.tar`
+   `docker load -i ITI-AI-Package-<tag>.tar`
 2. Settings: copy `deploy/.env.example` to `deploy/.env` and `backend/.env.example` to `backend/.env`; fill them in.
    Set `ITI_IMAGE_TAG=<tag>` in `deploy/.env`. A `$` in a `backend/.env` value must be inside single quotes.
 3. Start: `docker compose -f deploy/docker-compose.yaml up -d --no-build`
