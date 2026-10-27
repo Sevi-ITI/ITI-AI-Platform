@@ -2,6 +2,7 @@
 
 One folder that runs the whole platform with Docker: the API, the ITI AI Console, the game console, Postgres +
 pgvector, Ollama, migrations, and a Caddy front door that is **off by default**.
+This file installs and starts it; `SETUP.md` continues with the admin account, documents, HR connections and API keys.
 
 ## What is in it
 
@@ -13,6 +14,8 @@ pgvector, Ollama, migrations, and a Caddy front door that is **off by default**.
 | `deploy/Caddyfile`, `deploy/check-cert.ps1` | the front door and its certificate check (only with profile `door`) |
 | `backend/.env.example` | the API's settings: copy to `backend/.env` and fill in |
 | `data/uploads/` | uploaded documents (empty) |
+| `hrdotnet-sql/` | the 12 scripts that prepare an HRDotNet database for the HR answers, with their run order (`README.md`) |
+| `SETUP.md` | after the install: admin account, documents, HR connections, API keys |
 
 No secrets, no documents, no models, no database. The models are pulled once into a volume; the database starts empty.
 

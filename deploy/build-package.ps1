@@ -3,7 +3,8 @@ build-package.ps1: makes ITI-AI-Package (step 9.5.7) from the images that run no
 
   1. tags iti-ai-api, iti-ai-console and iti-ai-game :dev (the tested builds) as :<Tag>
   2. copies the files a machine needs into C:\Users\ITI-Vinas\Documents\ITI-AI-Package (next to the repo, never in it):
-     README.md, deploy\ (compose file, Caddyfile, .env.example, check-cert.ps1), backend\.env.example, data\uploads\
+     README.md, SETUP.md, deploy\ (compose file, Caddyfile, .env.example, check-cert.ps1, empty certs\),
+     backend\.env.example, data\uploads\, hrdotnet-sql\ (the 12 HRDotNet set-up scripts + their run order)
   3. docker save: all six images into ITI-AI-Package-<Tag>.tar (about 4 GB; about 12 GB once loaded)
 
 Usage (repo root):  powershell -NoProfile -ExecutionPolicy Bypass -File deploy\build-package.ps1 -Tag 2026.10.27
@@ -28,6 +29,15 @@ Copy-Item (Join-Path $Root "deploy\docker-compose.yaml"), (Join-Path $Root "depl
     (Join-Path $Root "deploy\.env.example"), (Join-Path $Root "deploy\check-cert.ps1") "$Out\deploy" -Force
 Copy-Item (Join-Path $Root "backend\.env.example") "$Out\backend" -Force
 Copy-Item (Join-Path $Root "deploy\PACKAGE-README.md") "$Out\README.md" -Force
+Copy-Item (Join-Path $Root "deploy\PACKAGE-SETUP.md") "$Out\SETUP.md" -Force
+New-Item -ItemType Directory -Force "$Out\deploy\certs" | Out-Null
+# The HRDotNet set-up scripts live in the git-ignored data\legacy\sql (no passwords: 02 asks for one via SQLCMD)
+$sql = Join-Path $Root "data\legacy\sql"
+if (Test-Path $sql) {
+    New-Item -ItemType Directory -Force "$Out\hrdotnet-sql" | Out-Null
+    Copy-Item (Join-Path $sql "*.sql") "$Out\hrdotnet-sql" -Force
+    Copy-Item (Join-Path $Root "deploy\PACKAGE-HRDOTNET-SQL.md") "$Out\hrdotnet-sql\README.md" -Force
+} else { Write-Warning "data\legacy\sql not found: the package has no hrdotnet-sql folder" }
 
 $tar = Join-Path $Out "ITI-AI-Package-$Tag.tar"
 Write-Host "saving six images to $tar (a few minutes)"
