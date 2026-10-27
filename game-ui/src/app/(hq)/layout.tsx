@@ -11,6 +11,7 @@ import { VIEW_COOKIE, viewFrom } from "@/hq/view";
 
 import HqShell from "./hq-shell";
 import styles from "./hq.module.css";
+import { loadCity } from "./load-city";
 
 // Every HQ page sits inside this: who is logged in (GET /v1/console/me) decides which rooms open; the view cookie
 // decides 3D or list, the theme cookie dark or light. A 401 means the session is over → /session-ended clears the cookie.
@@ -43,6 +44,7 @@ export default async function HqLayout({ children }: { children: React.ReactNode
   const theme = shownTheme(store);
   const phtAuto = autoFrom(store.get(PHT_AUTO_COOKIE)?.value);
   const phtSim = simFrom(store.get(PHT_SIM_COOKIE)?.value);
+  const city = view === "3d" ? await loadCity() : []; // the app city blocks: only the 3D HQ shows them
 
   return (
     <HqShell
@@ -52,6 +54,7 @@ export default async function HqLayout({ children }: { children: React.ReactNode
       theme={theme}
       phtAuto={phtAuto}
       phtSim={phtSim}
+      city={city}
     >
       {children}
     </HqShell>

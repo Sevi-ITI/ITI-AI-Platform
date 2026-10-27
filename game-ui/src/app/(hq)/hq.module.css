@@ -273,6 +273,11 @@
   border-color: var(--accent);
 }
 
+/* V4: an app city block's name, one size up from the office labels */
+.pinBlock {
+  font-size: var(--text-sm);
+}
+
 /* The clock tower pin's live time (hq-scene.tsx writes it once a second) */
 .pinTime {
   margin-left: var(--space-1);
@@ -460,7 +465,7 @@ a.roomLink:hover {
   display: flex;
   flex-direction: column;
   width: min(42rem, calc(100vw - 18rem));
-  overflow: hidden;
+  overflow: clip; /* not hidden: a link to #company-x would scroll the panel itself and hide its title */
 }
 
 .panelToggle {

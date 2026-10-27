@@ -5,8 +5,8 @@ import type { Theme } from "@/hq/theme";
 // The scene is built in its dark colors. Light mode swaps each dark color for its light partner below, so nothing
 // stays navy on cream paper. Light values from the design mockup (design/index.html, syncSceneThemeAndRoles).
 // Status colors (ok, warn, error) and Xia are the same in both themes. A material can name its own light color
-// in userData.light when its dark color is shared with something that must not change (the road dashes are the
-// warn amber).
+// in userData.light (and userData.lightEmissive / lightEmissiveIntensity) when its dark color is shared with
+// something that must not change (the road dashes are the warn amber) or needs its own partner (city glass).
 
 const FURNITURE_LIGHT = 0xd6cbb8; // every navy desk, shelf and cabinet becomes warm sand
 const FURNITURE_DARK = [
@@ -60,7 +60,13 @@ export function recolor(material: THREE.Material, theme: Theme): void {
   }
   if (m.emissive) {
     m.userData.darkEmissive ??= m.emissive.getHex();
-    m.emissive.setHex(forTheme(m.userData.darkEmissive, theme));
+    m.emissive.setHex(forTheme(m.userData.darkEmissive, theme, m.userData.lightEmissive));
+  }
+  // A glow that is right on navy is too strong on cream: a material can name its light-theme strength (city glass)
+  if (m.userData.lightEmissiveIntensity !== undefined && "emissiveIntensity" in m) {
+    const glowing = m as THREE.MeshStandardMaterial;
+    m.userData.darkEmissiveIntensity ??= glowing.emissiveIntensity;
+    glowing.emissiveIntensity = theme === "light" ? m.userData.lightEmissiveIntensity : m.userData.darkEmissiveIntensity;
   }
 }
 

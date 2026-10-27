@@ -17,7 +17,7 @@ export const CAMERA = {
   minDistance: 12,
   maxDistance: 64,
   focusDistance: 14.2, // when a room is selected
-  panLimit: 24, // the focus stays inside [-24, 24] on x and z
+  panLimit: 56, // the focus stays inside [-56, 56] on x and z (V4: far enough for the app city blocks)
   panSpeed: 14, // m/s with the keyboard
   damping: 10,
   minCameraY: 2.5,

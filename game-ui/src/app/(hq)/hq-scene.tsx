@@ -1,13 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 
 import { clockText, phtNow } from "@/hq/pht";
 import { CAMERA, CameraController } from "@/hq/scene/camera";
+import { buildCity, type City, type CityBlock, disposeCity, layoutCity } from "@/hq/scene/city";
 import { buildClockTower, type ClockTower, updateClock } from "@/hq/scene/clock";
 import { buildEnvironment, updateTraffic } from "@/hq/scene/environment";
+import { recolorTree } from "@/hq/scene/palette";
 import { buildStaff, updateStaff } from "@/hq/scene/staff";
 import { applySun } from "@/hq/scene/sun";
 import {
@@ -42,11 +44,13 @@ type Props = {
   role: Role;
   theme: Theme;
   phtSim: number | null; // simulated time of day in minutes (clock tower), null = live Manila time
+  city: CityBlock[]; // V4: the app city blocks (real apps and their linked companies)
   active: Station | undefined;
   health: "ok" | "warn" | "error" | null; // the roof beacon's color (null = not checked yet)
   panelOpen: boolean; // the HUD panel covers the right side: rooms are framed to its left
   onControls: (controls: SceneControls | null) => void; // the camera bar's handle on the scene
   onOpenRoom: (station: Station) => void;
+  onOpenUrl: (url: string) => void; // a city block → its app, an office → its company
   onBlocked: (message: string) => void;
   onInteract: () => void;
   onNoWebgl: () => void;
@@ -59,9 +63,18 @@ type Running = {
   world: World;
   xia: Xia;
   tower: ClockTower;
+  city: City | null;
+  travel: (appId: string, companyId: string | null) => void; // walk Xia to a city block or office, frame it
 };
 
 const NEAR_ROOM = 2.1; // Xia this close to a room after a walk = she opens it
+
+const CITY_FOCUS = { block: 34, office: 18 }; // camera distance when framing a city block / one office
+
+/** Where a city click goes: an office of a company → that company, anything else in a block → its app. */
+function cityUrl(appId: string, companyId: string | null): string {
+  return companyId ? `/companies#company-${companyId}` : `/apps?q=${encodeURIComponent(appId)}`;
+}
 
 function wingAt(x: number, z: number): WingId {
   if (z < 0) return x < 0 ? "monitor" : "knowledge";
@@ -84,6 +97,13 @@ export default function HqScene(props: Props) {
   const pinRefs = useRef<Record<string, HTMLElement | null>>({});
   const xiaTagRef = useRef<HTMLDivElement>(null);
   const clockTimeRef = useRef<HTMLSpanElement>(null);
+  const cityPinRefs = useRef<Record<string, HTMLElement | null>>({});
+  // A city trip opens /apps or /companies: that room's own walk-and-frame must not undo the trip (activeId effect)
+  const tripRoom = useRef<{ room: string; at: number } | null>(null);
+  // Keyed by content: every server refresh sends a new array, but the city is rebuilt only when the data changes
+  const cityKey = JSON.stringify(props.city);
+  const placed = useMemo(() => layoutCity(JSON.parse(cityKey) as CityBlock[]), [cityKey]);
+  const placedRef = useRef(placed);
   const runningRef = useRef<Running | null>(null);
   const latest = useRef(props); // the animation loop and event handlers read the newest props from here
 
@@ -120,7 +140,18 @@ export default function HqScene(props: Props) {
     world.rooms.push(tower.group); // clickable like a room: it opens /clock-tower
     let walls: WallMode = "auto";
     let followXia = false; // the camera follows Xia on walks the person started by tapping the floor
-    runningRef.current = { scene, camera, controller, world, xia, tower };
+    // V4: Xia walks out to the block (its side facing the hub) or to the office's door; the camera frames it
+    const travel = (appId: string, companyId: string | null) => {
+      const block = placedRef.current.find((b) => b.block.appId === appId);
+      if (!block) return;
+      const office = companyId ? block.offices.find((o) => o.company?.companyId === companyId) : undefined;
+      const [x, z] = office ? [office.walkX, office.walkZ] : [block.labelX, block.labelZ];
+      tripRoom.current = { room: companyId ? "companies" : "apps", at: Date.now() };
+      followXia = false;
+      xia.walkTo(x, z, reduced(), null, true);
+      controller.focusOn(x, z, shift(), office ? CITY_FOCUS.office : CITY_FOCUS.block);
+    };
+    runningRef.current = { scene, camera, controller, world, xia, tower, city: null, travel };
 
     const shift = () => (latest.current.panelOpen ? 3.4 : 0.8);
     latest.current.onControls({
@@ -167,6 +198,15 @@ export default function HqScene(props: Props) {
       if (station) {
         if (canEnter(station, role)) onOpenRoom(station);
         else onBlocked(lockedMessage(station.wing));
+        return;
+      }
+      const city = runningRef.current?.city;
+      const cityHit = city ? raycaster.intersectObject(city.group, true)[0] : undefined;
+      const appId = cityHit?.object.userData.appId as string | undefined;
+      if (appId) {
+        const companyId = (cityHit?.object.userData.companyId as string | undefined) ?? null;
+        travel(appId, companyId);
+        latest.current.onOpenUrl(cityUrl(appId, companyId));
         return;
       }
       const floor = controller.floorPoint(e.clientX, e.clientY);
@@ -235,6 +275,7 @@ export default function HqScene(props: Props) {
       if (!still) {
         updateTraffic(environment, dt);
         updateStaff(staff, dt);
+        if (runningRef.current?.city) updateStaff(runningRef.current.city.walkers, dt);
         animateWorld(world, seconds);
       }
       controller.update(dt);
@@ -244,6 +285,14 @@ export default function HqScene(props: Props) {
 
       for (const st of STATIONS) place(pinRefs.current[st.id], st.pos[0], st.pos[1] + 0.7, st.pos[2]);
       place(xiaTagRef.current, xia.position.x, 2.05, xia.position.y);
+      for (const block of placedRef.current) {
+        place(cityPinRefs.current[`b:${block.block.appId}`], block.labelX, 6.5, block.labelZ);
+        for (const office of block.offices) {
+          if (office.company) {
+            place(cityPinRefs.current[`o:${block.block.appId}:${office.company.companyId}`], office.x, office.h + 1.6, office.z);
+          }
+        }
+      }
     };
     frame = requestAnimationFrame(loop);
 
@@ -272,6 +321,16 @@ export default function HqScene(props: Props) {
     if (runningRef.current) applyRole(runningRef.current.world, props.role);
   }, [props.role]);
 
+  // The city: built when the scene starts and again whenever the apps or their companies change
+  useEffect(() => {
+    placedRef.current = placed;
+    const running = runningRef.current;
+    if (!running) return;
+    if (running.city) disposeCity(running.scene, running.city);
+    running.city = buildCity(running.scene, placed.map((p) => p.block));
+    recolorTree(running.city.group, running.world.theme);
+  }, [placed]);
+
   useEffect(() => {
     if (runningRef.current) setBeacon(runningRef.current.world, props.health);
   }, [props.health]);
@@ -294,6 +353,9 @@ export default function HqScene(props: Props) {
     if (!running) return;
     applyActive(running.world, activeId);
     if (!room) return;
+    const trip = tripRoom.current;
+    tripRoom.current = null;
+    if (trip && trip.room === room.id && Date.now() - trip.at < 3000) return; // a city trip: Xia is already on her way
     const [x, z] = standingSpot(room);
     const instant = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     running.xia.walkTo(x, z, instant);
@@ -345,6 +407,46 @@ export default function HqScene(props: Props) {
         <div ref={xiaTagRef} className={styles.xiaTag} aria-hidden="true">
           ◆ Xia
         </div>
+      </div>
+      <div className={styles.pins} role="group" aria-label="App city blocks">
+        {placed.map((block) => {
+          const appId = block.block.appId;
+          return [
+            <Link
+              key={`b:${appId}`}
+              ref={(el) => {
+                cityPinRefs.current[`b:${appId}`] = el;
+              }}
+              href={cityUrl(appId, null)}
+              prefetch={false}
+              className={`${styles.pin} ${styles.pinBlock}`}
+              onClick={() => runningRef.current?.travel(appId, null)}
+            >
+              <span className={styles.pinDot} aria-hidden="true" />
+              {block.block.name}
+            </Link>,
+            ...block.offices.flatMap((office) => {
+              const company = office.company;
+              if (!company) return [];
+              const key = `o:${appId}:${company.companyId}`;
+              return [
+                <Link
+                  key={key}
+                  ref={(el) => {
+                    cityPinRefs.current[key] = el;
+                  }}
+                  href={cityUrl(appId, company.companyId)}
+                  prefetch={false}
+                  className={styles.pin}
+                  onClick={() => runningRef.current?.travel(appId, company.companyId)}
+                >
+                  {company.name}
+                  <span className="sr-only"> (an office in {block.block.name})</span>
+                </Link>,
+              ];
+            }),
+          ];
+        })}
       </div>
     </>
   );

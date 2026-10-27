@@ -4,7 +4,13 @@ import * as THREE from "three";
 // plumbob floats over her head; a marker shows where she is heading.
 
 const SPEED = 6.2; // m/s
-const LIMIT = 9.4; // she stays inside the building
+const LIMIT = 9.4; // she stays inside the building, except on a trip to a city block (V4)
+const CITY_LIMIT = 58;
+const INSIDE = 12.6; // the HQ's plinth: inside it she stands on its floor, outside on the city's sidewalks
+
+function floorY(x: number, z: number): number {
+  return Math.abs(x) < INSIDE && Math.abs(z) < INSIDE ? 0.14 : -0.22;
+}
 
 export class Xia {
   readonly group = new THREE.Group();
@@ -83,18 +89,20 @@ export class Xia {
     scene.add(this.marker);
   }
 
-  /** Walk to (x, z); onArrive runs once she gets there (not if another walk replaces this one). */
-  walkTo(x: number, z: number, instant: boolean, onArrive: (() => void) | null = null): void {
-    this.target.set(THREE.MathUtils.clamp(x, -LIMIT, LIMIT), THREE.MathUtils.clamp(z, -LIMIT, LIMIT));
+  /** Walk to (x, z); onArrive runs once she gets there (not if another walk replaces this one). outside = a trip to
+   *  a city block: she may leave the building. */
+  walkTo(x: number, z: number, instant: boolean, onArrive: (() => void) | null = null, outside = false): void {
+    const limit = outside ? CITY_LIMIT : LIMIT;
+    this.target.set(THREE.MathUtils.clamp(x, -limit, limit), THREE.MathUtils.clamp(z, -limit, limit));
     this.onArrive = onArrive;
     if (instant) {
       this.position.copy(this.target);
-      this.group.position.set(this.position.x, 0.14, this.position.y);
+      this.group.position.set(this.position.x, floorY(this.position.x, this.position.y), this.position.y);
       this.arrive();
       return;
     }
     this.isMoving = true;
-    this.marker.position.set(this.target.x, 0.16, this.target.y);
+    this.marker.position.set(this.target.x, floorY(this.target.x, this.target.y) + 0.02, this.target.y);
     this.marker.visible = true;
   }
 
@@ -133,7 +141,7 @@ export class Xia {
       this.body.position.y = Math.abs(Math.sin(this.walkTime)) * 0.07;
       this.marker.rotation.y = seconds * 3;
     }
-    this.group.position.set(this.position.x, 0.14, this.position.y);
+    this.group.position.set(this.position.x, floorY(this.position.x, this.position.y), this.position.y);
   }
 
   private arrive(): void {

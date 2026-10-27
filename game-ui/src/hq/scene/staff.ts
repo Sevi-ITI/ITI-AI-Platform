@@ -5,9 +5,19 @@ import * as THREE from "three";
 // colors in both themes (keepColors, like Xia). The mock's paths crossed or grazed some of our props, so six were moved
 // (every path now keeps ≥ 0.45 m from props and walls).
 
-type Spec = { name: string; a: [number, number]; b: [number, number]; speed: number; jacket: number; hair: number; phase: number };
+// a, b: the two ends of the walk in the parent's coordinates; y: the floor height (default 0.14 = the HQ floor)
+export type WalkerSpec = {
+  name: string;
+  a: [number, number];
+  b: [number, number];
+  speed: number;
+  jacket: number;
+  hair: number;
+  phase: number;
+  y?: number;
+};
 
-const STAFF: Spec[] = [
+const STAFF: WalkerSpec[] = [
   // Monitor · Control Room
   { name: "Elena · NOC", a: [-5.3, -8.8], b: [-5.0, -5.4], speed: 1.35, jacket: 0x5cc98f, hair: 0x1a202c, phase: 0 },
   { name: "Dante · Audit", a: [-8.6, -5.0], b: [-4.8, -4.8], speed: 1.15, jacket: 0xe9b25c, hair: 0x2d3748, phase: 1.4 },
@@ -23,7 +33,7 @@ const STAFF: Spec[] = [
 
 export type Walker = {
   group: THREE.Group;
-  spec: Spec;
+  spec: WalkerSpec;
   t: number;
   legs: [THREE.Mesh, THREE.Mesh];
   arms: [THREE.Mesh, THREE.Mesh];
@@ -45,10 +55,15 @@ function place(walker: Walker): void {
   const dx = x - position.x;
   const dz = z - position.z;
   if (Math.hypot(dx, dz) > 0.001) walker.group.rotation.y = Math.atan2(dx, dz);
-  position.set(x, 0.14, z);
+  position.set(x, walker.spec.y ?? 0.14, z);
 }
 
 export function buildStaff(scene: THREE.Scene): Walker[] {
+  return buildWalkers(scene, STAFF);
+}
+
+/** People walking back and forth under parent (the scene, or a city block for its app engineer). */
+export function buildWalkers(parent: THREE.Object3D, specs: WalkerSpec[]): Walker[] {
   // Shared by everyone: one set of shapes, the trousers, the sleeves and the skin (built per scene: the scene's
   // teardown disposes them)
   const LEG = new THREE.CylinderGeometry(0.065, 0.055, 0.36, 8);
@@ -61,7 +76,7 @@ export function buildStaff(scene: THREE.Scene): Walker[] {
   const sleeves = new THREE.MeshStandardMaterial({ color: 0xf4f1ea, roughness: 0.45 });
   const skin = new THREE.MeshStandardMaterial({ color: 0xfffdf8, roughness: 0.4 });
 
-  return STAFF.map((spec) => {
+  return specs.map((spec) => {
     const group = new THREE.Group();
     const jacket = new THREE.MeshStandardMaterial({ color: spec.jacket, roughness: 0.4 });
     const legs: Walker["legs"] = [part(LEG, trousers, -0.09, 0.18, 0), part(LEG, trousers, 0.09, 0.18, 0)];
@@ -77,7 +92,7 @@ export function buildStaff(scene: THREE.Scene): Walker[] {
     group.add(...legs, ...arms, part(TORSO, jacket, 0, 0.56, 0), part(HEAD, skin, 0, 0.96, 0), hair, ring);
     group.name = spec.name;
     group.userData.keepColors = true; // the same people in both themes (palette.ts skips them)
-    scene.add(group);
+    parent.add(group);
 
     const walker: Walker = { group, spec, t: spec.phase, legs, arms };
     place(walker);
