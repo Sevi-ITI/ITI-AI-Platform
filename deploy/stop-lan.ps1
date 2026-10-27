@@ -1,11 +1,11 @@
 <#
-stop-lan.ps1: stops what start-lan.ps1 started on this laptop: Caddy (443/8443, the LAN door first), the console
-(3000), the game console (4000) and the API (8000). Docker Desktop, the database and Ollama keep running (other work uses them too).
-Start again with deploy\start-lan.ps1, or sign out and in (the "ITI AI LAN" task).
+stop-lan.ps1: takes the ITI AI Platform off the office network: the native Caddy (443/8443, the LAN door) first, then
+the containers that answer people: caddy (if on), console, game and api. The database and Ollama keep running (other
+work uses them too). Start again with deploy\start-lan.ps1.
 
-Only stops node, python and caddy: the programs start-lan.ps1 starts. A port served by a Docker container shows
-Docker's own process (com.docker.backend) as its owner, and stopping that takes ALL of Docker down (2026-10-26).
-Those are left running and named in the log; stop containers with `docker compose -f deploy/docker-compose.yaml stop`.
+Since 9.5.8 (2026-10-27) the API and both consoles run in containers: they are stopped with `docker compose stop`, never
+by killing their port's owner (com.docker.backend is ALL of Docker, 2026-10-26). Stopped containers stay stopped after
+a restart until start-lan.ps1 (compose up) starts them again.
 #>
 
 $Root = Split-Path -Parent $PSScriptRoot
@@ -17,26 +17,27 @@ function Log([string]$text) {
     Write-Host $line
 }
 
-$Ours = @("node", "python", "caddy")   # process names start-lan.ps1 starts; anything else is left alone
-
 Log "=== stop-lan.ps1 (user $env:USERNAME)"
-foreach ($stop in @(@("Caddy", 443), @("Caddy", 8443), @("console", 3000), @("game console", 4000), @("API", 8000))) {
-    $name, $port = $stop
+
+# 1. The native Caddy (only caddy.exe: a port held by Docker is left to step 2)
+foreach ($port in 443, 8443) {
     $owners = Get-NetTCPConnection -State Listen -LocalPort $port -ErrorAction SilentlyContinue |
         Select-Object -ExpandProperty OwningProcess -Unique
     foreach ($id in $owners) {
         $process = Get-Process -Id $id -ErrorAction SilentlyContinue
-        if ($process -and $Ours -notcontains $process.ProcessName) {
-            Log ("left {0} on {1} running ({2}, pid {3}: not started by start-lan; Docker? use docker compose stop)" -f $name, $port, $process.ProcessName, $id)
-        } elseif ($process) {
+        if ($process -and $process.ProcessName -eq "caddy") {
             try {
                 Stop-Process -Id $id -Force -ErrorAction Stop
-                Log ("stopped {0} on {1} ({2}, pid {3})" -f $name, $port, $process.ProcessName, $id)
+                Log ("stopped the native Caddy on {0} (pid {1})" -f $port, $id)
             } catch {
                 # e.g. it was started from an administrator window: stop it there (Ctrl+C) or from an admin PowerShell
-                Log ("COULD NOT stop {0} on {1} ({2}, pid {3}): {4}" -f $name, $port, $process.ProcessName, $id, $_.Exception.Message)
+                Log ("COULD NOT stop the native Caddy on {0} (pid {1}): {2}" -f $port, $id, $_.Exception.Message)
             }
         }
     }
 }
-Log "=== stopped (Docker, its containers, the database and Ollama are still running)"
+
+# 2. The containers that answer people (caddy is skipped by compose when its profile is off)
+& docker compose -f (Join-Path $Root "deploy\docker-compose.yaml") stop caddy console game api 2>&1 | Out-Null
+Log "stopped the containers caddy (if on), console, game, api"
+Log "=== stopped (Docker, the database and Ollama are still running)"

@@ -1,23 +1,23 @@
 <#
 start-lan.ps1: starts the ITI AI Platform for the office network, in order, in the background (no windows).
 
-  1. Docker Desktop -> waits until the Postgres container is healthy   (Docker Desktop starts at sign-in by itself)
-  2. Ollama         -> waits until it answers on 127.0.0.1:11434       (Ollama starts at sign-in by itself)
-  3. API (uvicorn)  -> waits for http://127.0.0.1:8000/health
-  4. Console        -> `npm start` (the BUILT console), waits for http://127.0.0.1:3000/login
-  5. Caddy          -> the only door to the LAN (443 testers, 8443 API), waits for https on 443
-  6. Game console   -> `npm start` in game-ui (the BUILT app), waits for http://127.0.0.1:4000/login (this laptop
-                       only: Caddy does not open it to the LAN)
+  1. Docker Desktop -> waits until the engine answers                    (Docker Desktop starts at sign-in by itself)
+  2. The stack      -> `docker compose -f deploy/docker-compose.yaml up -d` (postgres, ollama, migrate, api, console,
+                       game; caddy too if deploy\.env has COMPOSE_PROFILES=model,door), waits for the API, the console
+                       and the game console to answer (since 9.5.8, 2026-10-27: they run in containers)
+  3. Caddy          -> the native Caddy, the only door to the LAN (443 testers, 8443 API), only if nothing holds 443
+                       yet (the Caddy container stays off until the office PCs trust our root: 9.5.5)
 
-Safe to run again at any time: a piece that is already running is left alone. Logs (git-ignored):
+Safe to run again at any time: a piece that is already running is left alone. The containers also come back by
+themselves after a restart (restart: unless-stopped); only the native Caddy needs this script. Logs (git-ignored):
   data\logs\start-lan.log   what this script did, with times
-  data\logs\api-<date>.log, console-<date>.log, caddy-<date>.log, game-console-<date>.log (+ .err.log): each
-  service's own output
+  data\logs\caddy-<date>.log (+ .err.log)   the native Caddy's own output
+  the containers: docker compose -f deploy/docker-compose.yaml logs --tail 50 <service>
 
-Started at sign-in by the Task Scheduler task "ITI AI LAN" (see System Guide 16.4). Runs as the signed-in user ON
-PURPOSE: Caddy's certificate authority lives in this user's profile (%AppData%\Caddy); another account (a Windows
-service) would make a NEW root certificate that the office PCs don't trust.
-Stop the API, both consoles and Caddy with deploy\stop-lan.ps1.
+Runs as the signed-in user ON PURPOSE: the native Caddy's certificate authority lives in this user's profile
+(%AppData%\Caddy); another account (a Windows service) would make a NEW root certificate.
+Take the platform off the network with deploy\stop-lan.ps1. Never add --remove-orphans to compose here: the dev records
+container shares the project "deploy".
 #>
 
 # "Continue", not "Stop": Windows PowerShell 5.1 would stop on any line a program writes to its error output.
@@ -25,6 +25,7 @@ Stop the API, both consoles and Caddy with deploy\stop-lan.ps1.
 $ErrorActionPreference = "Continue"
 $Name = "ITI-Vinas.ho.intellismartinc.com"    # Caddy answers only to its configured names
 $Root = Split-Path -Parent $PSScriptRoot            # the repository root (this file is in deploy\)
+$Compose = Join-Path $Root "deploy\docker-compose.yaml"
 $Logs = Join-Path $Root "data\logs"
 $Day = Get-Date -Format "yyyyMMdd"
 New-Item -ItemType Directory -Force -Path $Logs | Out-Null
@@ -54,19 +55,13 @@ function Wait-For([string]$what, [int]$seconds, [scriptblock]$ready) {
         if (& $ready) { Log "  ok: $what"; return }
         Start-Sleep -Seconds 3
     }
-    throw "$what did not come up within $seconds s (see the logs in data\logs)"
-}
-
-function Start-Hidden([string]$name, [string]$exe, [string]$arguments, [string]$folder) {
-    Start-Process -FilePath $exe -ArgumentList $arguments -WorkingDirectory $folder -WindowStyle Hidden `
-        -RedirectStandardOutput (Join-Path $Logs "$name-$Day.log") `
-        -RedirectStandardError (Join-Path $Logs "$name-$Day.err.log") | Out-Null
+    throw "$what did not come up within $seconds s (see data\logs and docker compose logs)"
 }
 
 try {
     Log "=== start-lan.ps1 (user $env:USERNAME)"
 
-    # 1. Docker Desktop and the database
+    # 1. Docker Desktop
     if (-not (& docker info --format "{{.ServerVersion}}" 2>$null)) {
         if (-not (Get-Process "Docker Desktop" -ErrorAction SilentlyContinue)) {
             Log "1. starting Docker Desktop"
@@ -74,50 +69,23 @@ try {
         } else { Log "1. Docker Desktop is starting" }
         Wait-For "Docker engine" 240 { [bool](& docker info --format "{{.ServerVersion}}" 2>$null) }
     } else { Log "1. Docker is running" }
-    & docker compose -f (Join-Path $Root "deploy\docker-compose.dev.yaml") up -d 2>&1 | Out-Null
-    Wait-For "Postgres (healthy)" 180 { (& docker inspect -f "{{.State.Health.Status}}" deploy-postgres-1 2>$null) -eq "healthy" }
 
-    # 2. Ollama (the models)
-    if (-not (Listening 11434)) {
-        if (-not (Get-Process "ollama app" -ErrorAction SilentlyContinue)) {
-            Log "2. starting Ollama"
-            Start-Process (Join-Path $env:LOCALAPPDATA "Programs\Ollama\ollama app.exe")
-        }
-        Wait-For "Ollama on 11434" 120 { Http-Ok "http://127.0.0.1:11434" }
-    } else { Log "2. Ollama is running" }
+    # 2. The stack (compose leaves running containers alone; migrate runs once and exits)
+    Log "2. docker compose up -d"
+    & docker compose -f $Compose up -d 2>&1 | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "docker compose up failed: run it by hand to see why" }
+    Wait-For "API /health" 300 { Http-Ok "http://127.0.0.1:8000/health" }
+    Wait-For "console /login" 120 { Http-Ok "http://127.0.0.1:3000/login" }
+    Wait-For "game console /login" 120 { Http-Ok "http://127.0.0.1:4000/login" }
 
-    # 3. The API (one process, no --reload: the answer queue lives in the process)
-    if (-not (Listening 8000)) {
-        Log "3. starting the API"
-        $backend = Join-Path $Root "backend"
-        Start-Hidden "api" (Join-Path $backend ".venv\Scripts\python.exe") "-m uvicorn app.main:app --host 127.0.0.1 --port 8000" $backend
-        Wait-For "API /health" 90 { Http-Ok "http://127.0.0.1:8000/health" }
-    } else { Log "3. the API is running" }
-
-    # 4. The console (the built app: after a code change run `npm run build` in admin-ui first)
-    if (-not (Listening 3000)) {
-        $ui = Join-Path $Root "admin-ui"
-        if (-not (Test-Path (Join-Path $ui ".next\BUILD_ID"))) { throw "the console is not built: run 'npm run build' in admin-ui" }
-        Log "4. starting the console"
-        Start-Hidden "console" "C:\Program Files\nodejs\npm.cmd" "start" $ui
-        Wait-For "console /login" 90 { Http-Ok "http://127.0.0.1:3000/login" }
-    } else { Log "4. the console is running" }
-
-    # 5. Caddy: the only door to the office network (443 testers, 8443 API)
+    # 3. The native Caddy: the only door to the office network (443 testers, 8443 API)
     if (-not (Listening 443)) {
-        Log "5. starting Caddy"
-        Start-Hidden "caddy" "C:\Tools\caddy\caddy.exe" "run --config deploy\Caddyfile" $Root
-        Wait-For "Caddy on 443 and 8443" 60 { (Http-Ok "https://${Name}/login") -and (Http-Ok "https://${Name}:8443/health") }
-    } else { Log "5. Caddy is running" }
-
-    # 6. The game console (the built app: after a code change run `npm run build` in game-ui first)
-    if (-not (Listening 4000)) {
-        $game = Join-Path $Root "game-ui"
-        if (-not (Test-Path (Join-Path $game ".next\BUILD_ID"))) { throw "the game console is not built: run 'npm run build' in game-ui" }
-        Log "6. starting the game console"
-        Start-Hidden "game-console" "C:\Program Files\nodejs\npm.cmd" "start" $game
-        Wait-For "game console /login" 90 { Http-Ok "http://127.0.0.1:4000/login" }
-    } else { Log "6. the game console is running" }
+        Log "3. starting the native Caddy"
+        Start-Process -FilePath "C:\Tools\caddy\caddy.exe" -ArgumentList "run --config deploy\Caddyfile" -WorkingDirectory $Root `
+            -WindowStyle Hidden -RedirectStandardOutput (Join-Path $Logs "caddy-$Day.log") `
+            -RedirectStandardError (Join-Path $Logs "caddy-$Day.err.log") | Out-Null
+    } else { Log "3. something already serves 443 (the native Caddy, or the Caddy container)" }
+    Wait-For "Caddy on 443 and 8443" 60 { (Http-Ok "https://${Name}/login") -and (Http-Ok "https://${Name}:8443/health") }
 
     Log "=== all up: https://$Name (testers), https://${Name}:8443/v1/docs (API docs), http://127.0.0.1:4000 (game console, this laptop)"
 }
