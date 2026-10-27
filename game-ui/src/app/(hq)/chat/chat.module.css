@@ -1,0 +1,620 @@
+/* Copied from admin-ui src/app/(console)/chat/chat.module.css (G4). Changes: breakpoints follow the page panel
+   (@container page), so the panel always gets the narrow layout (list above the thread); .empty h2 (was h1); the
+   question box hides the scrolling thread with the panel color (was the page color). */
+
+/* Chat: thread and question box (middle) + conversation list (right). Tokens only. */
+
+.chat {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 14rem; /* same width as the navigation */
+  gap: var(--space-3);
+  align-items: start;
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+/* Conversation list */
+.side {
+  /* Same card as the navigation sidebar (console.module.css .sidebar): same width, full height, same edges,
+     whatever the list holds. The negative margins undo .content's padding so both cards line up. */
+  position: sticky;
+  top: var(--float-gap);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  justify-self: end;
+  width: 14rem;
+  height: calc(100svh - 2 * var(--float-gap));
+  margin-block: calc(-1 * var(--space-3));
+  margin-inline-end: calc(-1 * var(--space-2));
+  overflow-y: auto;
+  padding: var(--space-5) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-float);
+  background: var(--surface-raised);
+  box-shadow: var(--elevation-2);
+  font-size: var(--text-sm);
+}
+
+.newChat {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-pill);
+  background: var(--button-primary-bg);
+  color: var(--button-primary-text);
+  font-weight: 700;
+  text-align: center;
+  text-decoration: none;
+}
+
+.list {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.list a {
+  display: grid;
+  gap: 2px;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  text-decoration: none;
+}
+
+.list a:hover {
+  background: var(--hover);
+}
+
+.list a[aria-current="page"] {
+  background: var(--accent-soft);
+  box-shadow: inset -3px 0 0 var(--accent);
+}
+
+/* up to two lines of the first question (was one line, cut after ~18 characters); the whole text on hover */
+.listTitle {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow-wrap: anywhere;
+}
+
+.listMeta {
+  color: var(--text-subtle);
+  font-size: var(--text-xs);
+}
+
+/* Thread */
+.main {
+  min-width: 0;
+}
+
+.thread {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  width: min(100%, 48rem);
+  min-height: calc(100svh - 2 * var(--float-gap) - 2 * var(--space-3)); /* the box sits at the bottom */
+  margin-inline: auto;
+}
+
+.threadMeta {
+  color: var(--text-subtle);
+  font-size: var(--text-xs);
+}
+
+.question {
+  align-self: flex-end;
+  max-width: min(36rem, 85%);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md) var(--radius-md) var(--space-1) var(--radius-md);
+  background: var(--accent-soft);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.answer {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--space-1) var(--radius-md) var(--radius-md) var(--radius-md);
+  background: var(--surface);
+  overflow-wrap: anywhere;
+}
+
+/* Markdown inside an answer */
+.markdown > :first-child {
+  margin-top: 0;
+}
+
+.markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.markdown p,
+.markdown ul,
+.markdown ol {
+  margin: 0 0 var(--space-3);
+}
+
+.markdown ul,
+.markdown ol {
+  padding-left: var(--space-5);
+}
+
+.markdown li + li {
+  margin-top: var(--space-1);
+}
+
+.markdown strong {
+  font-weight: 700;
+}
+
+.markdown code {
+  padding: 0 var(--space-1);
+  border-radius: 0.3rem;
+  background: var(--surface-sunken);
+}
+
+.markdown table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  margin: 0 0 var(--space-3);
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.markdown th,
+.markdown td {
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--border-subtle);
+  text-align: left;
+  vertical-align: top;
+}
+
+/* Citations */
+.sources {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-subtle);
+  font-size: var(--text-xs);
+}
+
+.source summary {
+  padding: 2px var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  list-style: none;
+}
+
+.source summary::-webkit-details-marker {
+  display: none;
+}
+
+.source summary:hover,
+.source[open] summary {
+  background: var(--hover);
+  border-color: var(--accent);
+}
+
+.source p {
+  max-width: 40rem;
+  margin: var(--space-2) 0 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+/* Question box: a rounded bar at the bottom of the middle column, stays there while the thread scrolls */
+/* The dock: suggestion chips floating above the question box; both stay at the bottom while the thread scrolls */
+.dock {
+  position: sticky;
+  bottom: var(--float-gap);
+  display: grid;
+  gap: var(--space-2);
+  margin-top: auto;
+}
+
+.composer {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-3) var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-float);
+  background: var(--surface-raised);
+  /* the last shadow is a page-colored copy pushed down: it hides the thread scrolling in the gap below */
+  box-shadow:
+    var(--elevation-2),
+    0 calc(var(--float-gap) + var(--radius-float)) 0 0 var(--surface-raised);
+}
+
+.composer:focus-within {
+  border-color: var(--accent); /* the focus cue for the text box (its own outline is off) */
+}
+
+.box {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.ask {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.box textarea {
+  flex: 1;
+  min-width: 0;
+  max-height: 12rem;
+  padding: var(--space-2) var(--space-1);
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 1rem; /* 16px: phones don't zoom in */
+  line-height: 1.5;
+  resize: none;
+  field-sizing: content; /* grows with the text where supported */
+}
+
+.box textarea::placeholder {
+  color: var(--text-subtle);
+}
+
+.round,
+.roundGhost {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.round {
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+.round:hover {
+  background: color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+.roundGhost {
+  width: 2.25rem;
+  height: 2.25rem;
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.roundGhost:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  padding-inline: var(--space-2);
+}
+
+.chip {
+  /* a small pill version of the shared dropdown (globals.css) */
+  max-width: 14rem;
+  min-height: 1.75rem;
+  padding-block: 0;
+  padding-left: var(--space-3);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-xs);
+}
+
+.send,
+.secondary {
+  min-height: 2.5rem;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.send {
+  border: 0;
+  background: var(--button-primary-bg);
+  color: var(--button-primary-text);
+}
+
+.send:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.secondary {
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--text);
+}
+
+.secondary:hover {
+  background: var(--hover);
+}
+
+/* Suggested questions: up to three cards under the intro (new chat only, Vince's reference), in a row narrower than
+   the question box, centred. The cards share the row: three = thirds, two = halves (they fill the whole row), one =
+   a third-wide card in the middle. Cards in a row are equally tall; a small number over the question, centred. */
+.suggestions {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-3);
+  width: min(100%, 40rem);
+  margin-inline: auto;
+}
+
+.suggestion {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  min-height: 4.5rem;
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  /* see-through (less solid than the question box), so the background grid shows through */
+  background: color-mix(in srgb, var(--surface-raised) 55%, transparent);
+  box-shadow: var(--elevation-1);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  line-height: 1.45;
+  text-align: center;
+  cursor: pointer;
+  transition:
+    border-color var(--fast) var(--ease),
+    color var(--fast) var(--ease);
+}
+
+.suggestion:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+/* a lone suggestion keeps a third's width, in the middle */
+.suggestion:only-child {
+  flex: 0 1 calc((100% - 2 * var(--space-3)) / 3);
+}
+
+.suggestionNo {
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
+/* the question: long file names (no spaces) may break anywhere; at most 3 lines, the whole question on hover */
+.suggestionText {
+  display: -webkit-box;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+}
+
+/* phones: one card per row (three columns would be a few words wide) */
+@container page (max-width: 40rem) {
+  .suggestions {
+    flex-direction: column;
+  }
+
+  .suggestion,
+  .suggestion:only-child {
+    flex: none;
+    min-height: 0;
+  }
+}
+
+.hint {
+  margin: 0;
+  color: var(--text-subtle);
+  font-size: var(--text-xs);
+}
+
+.thinking {
+  color: var(--text-muted);
+  animation: thinking 1.4s ease-in-out infinite;
+}
+
+@keyframes thinking {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.note {
+  color: var(--warn);
+  font-size: var(--text-sm);
+}
+
+.failed {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  background: var(--error-soft);
+  color: var(--error);
+  font-size: var(--text-sm);
+}
+
+/* New chat */
+/* New chat intro: what this is on the left, the three steps on the right (Vince); stacked on narrow screens */
+.empty {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-5);
+  padding-top: var(--space-6);
+}
+
+.introText {
+  display: grid;
+  gap: var(--space-3);
+  text-wrap: pretty;
+}
+
+.empty h2 {
+  font-size: var(--text-xl);
+}
+
+/* New chat: three short steps under the heading (how to get a good answer) */
+.steps {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-self: end;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
+}
+
+.steps li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3) var(--space-1) var(--space-1);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  counter-increment: step;
+}
+
+.steps li::before {
+  content: counter(step);
+  display: grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--text);
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+
+.ready {
+  color: var(--ok);
+  font-size: var(--text-sm);
+}
+
+
+@container page (max-width: 56rem) {
+  .chat {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .empty {
+    grid-template-columns: minmax(0, 1fr);
+    padding-top: var(--space-4);
+  }
+
+  .steps {
+    justify-self: start;
+  }
+
+  .side {
+    position: static;
+    order: -1; /* the list above the thread on narrow screens */
+    justify-self: stretch; /* full width (it kept the wide layout's "end" and shrank to its content) */
+    width: auto;
+    height: auto;
+    max-height: 12rem; /* leaves room for the thread on short screens */
+    margin: 0;
+  }
+
+  .thread {
+    min-height: 0;
+  }
+
+  .chip {
+    font-size: 1rem;
+  }
+}
+
+/* Motion: new messages rise in; solid buttons lift; a source's passage fades open */
+.question,
+.answer {
+  animation: message-in var(--medium) var(--ease);
+}
+
+@keyframes message-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.4rem);
+  }
+}
+
+.newChat,
+.send,
+.round,
+.roundGhost {
+  transition:
+    transform var(--fast) var(--ease),
+    box-shadow var(--fast) var(--ease),
+    background-color var(--fast) var(--ease),
+    color var(--fast) var(--ease);
+}
+
+.newChat:hover,
+.send:hover:not(:disabled),
+.round:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--elevation-2);
+}
+
+.source[open] p {
+  animation: message-in var(--fast) var(--ease);
+}
+
+.composer {
+  transition: border-color var(--fast) var(--ease);
+}
+
+/* Conversation list: Today / Yesterday / Earlier */
+.groups {
+  display: grid;
+  gap: var(--space-3);
+}
+
+/* Today / Yesterday / Earlier: the same small uppercase labels as the navigation's groups */
+.listGroup {
+  padding: 0 var(--space-3) var(--space-1);
+  color: var(--text-subtle);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
