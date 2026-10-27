@@ -14,6 +14,7 @@ export type Station = {
   roomObject: string; // what stands in the room
   desc: string;
   pos: [number, number, number]; // x, height of its label, z
+  inLists?: false; // false = left out of the sidebar and the Wings dock (opened from its 3D object only)
 };
 
 export const WINGS: { id: WingId; title: string }[] = [
@@ -123,6 +124,7 @@ export const STATIONS: Station[] = [
     roomObject: "Clock tower",
     desc: "Philippine time (Asia/Manila), the sun's phase, the theme that follows the time and a simulated time.",
     pos: [0, 11.6, -23.3], // = CLOCK_POSITION in scene/clock.ts
+    inLists: false, // Vince, 2026-10-27: not in the sidebar or the dock; the tower and its label open it
   },
 ];
 

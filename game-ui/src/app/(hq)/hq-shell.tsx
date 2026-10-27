@@ -196,7 +196,7 @@ export default function HqShell({ name, role, view, theme, phtAuto, phtSim, city
             {WINGS.filter((w) => canEnterWing(w.id, role)).map((w) => (
               <div key={w.id} className={styles.wingGroup}>
                 <p className={styles.wingHeader}>{w.title}</p>
-                {STATIONS.filter((s) => s.wing === w.id && canEnter(s, role)).map((s) => (
+                {STATIONS.filter((s) => s.wing === w.id && s.inLists !== false && canEnter(s, role)).map((s) => (
                   <Link
                     key={s.id}
                     href={s.route}
@@ -286,7 +286,7 @@ export default function HqShell({ name, role, view, theme, phtAuto, phtSim, city
             <p className={styles.wingHeader}>
               {w.title} {!canEnterWing(w.id, role) && <span aria-label="locked">🔒</span>}
             </p>
-            {STATIONS.filter((s) => s.wing === w.id).map((s) =>
+            {STATIONS.filter((s) => s.wing === w.id && s.inLists !== false).map((s) =>
               canEnter(s, role) ? (
                 <Link
                   key={s.id}
