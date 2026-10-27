@@ -1,13 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useRef, useState } from "react";
 
 import dash from "../dashboard.module.css";
 import FormDialog from "../form-dialog";
-import { addAccount, resetPassword, updateAccount } from "./actions";
+import { toast } from "../toast";
+import { addAccount, deleteAccount, resetPassword, updateAccount } from "./actions";
 
-// The Accounts page's form dialogs: add an account, edit name / role, reset a password. Passwords are read from
-// the form once and sent to the server action; they are never kept in state.
+// The Accounts page's form dialogs: add an account, edit name / role, reset a password, delete a deactivated one.
+// Passwords are read from the form once and sent to the server action; they are never kept in state.
 
 type Role = "super_admin" | "supervisor" | "tester";
 
@@ -167,5 +169,88 @@ export function ResetPasswordButton({ username }: { username: string }) {
         It also unlocks the account and logs {username} out everywhere. Give the new password to them directly.
       </small>
     </FormDialog>
+  );
+}
+
+/** Delete a deactivated account for good (UI-R2g). The username must be typed to confirm, as for removing an app.
+ *  Only deactivated rows get this button; FastAPI refuses an active account too (409). */
+export function DeleteAccountButton({ username }: { username: string }) {
+  const router = useRouter();
+  const dialog = useRef<HTMLDialogElement>(null);
+  const [typed, setTyped] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const matches = typed.trim() === username;
+
+  async function run() {
+    setBusy(true);
+    setError(null);
+    const r = await deleteAccount(username);
+    setBusy(false);
+    if (!r.ok) {
+      if (r.status === 401) return router.push("/login"); // the session is over
+      return setError(r.message);
+    }
+    toast("ok", `${username} deleted`);
+    dialog.current?.close();
+    router.refresh();
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        className={dash.dangerSmall}
+        onClick={() => {
+          setTyped("");
+          setError(null);
+          dialog.current?.showModal();
+        }}
+      >
+        Delete…
+      </button>
+      <dialog ref={dialog} className={dash.dialog} aria-labelledby={`delete-${username}`}>
+        <form
+          className={dash.dialogForm}
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (matches && !busy) void run();
+          }}
+        >
+          <h2 id={`delete-${username}`}>
+            Delete <span className="mono">{username}</span>?
+          </h2>
+          <p>
+            The account is removed for good: it leaves this list and can never log in again. Their chats stay; a new
+            account with the same username would see them in Users &amp; chats. This can&apos;t be undone.
+          </p>
+          <label className={dash.field}>
+            <span>
+              Type <span className="mono">{username}</span> to confirm
+            </span>
+            <input
+              value={typed}
+              onChange={(e) => setTyped(e.target.value)}
+              autoComplete="off"
+              spellCheck={false}
+              disabled={busy}
+            />
+          </label>
+          {error && (
+            <p role="alert" className={dash.error}>
+              {error}
+            </p>
+          )}
+          <div className={dash.dialogActions}>
+            <button type="button" className={dash.secondary} onClick={() => dialog.current?.close()}>
+              Cancel
+            </button>
+            <button type="submit" className={dash.danger} disabled={!matches || busy} aria-busy={busy}>
+              {busy ? "Deleting…" : "Delete account"}
+            </button>
+          </div>
+        </form>
+      </dialog>
+    </>
   );
 }

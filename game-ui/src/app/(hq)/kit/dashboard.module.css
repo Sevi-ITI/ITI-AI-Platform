@@ -1991,7 +1991,6 @@ td.actionsCell:not(:has(button, a)) {
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
   background: var(--surface-sunken);
-  white-space: pre-wrap;
 }
 
 /* 8.6e-3 security password gate: the bar under the page title, locked buttons, the read-only code view */

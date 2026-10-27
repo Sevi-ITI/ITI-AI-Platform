@@ -20,6 +20,7 @@ from app.admin.a_schemas.metrics_summary import MetricsSummary
 from app.admin.a_schemas.request_log_out import RequestLogOut
 from app.admin.a_schemas.timeseries_point import TimeseriesPoint
 from app.admin.a_schemas.user_summary import UserSummary
+from app.admin.f_routes.delete_account import delete_account
 from app.admin.f_routes.delete_admin_conversations import delete_admin_conversations
 from app.admin.f_routes.delete_app import delete_app
 from app.admin.f_routes.delete_collection import delete_collection
@@ -94,5 +95,6 @@ add("/v1/admin/apps/{app_id}/disconnect", post_app_disconnect, methods=["POST"],
 add("/v1/admin/accounts", get_accounts, methods=["GET"], response_model=list[AccountInfo])
 add("/v1/admin/accounts", post_account, methods=["POST"], status_code=201, response_model=AccountInfo)
 add("/v1/admin/accounts/{username}", patch_account, methods=["PATCH"], response_model=AccountInfo)
+add("/v1/admin/accounts/{username}", delete_account, methods=["DELETE"], status_code=204)
 add("/v1/admin/accounts/{username}/password", post_account_password, methods=["POST"], status_code=204)
 add("/v1/console/collections", get_console_collections, methods=["GET"], response_model=list[ChatCollection])

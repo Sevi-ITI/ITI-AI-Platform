@@ -11,7 +11,7 @@ import { StatusErrorIcon, StatusOkIcon } from "../icons";
 import Placeholder from "../placeholder";
 import { Problem } from "../widgets";
 import { updateAccount } from "./actions";
-import { AddAccountButton, EditAccountButton, ResetPasswordButton } from "./dialogs";
+import { AddAccountButton, DeleteAccountButton, EditAccountButton, ResetPasswordButton } from "./dialogs";
 
 export const metadata = { title: "Accounts" };
 
@@ -181,6 +181,7 @@ function AccountRow({ a, isMe, collections }: { a: Account; isMe: boolean; colle
               <p>{a.username} can log in again with their current password.</p>
             </ConfirmAction>
           )}
+          {!a.active && <DeleteAccountButton username={a.username} />}
         </div>
       </td>
     </tr>

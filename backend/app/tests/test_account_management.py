@@ -76,3 +76,15 @@ def test_supervisors_and_app_keys_cannot_touch_accounts(client, vince, make_key)
     for headers in (ana, make_key("hr-portal", scopes=["chat:invoke", "documents:write"])):
         assert client.get(ACCOUNTS, headers=headers).status_code == 403
         assert client.post(f"{ACCOUNTS}/vince/password", headers=headers, json={"password": NEW_PASSWORD}).status_code == 403
+
+
+def test_only_a_deactivated_account_can_be_deleted_and_its_chats_stay(client, vince):
+    client.post(ACCOUNTS, headers=vince, json={"username": "ana", "role": "supervisor", "password": PASSWORD})
+    active = client.delete(f"{ACCOUNTS}/ana", headers=vince)
+    assert active.status_code == 409 and active.json()["error"]["code"] == "account_active"
+
+    client.patch(f"{ACCOUNTS}/ana", headers=vince, json={"active": False})
+    assert client.delete(f"{ACCOUNTS}/ana", headers=vince).status_code == 204
+    assert [a["username"] for a in client.get(ACCOUNTS, headers=vince).json()] == ["vince"]
+    assert log_in(client, "ana").status_code == 401  # the account is gone, not just off
+    assert client.delete(f"{ACCOUNTS}/ana", headers=vince).json()["error"]["code"] == "account_not_found"

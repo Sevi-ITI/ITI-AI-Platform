@@ -35,6 +35,13 @@ export async function updateAccount(
   );
 }
 
+/** Delete a deactivated account for good (FastAPI refuses an active one: 409 account_active). Their chats stay. */
+export async function deleteAccount(username: string): Promise<ConfirmResult> {
+  return result(
+    await callApi((api) => api.DELETE("/v1/admin/accounts/{username}", { params: { path: { username } } })),
+  );
+}
+
 export async function resetPassword(username: string, password: string): Promise<ConfirmResult> {
   return result(
     await callApi((api) =>
