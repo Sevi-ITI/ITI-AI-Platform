@@ -34,6 +34,15 @@ class RequestLog(Base):
     queue_ms: Mapped[int | None] = mapped_column(Integer)  # waited for a free LLM slot
     rag_ms: Mapped[int | None] = mapped_column(Integer)  # retrieval + generation inside rag/
     ttft_ms: Mapped[int | None] = mapped_column(Integer)  # streaming: time to the first token
-    tokens: Mapped[int | None] = mapped_column(Integer)
+    tokens: Mapped[int | None] = mapped_column(Integer)  # streamed pieces sent to the caller, NOT model tokens
     tools: Mapped[str | None] = mapped_column(String(120))  # records tools the model ran, e.g. "get_my_absences"
     tools_ms: Mapped[int | None] = mapped_column(Integer)  # time spent running them (never their values)
+
+    # Billing step 1: Ollama's own counts, added up over every model call of the request (None = no model call).
+    model: Mapped[str | None] = mapped_column(String(64))  # the chat model that answered
+    model_calls: Mapped[int | None] = mapped_column(Integer)  # 1 for RAG; tool rounds and the policy part add more
+    tokens_in: Mapped[int | None] = mapped_column(Integer)  # input the model read (prompt_eval_count): billed
+    tokens_out: Mapped[int | None] = mapped_column(Integer)  # output it wrote (eval_count): billed
+    gpu_in_ms: Mapped[int | None] = mapped_column(Integer)  # time reading the input: sets the rates (section 3)
+    gpu_out_ms: Mapped[int | None] = mapped_column(Integer)  # time writing the output
+    embed_tokens: Mapped[int | None] = mapped_column(Integer)  # bge-m3 search text: recorded, never billed (D-6)

@@ -18,6 +18,7 @@ from app.core.b_logging.request_id_var import REQUEST_ID
 from app.core.d_metrics.request_metrics_var import REQUEST_METRICS
 from app.core.d_metrics.save_request_log import save_request_log
 from app.core.i_middleware.is_logged_request import is_logged_request
+from app.rag.usage import USAGE
 
 log = logging.getLogger("app.access")
 SAFE_ID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
@@ -28,12 +29,15 @@ async def request_id_and_timing(request: Request, call_next):
     REQUEST_ID.set(rid)
     metrics = {"request_id": rid, "method": request.method, "path": request.url.path[:200]}
     REQUEST_METRICS.set(metrics)
+    usage = {}  # filled by rag.usage: tokens_in, tokens_out, ...
+    USAGE.set(usage)
     start = time.perf_counter()
 
     async def finish(status: int) -> None:
         route = request.scope.get("route")
         metrics.update(status=status, duration_ms=int((time.perf_counter() - start) * 1000))
         metrics.setdefault("route", getattr(route, "path", None))
+        metrics.update(usage)
         log.info("%s %s -> %s (%s ms)", request.method, request.url.path, status, metrics['duration_ms'])
         if is_logged_request(request.method, request.url.path):
             await run_in_threadpool(save_request_log, metrics)

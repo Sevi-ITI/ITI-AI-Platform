@@ -12,6 +12,7 @@ from app.rag.d_vectorstore.pg_store import PgStore
 from app.rag.d_vectorstore.search import search
 from app.rag.e_prompts import build_messages, could_be_refusal, is_refusal, refusal_for
 from app.rag.passage import Passage
+from app.rag.usage import count_chat
 
 TOP_K = 6  # chunks per question (spec 5.5); used to live in the Chroma d_vectorstore.py
 
@@ -50,7 +51,9 @@ def _chat_request(messages: list[dict], stream: bool) -> dict:
 def chat_with_ollama(messages: list[dict]) -> str:
     response = requests.post(f"{OLLAMA_URL}/api/chat", json=_chat_request(messages, stream=False), timeout=TIMEOUT_SECONDS)
     response.raise_for_status()
-    return response.json()["message"]["content"].strip()
+    reply = response.json()
+    count_chat(reply)  # billing step 1: the tokens this call used
+    return reply["message"]["content"].strip()
 
 CITATION_RANGE = re.compile(r"\[(\d{1,2})\s*[-–]\s*(\d{1,2})]")  # [1-4] or [2–3]; not a year range
 
@@ -210,6 +213,7 @@ def stream_from_ollama(messages: list[dict]) -> Iterator[str]:
             if piece:
                 yield piece
             if part.get("done"):
+                count_chat(part)  # billing step 1: the last line carries the token counts
                 break
 
 

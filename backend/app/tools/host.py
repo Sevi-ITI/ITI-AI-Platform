@@ -23,6 +23,7 @@ from app.core.e_errors.app_error import AppError
 from app.rag.c_embeddings import OLLAMA_URL
 from app.rag.e_prompts import refusal_for
 from app.rag.f_chains import CHAT_MODEL, NUM_CTX, TEMPERATURE, TIMEOUT_SECONDS
+from app.rag.usage import count_chat
 from app.tools.client import McpTool, call_mcp_tool, company_system, mcp_tools
 from app.tools.console_features import feature_on
 from app.tools.shared import RECORDS_OF, Tool, ToolSpec, get_records_engine
@@ -288,7 +289,9 @@ def chat_with_tools(messages: list[dict], tools: list[dict] | None) -> dict:
         body["tools"] = tools
     response = requests.post(f"{OLLAMA_URL}/api/chat", json=body, timeout=TIMEOUT_SECONDS)
     response.raise_for_status()
-    return response.json()["message"]
+    reply = response.json()
+    count_chat(reply)  # billing step 1: every tool round is a model call too
+    return reply["message"]
 
 
 # --- the tool loop --------------------------------------------------------------------------------------------

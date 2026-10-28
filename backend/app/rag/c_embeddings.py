@@ -2,6 +2,7 @@
 import requests
 
 from app.rag.config import SETTINGS
+from app.rag.usage import count_embedding
 
 # Only an Ollama we run ourselves: rag/config.py refuses any host not in ITI_OLLAMA_ALLOWED_HOSTS.
 OLLAMA_URL = SETTINGS.ollama_url
@@ -22,5 +23,7 @@ def embed(texts: list[str], batch_size: int = BATCH_SIZE) -> list[list[float]]:
             timeout=TIMEOUT_SECONDS,
         )
         response.raise_for_status()
-        vectors.extend(response.json()["embeddings"])
+        body = response.json()
+        count_embedding(body)  # billing step 1: recorded, never billed (D-6)
+        vectors.extend(body["embeddings"])
     return vectors
