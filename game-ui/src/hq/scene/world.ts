@@ -227,12 +227,38 @@ export function buildWorld(scene: THREE.Scene): World {
   companies.add(mesh(new THREE.BoxGeometry(2.5, 0.72, 1.8), material(0x243461), 0, 0.36, 0));
   room("companies", companies);
 
-  // Apps & keys: a vault with a brass wheel
+  // Apps & keys: a bank of key lockers (Vince, 2026-10-28): two rows of four doors, each with a brass lock and a
+  // handle; one door stands ajar and one lock still holds its key
   const apps = new THREE.Group();
-  apps.add(mesh(new THREE.BoxGeometry(1.5, 1.85, 1.1), material(0x24325c, { metalness: 0.45, roughness: 0.35 }), 0, 0.93, 0));
-  const wheel = mesh(new THREE.CylinderGeometry(0.38, 0.38, 0.12, 20), material(COLORS.warn, { metalness: 0.6, roughness: 0.25 }), 0, 1, 0.6);
-  wheel.rotation.x = Math.PI / 2;
-  apps.add(wheel);
+  apps.add(mesh(new THREE.BoxGeometry(1.95, 1.9, 0.7), material(0x24325c, { metalness: 0.45, roughness: 0.35 }), 0, 0.95, 0));
+  const door = material(0x34477e, { metalness: 0.4, roughness: 0.35 });
+  door.userData.light = 0xc4b59c; // a shade darker than the sand body, so the doors still read in light mode
+  const brass = material(COLORS.warn, { metalness: 0.6, roughness: 0.25 });
+  const handle = material(0x8f98ab, { metalness: 0.5, roughness: 0.3 });
+  handle.userData.light = 0x6e5a3c;
+  const front = 0.36;
+  for (let row = 0; row < 2; row++) {
+    for (let col = 0; col < 4; col++) {
+      const x = (col - 1.5) * 0.46;
+      const y = 0.52 + row * 0.9;
+      const ajar = row === 0 && col === 3;
+      // a door hangs on its left hinge, so the ajar one swings open around it
+      const hinge = new THREE.Group();
+      hinge.position.set(x - 0.2, y, front);
+      if (ajar) hinge.rotation.y = -0.85;
+      hinge.add(mesh(new THREE.BoxGeometry(0.4, 0.82, 0.04), door, 0.2, 0, 0.02));
+      for (const vy of [0.28, 0.22, 0.16]) hinge.add(mesh(new THREE.BoxGeometry(0.22, 0.02, 0.01), handle, 0.2, vy, 0.045)); // vents
+      const lock = mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.03, 12), brass, 0.32, 0.02, 0.05);
+      lock.rotation.x = Math.PI / 2;
+      hinge.add(lock, mesh(new THREE.BoxGeometry(0.035, 0.16, 0.035), handle, 0.32, -0.14, 0.06));
+      apps.add(hinge);
+    }
+  }
+  // the key left in the top-left lock: a glowing bow and its blade
+  const key = glow(COLORS.warn, 0.45);
+  const bow = mesh(new THREE.TorusGeometry(0.06, 0.018, 8, 16), key, -0.57, 1.42 + 0.02, front + 0.14);
+  apps.add(bow, mesh(new THREE.BoxGeometry(0.02, 0.02, 0.08), key, -0.57, 1.44, front + 0.07));
+  apps.rotation.y = Math.PI / 4; // the doors face the usual camera (south-east)
   room("apps", apps);
 
   // Users & chats: a resident board and a visitor-book lectern
