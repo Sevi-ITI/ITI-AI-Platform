@@ -26,6 +26,9 @@
 	}
 
 	reverse_proxy {$ITI_CONSOLE_UPSTREAM:127.0.0.1:4000} {
+		# The person's computer for the login throttle (S2.1). Caddy sets it itself and replaces any value a browser
+		# sends; the console passes it on to POST /v1/console/login. No header = the laptop itself (127.0.0.1:4000).
+		header_up ITI-Client-IP {remote_host}
 		transport http {
 			read_timeout 180s # answers can queue for 120 s
 		}

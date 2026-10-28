@@ -129,3 +129,37 @@ def test_startup_deletes_expired_sessions(db_engine, fake_rag, vince):
         pass
     with get_sessionmaker()() as db:
         assert db.get(ConsoleSession, "a" * 64) is None and db.get(ConsoleSession, "b" * 64) is not None
+
+
+# --- S2.1: failed logins per computer ------------------------------------------------------------------------
+
+PC_A, PC_B = {"ITI-Client-IP": "10.0.0.51"}, {"ITI-Client-IP": "10.0.0.52"}
+
+
+def test_ten_failures_from_one_computer_block_it_even_with_the_right_password(client, vince):
+    for i in range(10):  # unknown names count too: one password tried on many accounts (spraying)
+        r = client.post(LOGIN, headers=PC_A, json={"username": f"guess{i}", "password": "Summer2026!"})
+        assert r.status_code == 401
+    blocked = client.post(LOGIN, headers=PC_A, json=vince)
+    assert blocked.status_code == 429 and blocked.json()["error"]["code"] == "too_many_attempts"
+    assert client.post(LOGIN, headers=PC_B, json=vince).status_code == 200  # another computer is not affected
+    assert client.post(LOGIN, json=vince).status_code == 200  # nor the laptop itself ("local")
+
+
+def test_a_success_does_not_reset_the_count_and_the_account_lock_still_counts(client, vince):
+    wrong = {**vince, "password": "nope"}
+    for _ in range(4):
+        assert client.post(LOGIN, headers=PC_A, json=wrong).status_code == 401
+    assert client.post(LOGIN, headers=PC_A, json=vince).status_code == 200  # resets the ACCOUNT count only
+    for _ in range(5):  # the 5th wrong in a row locks the account (same as before S2.1)
+        assert client.post(LOGIN, headers=PC_A, json=wrong).status_code == 401
+    locked = client.post(LOGIN, headers=PC_A, json=vince)  # failure 10 for PC_A: account_locked, then blocked
+    assert locked.json()["error"]["code"] == "account_locked"
+    assert client.post(LOGIN, headers=PC_A, json=vince).status_code == 429
+
+
+def test_a_header_that_is_not_an_ip_address_shares_one_bucket(client, vince):
+    for i in range(10):
+        client.post(LOGIN, headers={"ITI-Client-IP": f"not-an-ip-{i}"}, json={"username": "x", "password": "y"})
+    assert client.post(LOGIN, headers={"ITI-Client-IP": "garbage"}, json=vince).status_code == 429
+    assert client.post(LOGIN, headers=PC_A, json=vince).status_code == 200

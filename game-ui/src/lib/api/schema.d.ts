@@ -6608,7 +6608,10 @@ export interface operations {
     post_login_v1_console_login_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description The person's computer, set by Caddy. Leave it out on the laptop itself. */
+                "ITI-Client-IP"?: string | null;
+            };
             path?: never;
             cookie?: never;
         };

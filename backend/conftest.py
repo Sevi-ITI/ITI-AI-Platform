@@ -28,12 +28,14 @@ def db_engine():
     from sqlalchemy.orm import Session
 
     import app.main  # noqa: F401  registers every table class
+    from app.console.d_service.login_throttle import LOGIN_THROTTLE
     from app.core.c_database.base import Base
     from app.core.c_database.get_engine import get_engine
     from app.core.h_stores.company_row import CompanyRow
     from app.core.h_stores.iti_company import ITI_COMPANY_ID, ITI_COMPANY_NAME
     from app.rag.d_vectorstore.rag_base import RagBase
 
+    LOGIN_THROTTLE.clear()  # failed logins per computer live in memory: every test starts with none
     engine = get_engine()
     for metadata in (RagBase.metadata, Base.metadata):
         metadata.drop_all(engine)

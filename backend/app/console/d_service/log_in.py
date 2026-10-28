@@ -4,7 +4,9 @@
   same time (an unknown name is checked against DUMMY_HASH), so the reply never tells which part was wrong.
 - A locked account gets 401 account_locked WITHOUT checking the password, so guessing stops while it lasts.
 - Only a username that exists is written to the request log: people sometimes type a password into the
-  username box, and that must not end up in the log."""
+  username box, and that must not end up in the log.
+- Per computer (S2.1): a blocked computer gets 429 before any password check; every 401 counts as one failure
+  for that computer (LoginThrottle)."""
 
 from sqlalchemy.orm import Session
 
@@ -15,6 +17,7 @@ from app.auth.d_keys.password_matches import password_matches
 from app.console.a_schemas.account_info import AccountInfo
 from app.console.a_schemas.login_request import LoginRequest
 from app.console.a_schemas.login_result import LoginResult
+from app.console.d_service.login_throttle import LOGIN_THROTTLE
 from app.console.d_service.open_session import open_session
 from app.console.d_service.record_failed_login import LOCK_MINUTES, MAX_FAILED_LOGINS, record_failed_login
 from app.core.c_database.utcnow import utcnow
@@ -27,14 +30,17 @@ DUMMY_HASH = "scrypt$16384$8$5$rge6BG7ldAE6fkubdUG6lA==$iaU0lvG4kkC1qFiZ96gdseh2
 WRONG = "Wrong username or password."
 
 
-def log_in(db: Session, body: LoginRequest) -> LoginResult:
+def log_in(db: Session, body: LoginRequest, computer: str) -> LoginResult:
+    LOGIN_THROTTLE.check(computer)
     password = body.password.get_secret_value()
     user = get_console_user(db, body.username.strip().lower())
     if user is None or not user.active:
         password_matches(password, DUMMY_HASH)
+        LOGIN_THROTTLE.failed(computer)
         raise AppError(401, "invalid_login", WRONG)
     record_metric(app_id=CONSOLE_APP_ID, company_id=ITI_COMPANY_ID, user_id=user.username)
     if is_future(user.locked_until):
+        LOGIN_THROTTLE.failed(computer)
         raise AppError(
             401,
             "account_locked",
@@ -42,6 +48,7 @@ def log_in(db: Session, body: LoginRequest) -> LoginResult:
         )
     if not password_matches(password, user.password_hash):
         record_failed_login(db, user)
+        LOGIN_THROTTLE.failed(computer)
         raise AppError(401, "invalid_login", WRONG)
     user.failed_logins, user.locked_until, user.last_login_at = 0, None, utcnow()
     session_pass, expires_at = open_session(db, user.username)  # commits the user's row too

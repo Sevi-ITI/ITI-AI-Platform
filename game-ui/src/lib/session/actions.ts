@@ -1,5 +1,6 @@
 "use server";
 
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { displayMessage } from "@/lib/api/api-error";
@@ -13,7 +14,11 @@ export async function logIn(_previous: LoginState, form: FormData): Promise<Logi
   const username = String(form.get("username") ?? "").trim();
   const password = String(form.get("password") ?? "");
 
-  const result = await callApi((api) => api.POST("/v1/console/login", { body: { username, password } }));
+  // The person's computer, set by Caddy (S2.1 login throttle). Missing on the laptop itself: FastAPI counts it as "local".
+  const clientIp = (await headers()).get("ITI-Client-IP");
+  const params = clientIp ? { header: { "ITI-Client-IP": clientIp } } : undefined;
+
+  const result = await callApi((api) => api.POST("/v1/console/login", { params, body: { username, password } }));
   if (!result.ok) {
     return { error: displayMessage(result.error), username };
   }
