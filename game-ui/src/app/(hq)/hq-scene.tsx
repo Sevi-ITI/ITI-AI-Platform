@@ -8,7 +8,7 @@ import { clockText, phtNow } from "@/hq/pht";
 import { CAMERA, CameraController } from "@/hq/scene/camera";
 import { buildCity, type City, type CityBlock, disposeCity, layoutCity } from "@/hq/scene/city";
 import { buildClockTower, type ClockTower, updateClock } from "@/hq/scene/clock";
-import { buildEnvironment, updateTraffic } from "@/hq/scene/environment";
+import { buildEnvironment, type Environment, setStreetLights, updateTraffic } from "@/hq/scene/environment";
 import { recolorTree } from "@/hq/scene/palette";
 import { buildRoomProps, disposeRoomProps, type RoomProps } from "@/hq/scene/props";
 import { buildStaff, updateStaff } from "@/hq/scene/staff";
@@ -65,6 +65,7 @@ type Running = {
   world: World;
   xia: Xia;
   tower: ClockTower;
+  environment: Environment;
   city: City | null;
   props: THREE.Group | null; // the rooms' live props (also in world.rooms, so clicks find them)
   travel: (appId: string, companyId: string | null) => void; // walk Xia to a city block or office, frame it
@@ -154,7 +155,7 @@ export default function HqScene(props: Props) {
       xia.walkTo(x, z, reduced(), null, true);
       controller.focusOn(x, z, shift(), office ? CITY_FOCUS.office : CITY_FOCUS.block);
     };
-    runningRef.current = { scene, camera, controller, world, xia, tower, city: null, props: null, travel };
+    runningRef.current = { scene, camera, controller, world, xia, tower, environment, city: null, props: null, travel };
 
     const shift = () => (latest.current.panelOpen ? 3.4 : 0.8);
     latest.current.onControls({
@@ -271,6 +272,7 @@ export default function HqScene(props: Props) {
         if (pht.minutes !== lastSunMinute) {
           lastSunMinute = pht.minutes;
           applySun(world, pht, world.theme);
+          setStreetLights(environment, !pht.isDaylight);
         }
       }
 
@@ -362,6 +364,7 @@ export default function HqScene(props: Props) {
     applyTheme(running.scene, running.world, props.theme);
     const pht = phtNow(props.phtSim);
     applySun(running.world, pht, props.theme);
+    setStreetLights(running.environment, !pht.isDaylight);
     updateClock(running.tower, pht);
   }, [props.theme, props.phtSim]);
 

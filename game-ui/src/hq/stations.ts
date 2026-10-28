@@ -84,7 +84,7 @@ export const STATIONS: Station[] = [
     route: "/apps",
     title: "Apps & keys",
     wing: "clients",
-    roomObject: "Key vault",
+    roomObject: "Key lockers",
     desc: "Caller apps, their keys, collections and tools.",
     pos: [-7.2, 2.0, 7.6],
   },

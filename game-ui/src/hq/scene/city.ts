@@ -109,12 +109,9 @@ function glassMaterial(g: Glass) {
 }
 
 function materials() {
-  const dash = new THREE.MeshBasicMaterial({ color: 0xe9b25c });
-  dash.userData.light = 0xfffdf8;
   return {
     curb: std(0x1d2842, undefined, { roughness: 0.8 }),
     road: std(0x141b2d, undefined, { roughness: 0.88 }),
-    dash,
     bin: std(0x2a3557, 0x5f6878, { roughness: 0.5 }),
     binLid: std(0x5cc98f, undefined, { roughness: 0.4 }),
     trunk: std(0x5c4028, undefined, { roughness: 0.85 }),
@@ -335,7 +332,6 @@ function buildBlock(block: PlacedBlock, mats: Materials, walkers: Walker[]): THR
   const streetX = Array.from({ length: COLS - 1 }, (_, c) => (c - (COLS - 2) / 2) * m.colStep);
   for (const z of streetZ) {
     add(new THREE.BoxGeometry(slot.w - 0.3, 0.08, STREET_D), mats.road, 0, -0.2, z);
-    for (let x = -slot.w * 0.44; x <= slot.w * 0.44; x += 3.4) add(new THREE.BoxGeometry(1.2, 0.03, 0.09), mats.dash, x, -0.15, z);
   }
   for (const x of streetX) add(new THREE.BoxGeometry(STREET_W, 0.08, slot.d - 0.3), mats.road, x, -0.2, 0);
 
