@@ -1,9 +1,11 @@
 import * as THREE from "three";
 
+import { instanced, type Place } from "@/hq/scene/instanced";
+import { buildLotPark } from "@/hq/scene/parks";
 import { buildWalkers, type Walker } from "@/hq/scene/staff";
 
 // V4, from the design mock: the app city blocks around the HQ. One block per real app (A to Z by id, up to 5 spots:
-// west, south, east, south-west, south-east; north is the flyover), 3 rows × 5 columns of offices each (Vince: the
+// west, south, east, south-west, south-east; north is the flyover; a spot no app uses is a park), 3 rows × 5 columns of offices each (Vince: the
 // south block too, every door facing the hub). The offices nearest the hub hold the companies the app is linked to,
 // lit and labeled; every other lot is a construction site (no building, no beacon: Vince, 2026-10-28), so only a real
 // company has an office. Each block has
@@ -112,6 +114,7 @@ function materials() {
   return {
     curb: std(0x1d2842, undefined, { roughness: 0.8 }),
     road: std(0x141b2d, undefined, { roughness: 0.88 }),
+    marking: std(0xf4f1ea, undefined, { roughness: 0.6 }), // white in both themes
     bin: std(0x2a3557, 0x5f6878, { roughness: 0.5 }),
     binLid: std(0x5cc98f, undefined, { roughness: 0.4 }),
     trunk: std(0x5c4028, undefined, { roughness: 0.85 }),
@@ -330,10 +333,21 @@ function buildBlock(block: PlacedBlock, mats: Materials, walkers: Walker[]): THR
   add(new THREE.BoxGeometry(slot.w, 0.28, slot.d), mats.curb, 0, -0.36, 0); // the block's sidewalk pad
   const streetZ = Array.from({ length: ROWS - 1 }, (_, r) => (r - (ROWS - 2) / 2) * m.rowStep);
   const streetX = Array.from({ length: COLS - 1 }, (_, c) => (c - (COLS - 2) / 2) * m.colStep);
-  for (const z of streetZ) {
-    add(new THREE.BoxGeometry(slot.w - 0.3, 0.08, STREET_D), mats.road, 0, -0.2, z);
-  }
+  for (const z of streetZ) add(new THREE.BoxGeometry(slot.w - 0.3, 0.08, STREET_D), mats.road, 0, -0.2, z);
   for (const x of streetX) add(new THREE.BoxGeometry(STREET_W, 0.08, slot.d - 0.3), mats.road, x, -0.2, 0);
+  // A broken white line down the middle of each inner street, clear of the junctions
+  const dashes: Place[] = [];
+  for (const z of streetZ) {
+    for (let x = -slot.w / 2 + 1; x <= slot.w / 2 - 1; x += 1.6) {
+      if (streetX.every((sx) => Math.abs(x - sx) > STREET_W / 2 + 0.5)) dashes.push({ x, y: -0.155, z });
+    }
+  }
+  for (const x of streetX) {
+    for (let z = -slot.d / 2 + 1; z <= slot.d / 2 - 1; z += 1.6) {
+      if (streetZ.every((sz) => Math.abs(z - sz) > STREET_D / 2 + 0.5)) dashes.push({ x, y: -0.15, z, ry: Math.PI / 2 });
+    }
+  }
+  g.add(instanced(new THREE.BoxGeometry(0.8, 0.01, 0.07), mats.marking, dashes));
 
   // Trees where the inner streets cross (never on the outer sides)
   streetZ.forEach((z, r) =>
@@ -380,7 +394,10 @@ export function buildCity(scene: THREE.Scene, blocks: CityBlock[]): City {
   const group = new THREE.Group();
   const walkers: Walker[] = [];
   const mats = materials();
-  for (const block of layoutCity(blocks)) group.add(buildBlock(block, mats, walkers));
+  const placed = layoutCity(blocks);
+  for (const block of placed) group.add(buildBlock(block, mats, walkers));
+  // the lots no app uses yet are parks (parks.ts) until an app takes them
+  SLOTS.slice(placed.length).forEach((slot, i) => group.add(buildLotPark(slot.x, slot.z, slot.w, slot.d, placed.length + i, walkers)));
   scene.add(group);
   return { group, walkers };
 }

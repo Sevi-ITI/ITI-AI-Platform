@@ -1,9 +1,14 @@
 import * as THREE from "three";
 
-// What surrounds the HQ: a park with lawns and trees, four roads with raised sidewalks, zebra crossings, street lights
-// (lit at night by the PHT clock) and a traffic light on every corner of the four crossings, bushes along the way, a
-// flyover in the north and a few cars driving around. No lines down the middle of the roads (Vince, 2026-10-28).
-// Decoration only: nothing here is clickable. Small repeated parts are instanced meshes (one draw call per kind).
+import { instanced, type Place } from "@/hq/scene/instanced";
+import { buildParks } from "@/hq/scene/parks";
+import { updateStaff, type Walker } from "@/hq/scene/staff";
+
+// What surrounds the HQ: a park with lawns and trees, four roads with white edge lines, stop lines and zebra crossings
+// (no lines down the middle: Vince, 2026-10-28), raised sidewalks with street lights at the curb (lit at night by the
+// PHT clock), a traffic light on every corner of the four crossings, a flyover in the north, a few cars driving around,
+// and the parks and pedestrians of parks.ts. Decoration only: nothing here is clickable. Small repeated parts are
+// instanced meshes (one draw call per kind).
 
 type Car = { mesh: THREE.Group; axis: "x" | "z"; dir: 1 | -1; speed: number };
 
@@ -13,7 +18,8 @@ export type Environment = {
   cars: Car[];
   signals: [Signal, Signal]; // [0] the lights facing the east-west roads, [1] the north-south ones
   signalTime: number;
-  lamp: THREE.MeshStandardMaterial; // the street lights' heads
+  lamp: THREE.MeshStandardMaterial; // the street and park lights' heads
+  walkers: Walker[]; // the pedestrians
 };
 
 const LANES: { axis: "x" | "z"; fixed: number; y: number; dir: 1 | -1; speed: number; start: number }[] = [
@@ -48,23 +54,6 @@ const CAR_COLORS = [0x6e76f0, 0x5cc98f, 0xe9b25c, 0xf4f1ea, 0xf07c7c, 0x9a6b12];
 function box(w: number, h: number, d: number, mat: THREE.Material, x: number, y: number, z: number) {
   const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
   m.position.set(x, y, z);
-  m.receiveShadow = true;
-  return m;
-}
-
-type Place = { x: number; y: number; z: number; ry?: number; s?: [number, number, number] };
-
-/** Many copies of one shape in one draw call. */
-function instanced(geometry: THREE.BufferGeometry, mat: THREE.Material, places: Place[]): THREE.InstancedMesh {
-  const m = new THREE.InstancedMesh(geometry, mat, places.length);
-  const o = new THREE.Object3D();
-  places.forEach((p, i) => {
-    o.position.set(p.x, p.y, p.z);
-    o.rotation.set(0, p.ry ?? 0, 0);
-    o.scale.set(...(p.s ?? [1, 1, 1]));
-    o.updateMatrix();
-    m.setMatrixAt(i, o.matrix);
-  });
   m.receiveShadow = true;
   return m;
 }
@@ -128,6 +117,64 @@ export function buildEnvironment(scene: THREE.Scene): Environment {
     }
   }
 
+  // White edge lines along both sides of every road, stopping short of the crossings
+  const lineSpans: [number, number][] = [[-70, -22.7], [-13.7, 13.7], [22.7, 70]];
+  for (const at of ROADS) {
+    for (const side of [1, -1]) {
+      for (const [a, b] of lineSpans) {
+        env.add(box(b - a, 0.02, 0.1, zebra, (a + b) / 2, -0.36, at + side * (ROAD_HALF - 0.25)));
+        env.add(box(0.1, 0.02, b - a, zebra, at + side * (ROAD_HALF - 0.25), -0.35, (a + b) / 2));
+      }
+    }
+  }
+
+  // Center markings (Vince, 2026-10-28): a double solid yellow line between the crossings by the HQ (no overtaking),
+  // a single solid yellow line for 6 m before each crossing, and a broken white line further out. Each mark is laid
+  // along x; ry turns it for the north-south roads.
+  const yellow = std(0xe9b25c, 0.5); // the warn amber: the same in both themes
+  const along = (at: number, p: number, y: number, offset = 0): [Place, Place] => [
+    { x: p, y, z: at + offset },
+    { x: at + offset, y: y + 0.01, z: p, ry: Math.PI / 2 },
+  ];
+  const doubleSolid: Place[] = [];
+  const solid: Place[] = [];
+  const broken: Place[] = [];
+  for (const at of ROADS) {
+    for (const offset of [-0.12, 0.12]) doubleSolid.push(...along(at, 0, -0.36, offset));
+    for (const s of [1, -1]) {
+      solid.push(...along(at, s * 25.7, -0.36));
+      for (let p = 30.7; p <= 68; p += 4) broken.push(...along(at, s * p, -0.36));
+    }
+  }
+  env.add(instanced(new THREE.BoxGeometry(27.4, 0.02, 0.1), yellow, doubleSolid));
+  env.add(instanced(new THREE.BoxGeometry(6, 0.02, 0.12), yellow, solid));
+  env.add(instanced(new THREE.BoxGeometry(1.8, 0.02, 0.12), zebra, broken));
+
+  // A yellow box with a cross in the middle of each crossing (keep it clear)
+  const boxSide = ROAD_HALF * 2 - 0.5;
+  const outline: Place[] = [];
+  const cross: Place[] = [];
+  for (const cx of ROADS) {
+    for (const cz of ROADS) {
+      for (const s of [1, -1]) {
+        outline.push({ x: cx, y: -0.335, z: cz + (s * boxSide) / 2 }, { x: cx + (s * boxSide) / 2, y: -0.335, z: cz, ry: Math.PI / 2 });
+        cross.push({ x: cx, y: -0.333, z: cz, ry: (s * Math.PI) / 4 });
+      }
+    }
+  }
+  env.add(instanced(new THREE.BoxGeometry(boxSide + 0.12, 0.02, 0.12), yellow, outline));
+  env.add(instanced(new THREE.BoxGeometry(boxSide * Math.SQRT2, 0.02, 0.12), yellow, cross));
+
+  // A stop line before each zebra, across the lane coming in (traffic going +x / +z keeps to the -1.2 m lane)
+  const stops: Place[] = [];
+  for (const at of ROADS) {
+    for (const c of ROADS) {
+      stops.push({ x: c - 4.35, y: -0.355, z: at - 1.25 }, { x: c + 4.35, y: -0.355, z: at + 1.25 }); // east-west road
+      stops.push({ x: at - 1.25, y: -0.35, z: c - 4.35, ry: Math.PI / 2 }, { x: at + 1.25, y: -0.35, z: c + 4.35, ry: Math.PI / 2 });
+    }
+  }
+  env.add(instanced(new THREE.BoxGeometry(0.25, 0.02, 2.3), zebra, stops));
+
   // Zebra crossings on all four sides of each crossing
   const stripes: Place[] = [];
   for (const cx of ROADS) {
@@ -169,9 +216,10 @@ export function buildEnvironment(scene: THREE.Scene): Environment {
     });
   });
 
-  // Street lights: a pole, an arm reaching over the road and a head that glows at night (setStreetLights)
+  // Street lights at the curb (the rest of the sidewalk is for the pedestrians): a pole, an arm reaching over the road
+  // and a head that glows at night (setStreetLights)
   const lamp = new THREE.MeshStandardMaterial({ color: 0xfff3d6, emissive: 0xffd98a, emissiveIntensity: 0, roughness: 0.3 });
-  const lights = alongRoads(-44, walkOffset);
+  const lights = alongRoads(-44, ROAD_HALF + 0.25);
   const arm = new THREE.BoxGeometry(0.75, 0.06, 0.06).translate(0.375, 0, 0);
   const head = new THREE.BoxGeometry(0.34, 0.08, 0.18).translate(0.72, -0.04, 0);
   env.add(instanced(new THREE.CylinderGeometry(0.05, 0.07, 2.9, 8), metal, lights.map((l) => ({ ...l, y: 1.1 }))));
@@ -200,8 +248,8 @@ export function buildEnvironment(scene: THREE.Scene): Environment {
     env.add(tree);
   });
 
-  // Bushes: on the sidewalks halfway between the street lights, and in a row along the HQ's lawns
-  const bushes: Place[] = alongRoads(-40, walkOffset).map((b, i) => ({ ...b, y: -0.12, ry: i, s: [1, 0.72, 1] }));
+  // Bushes in a row along the HQ's lawns (the parks have their own)
+  const bushes: Place[] = [];
   for (let p = -11; p <= 11; p += 2.2) {
     if ([-8.5, 8.5].some((t) => Math.abs(p - t) < 1)) continue; // the lawn trees stand there
     for (const side of [1, -1]) {
@@ -246,8 +294,10 @@ export function buildEnvironment(scene: THREE.Scene): Environment {
     return { mesh: car, axis: lane.axis, dir: lane.dir, speed: lane.speed };
   });
 
+  const { walkers } = buildParks(env, lamp);
+
   scene.add(env);
-  const environment = { cars, signals, signalTime: 0, lamp };
+  const environment = { cars, signals, signalTime: 0, lamp, walkers };
   updateTraffic(environment, 0); // light the first signal state (with reduced motion the lights then stay as they are)
   return environment;
 }
@@ -257,8 +307,10 @@ export function setStreetLights(environment: Environment, night: boolean): void 
   environment.lamp.emissiveIntensity = night ? 1.4 : 0;
 }
 
-/** Drive the cars (each wraps around at ±48 m) and step the traffic lights. The cars are decoration: they don't stop. */
+/** Drive the cars (each wraps around at ±48 m), step the traffic lights and walk the pedestrians. The cars are
+ *  decoration: they don't stop. */
 export function updateTraffic(environment: Environment, dt: number): void {
+  updateStaff(environment.walkers, dt);
   environment.signalTime = (environment.signalTime + dt) % SIGNAL_CYCLE;
   const half = SIGNAL_CYCLE / 2;
   environment.signals.forEach((lamps, g) => {
