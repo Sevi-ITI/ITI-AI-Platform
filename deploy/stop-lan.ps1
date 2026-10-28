@@ -1,9 +1,9 @@
 <#
 stop-lan.ps1: takes the ITI AI Platform off the office network: the native Caddy (443/8443, the LAN door) first, then
-the containers that answer people: caddy (if on), console, game and api. The database and Ollama keep running (other
+the containers that answer people: caddy (if on), game (the console) and api. The database and Ollama keep running (other
 work uses them too). Start again with deploy\start-lan.ps1.
 
-Since 9.5.8 (2026-10-27) the API and both consoles run in containers: they are stopped with `docker compose stop`, never
+Since 9.5.8 (2026-10-27) the API and the console run in containers: they are stopped with `docker compose stop`, never
 by killing their port's owner (com.docker.backend is ALL of Docker, 2026-10-26). Stopped containers stay stopped after
 a restart until start-lan.ps1 (compose up) starts them again.
 #>
@@ -38,6 +38,6 @@ foreach ($port in 443, 8443) {
 }
 
 # 2. The containers that answer people (caddy is skipped by compose when its profile is off)
-& docker compose -f (Join-Path $Root "deploy\docker-compose.yaml") stop caddy console game api 2>&1 | Out-Null
-Log "stopped the containers caddy (if on), console, game, api"
+& docker compose -f (Join-Path $Root "deploy\docker-compose.yaml") stop caddy game api 2>&1 | Out-Null
+Log "stopped the containers caddy (if on), game, api"
 Log "=== stopped (Docker, the database and Ollama are still running)"

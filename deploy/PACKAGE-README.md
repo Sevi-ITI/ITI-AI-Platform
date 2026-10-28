@@ -1,6 +1,6 @@
 # ITI-AI-Package: the ITI AI Platform package (step 9.5.7)
 
-One folder that runs the whole platform with Docker: the API, the ITI AI Console, the game console, Postgres +
+One folder that runs the whole platform with Docker: the API, the console (ITI AI HQ), Postgres +
 pgvector, Ollama, migrations, and a Caddy front door that is **off by default**.
 This file installs and starts it; `SETUP.md` continues with the admin account, documents, HR connections and API keys.
 
@@ -8,7 +8,7 @@ This file installs and starts it; `SETUP.md` continues with the admin account, d
 
 | Path | What |
 |---|---|
-| `ITI-AI-Package-<tag>.tar` | all six images (`docker save`): iti-ai-api, iti-ai-console, iti-ai-game, pgvector, ollama, caddy |
+| `ITI-AI-Package-<tag>.tar` | all five images (`docker save`): iti-ai-api, iti-ai-game (the console), pgvector, ollama, caddy |
 | `deploy/docker-compose.yaml` | the stack (one file for every machine) |
 | `deploy/.env.example` | the machine's settings: copy to `deploy/.env` |
 | `deploy/Caddyfile`, `deploy/check-cert.ps1` | the front door and its certificate check (only with profile `door`) |
@@ -40,11 +40,11 @@ No secrets, no documents, no models, no database. The models are pulled once int
 6. The first Console account (the database starts empty; the Accounts page adds the others). The password is asked
    twice at a hidden prompt:
    `docker compose -f deploy/docker-compose.yaml exec api python -m scripts.create_console_user <name> --role super_admin`
-   Then sign in at http://127.0.0.1:3000 on this machine.
+   Then sign in at http://127.0.0.1:4000 on this machine.
 
 ## Check that it really answers
 
-1. http://127.0.0.1:3000: the login page says "AI service connected"; sign in.
+1. http://127.0.0.1:4000: the login page says "AI service connected"; sign in.
 2. Overview: database, Ollama and both models green.
 3. Documents: upload one text PDF to `iti-docs`; the job ends `done` with a chunk count.
 4. Chat: a question from that PDF gets an answer citing its file and page; an off-topic question gets the polite
@@ -79,7 +79,7 @@ machine already has (the provider's load balancer, an existing reverse proxy), o
 
 1. In `deploy/.env`: `COMPOSE_PROFILES=model,door`, this machine's addresses, and the certificate choice:
 
-       ITI_CONSOLE_SITES=https://ai.example.local          # the console (testers: login and Chat only)
+       ITI_CONSOLE_SITES=https://ai.example.local          # the console (each role sees only its own rooms)
        ITI_API_SITES=https://ai.example.local:8443         # the API for the C# apps
        ITI_TLS=internal                                    # see the three choices below
 

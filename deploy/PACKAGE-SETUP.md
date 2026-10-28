@@ -9,9 +9,9 @@ Where things are on this machine:
 
 | What | Address |
 |---|---|
-| Console (admin work, this machine only) | http://127.0.0.1:3000 |
+| Console (this machine) | http://127.0.0.1:4000 |
 | API (this machine) | http://127.0.0.1:8000 (Swagger at /docs) |
-| Testers and C# apps (through Caddy, if `door` is on) | the names in `ITI_CONSOLE_SITES` / `ITI_API_SITES` |
+| The console on the network and the C# apps (through Caddy, if `door` is on) | the names in `ITI_CONSOLE_SITES` / `ITI_API_SITES` |
 
 ## 1. The admin account
 
@@ -26,7 +26,7 @@ The database starts empty: the first super admin is made from the command line, 
 
        docker compose -f deploy/docker-compose.yaml exec api python -m scripts.set_security_password <username>
 
-3. Sign in at http://127.0.0.1:3000. **Check:** the login page says "AI service connected"; Overview shows the
+3. Sign in at http://127.0.0.1:4000. **Check:** the login page says "AI service connected"; Overview shows the
    database, Ollama and both models green (the GPU card stays blank inside containers: known).
 4. More people: Accounts → New account. Roles: **super admin** (everything), **supervisor** (reads every page,
    chats, uploads new documents), **tester** (Chat only, for the collections you give them). Five wrong passwords

@@ -2,10 +2,10 @@
 start-lan.ps1: starts the ITI AI Platform for the office network, in order, in the background (no windows).
 
   1. Docker Desktop -> waits until the engine answers                    (Docker Desktop starts at sign-in by itself)
-  2. The stack      -> `docker compose -f deploy/docker-compose.yaml up -d` (postgres, ollama, migrate, api, console,
-                       game; caddy too if deploy\.env has COMPOSE_PROFILES=model,door), waits for the API, the console
-                       and the game console to answer (since 9.5.8, 2026-10-27: they run in containers)
-  3. Caddy          -> the native Caddy, the only door to the LAN (443 testers, 8443 API), only if nothing holds 443
+  2. The stack      -> `docker compose -f deploy/docker-compose.yaml up -d` (postgres, ollama, migrate, api, game;
+                       caddy too if deploy\.env has COMPOSE_PROFILES=model,door), waits for the API and the console
+                       (game-ui, :4000) to answer (they run in containers since 9.5.8; admin-ui retired 2026-10-28)
+  3. Caddy          -> the native Caddy, the only door to the LAN (443 console, 8443 API), only if nothing holds 443
                        yet (the Caddy container stays off until the office PCs trust our root: 9.5.5)
 
 Safe to run again at any time: a piece that is already running is left alone. The containers also come back by
@@ -75,10 +75,9 @@ try {
     & docker compose -f $Compose up -d 2>&1 | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "docker compose up failed: run it by hand to see why" }
     Wait-For "API /health" 300 { Http-Ok "http://127.0.0.1:8000/health" }
-    Wait-For "console /login" 120 { Http-Ok "http://127.0.0.1:3000/login" }
-    Wait-For "game console /login" 120 { Http-Ok "http://127.0.0.1:4000/login" }
+    Wait-For "console /login" 120 { Http-Ok "http://127.0.0.1:4000/login" }
 
-    # 3. The native Caddy: the only door to the office network (443 testers, 8443 API)
+    # 3. The native Caddy: the only door to the office network (443 console, 8443 API)
     if (-not (Listening 443)) {
         Log "3. starting the native Caddy"
         Start-Process -FilePath "C:\Tools\caddy\caddy.exe" -ArgumentList "run --config deploy\Caddyfile" -WorkingDirectory $Root `
@@ -87,7 +86,7 @@ try {
     } else { Log "3. something already serves 443 (the native Caddy, or the Caddy container)" }
     Wait-For "Caddy on 443 and 8443" 60 { (Http-Ok "https://${Name}/login") -and (Http-Ok "https://${Name}:8443/health") }
 
-    Log "=== all up: https://$Name (testers), https://${Name}:8443/v1/docs (API docs), http://127.0.0.1:4000 (game console, this laptop)"
+    Log "=== all up: https://$Name (console), https://${Name}:8443/v1/docs (API docs), http://127.0.0.1:4000 (console, this laptop)"
 }
 catch {
     Log "!!! FAILED: $($_.Exception.Message)"

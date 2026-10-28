@@ -1,4 +1,4 @@
-# The whole ITI AI Platform in Docker (step 9.5.4): database, model server, migrations, API, Console.
+# The whole ITI AI Platform in Docker (step 9.5.4): database, model server, migrations, API, the console (game-ui).
 # Start (repo root):  docker compose -f deploy/docker-compose.yaml up -d --build
 # Same file on every machine; what differs lives in that machine's deploy/.env (see deploy/.env.example) and
 # backend/.env (the API's own settings, as today). Every port is bound to 127.0.0.1: only Caddy (9.5.5) faces the network.
@@ -93,22 +93,9 @@ services:
         condition: service_healthy
         required: false
 
-# The Console. Admin work on http://127.0.0.1:3000 on this machine; testers come through Caddy.
+# The console (game-ui, the ITI AI HQ): http://127.0.0.1:4000 on this machine; the LAN comes through Caddy.
+# It replaced admin-ui (the old console on :3000) in the G7 switch-over (D2, Vince 2026-10-28).
 
-  console:
-    image: iti-ai-console:${ITI_IMAGE_TAG:-dev}
-    build: ../admin-ui
-    restart: unless-stopped
-    environment:
-      ITI_API_URL: http://api:8000
-      CONSOLE_COOKIE_SECURE: ${CONSOLE_COOKIE_SECURE:-false}
-    ports:
-      - "127.0.0.1:3000:3000"
-    depends_on:
-      api:
-        condition: service_healthy
-
-  # The game console (9.5.3b): the same functions as the Console, this laptop only (127.0.0.1).
   game:
     image: iti-ai-game:${ITI_IMAGE_TAG:-dev}
     build: ../game-ui
@@ -139,7 +126,7 @@ services:
       ITI_API_SITES:
       ITI_TLS:
     ports:
-      - "${ITI_CONSOLE_HTTPS_PORT:-443}:443"  # testers: login + Chat only (the Caddyfile hides every admin page)
+      - "${ITI_CONSOLE_HTTPS_PORT:-443}:443"  # the console for the LAN (each role sees only its own rooms)
       - "${ITI_API_HTTPS_PORT:-8443}:8443"  # the C# apps
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
