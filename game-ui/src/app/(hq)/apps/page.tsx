@@ -133,7 +133,12 @@ export default async function AppsPage({
       ) : apps.data.length === 0 ? (
         <p className={styles.muted}>No apps yet. Create one with New app, link it to a company, then make its key.</p>
       ) : (
-        <AppList items={items} initialQuery={typeof q === "string" ? q : ""} />
+        <AppList
+          // keyed by ?q=: a city block click with another app starts a fresh search (the box reads ?q= only once)
+          key={typeof q === "string" ? q : ""}
+          items={items}
+          initialQuery={typeof q === "string" ? q : ""}
+        />
       )}
     </>
   );
