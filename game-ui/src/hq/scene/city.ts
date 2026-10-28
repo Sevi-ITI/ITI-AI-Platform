@@ -5,7 +5,8 @@ import { buildWalkers, type Walker } from "@/hq/scene/staff";
 // V4, from the design mock: the app city blocks around the HQ. One block per real app (A to Z by id, up to 5 spots:
 // west, south, east, south-west, south-east; north is the flyover), 3 rows × 5 columns of offices each (Vince: the
 // south block too, every door facing the hub). The offices nearest the hub hold the companies the app is linked to,
-// lit and labeled; the rest are dimmed empty lots without a beacon, so they never pass for a company. Each block has
+// lit and labeled; every other lot is a construction site (no building, no beacon: Vince, 2026-10-28), so only a real
+// company has an office. Each block has
 // inner streets, trees, bins and its app engineer walking the street. Six building styles and three door styles,
 // picked from a fixed seed, so a block looks the same on every load. Clicks: an office of a company → that company,
 // anything else in the block → that app (hq-scene.tsx reads userData.appId / companyId). Built in dark colors; the
@@ -32,7 +33,7 @@ const STREET_D = 1.85; // east-west streets between the rows
 const HEIGHTS = [3.95, 2.85, 3.35, 2.35, 4.35, 2.65, 3.6];
 
 export type PlacedOffice = {
-  company: CityOffice | null; // null = an empty lot
+  company: CityOffice | null; // null = a construction site
   x: number; // world position of the office's center
   z: number;
   h: number; // its height (the label floats above)
@@ -100,15 +101,10 @@ function std(dark: number, light: number | undefined, extra: THREE.MeshStandardM
   return m;
 }
 
-function glassMaterial(g: Glass, dim: boolean) {
-  const m = std(g.dark, g.light, {
-    emissive: g.glow,
-    emissiveIntensity: dim ? 0.04 : g.strength,
-    roughness: 0.15,
-    metalness: 0.3,
-  });
+function glassMaterial(g: Glass) {
+  const m = std(g.dark, g.light, { emissive: g.glow, emissiveIntensity: g.strength, roughness: 0.15, metalness: 0.3 });
   m.userData.lightEmissive = g.lightGlow;
-  m.userData.lightEmissiveIntensity = dim ? 0.02 : g.lightStrength;
+  m.userData.lightEmissiveIntensity = g.lightStrength;
   return m;
 }
 
@@ -126,8 +122,14 @@ function materials() {
     walls: WALLS.map(([dark, light]) => std(dark, light)),
     roofs: ROOFS.map(([dark, light]) => std(dark, light, { roughness: 0.5, metalness: 0.15 })),
     mullion: std(0x8f98ab, 0x6e5a3c, { roughness: 0.35, metalness: 0.45 }),
-    glass: GLASS.map((g) => glassMaterial(g, false)),
-    dimGlass: GLASS.map((g) => glassMaterial(g, true)),
+    glass: GLASS.map((g) => glassMaterial(g)),
+    // construction sites
+    dirt: std(0x3a2f24, 0xb59a74, { roughness: 0.95 }),
+    concrete: std(0x4a5468, 0xb8b2a6, { roughness: 0.85 }),
+    scaffold: std(0xd99a3a, 0xb07a20, { roughness: 0.4, metalness: 0.4 }),
+    plank: std(0x6b5236, 0x9c7a4e, { roughness: 0.8 }),
+    cone: std(0xf07c3c, undefined, { roughness: 0.5 }),
+    crane: std(0xe9c23c, 0xc89a18, { roughness: 0.4, metalness: 0.35 }),
   };
 }
 type Materials = ReturnType<typeof materials>;
@@ -141,7 +143,52 @@ function adder(group: THREE.Group) {
   };
 }
 
-/** One office: its plot, one of six building styles, one of three doors, and (with a company) its roof beacon. */
+/** A lot without a company: a dirt pad behind a fence, the first floors' concrete core in scaffolding, cones, a pile
+ *  of materials and, on some lots, a tower crane. Still part of its block (a click opens the app). */
+function buildSite(add: ReturnType<typeof adder>, w: number, d: number, h: number, seed: number, front: 1 | -1, mats: Materials): void {
+  const hw = w / 2;
+  const hd = d / 2;
+  add(new THREE.BoxGeometry(w + 0.3, 0.06, d + 0.3), mats.dirt, 0, -0.06, 0);
+  // The fence: posts every ~1 m with two rails, a gap on the street side for the trucks
+  for (const s of [1, -1]) {
+    for (let x = -hw; x <= hw + 0.01; x += w / Math.round(w)) add(new THREE.BoxGeometry(0.06, 0.6, 0.06), mats.mullion, x, 0.27, s * (hd + 0.1));
+    for (let z = -hd; z <= hd + 0.01; z += d / Math.round(d)) add(new THREE.BoxGeometry(0.06, 0.6, 0.06), mats.mullion, s * (hw + 0.1), 0.27, z);
+    for (const y of [0.2, 0.48]) {
+      add(new THREE.BoxGeometry(0.04, 0.04, d + 0.2), mats.mullion, s * (hw + 0.1), y, 0);
+      if (s !== front) add(new THREE.BoxGeometry(w + 0.2, 0.04, 0.04), mats.mullion, 0, y, s * (hd + 0.1));
+      else for (const x of [-1, 1]) add(new THREE.BoxGeometry(w * 0.3, 0.04, 0.04), mats.mullion, x * (hw - w * 0.15 + 0.1), y, s * (hd + 0.1));
+    }
+  }
+  // The concrete core, one to two floors up, in a scaffold of four poles and two plank decks
+  const coreH = h * (seed % 2 === 0 ? 0.32 : 0.48);
+  const cw = w * 0.62;
+  const cd = d * 0.6;
+  add(new THREE.BoxGeometry(cw, coreH, cd), mats.concrete, 0, coreH / 2 - 0.04, -front * d * 0.08);
+  const poleH = coreH + 0.7;
+  for (const sx of [1, -1]) {
+    for (const sz of [1, -1]) add(new THREE.BoxGeometry(0.07, poleH, 0.07), mats.scaffold, sx * (cw / 2 + 0.2), poleH / 2 - 0.04, -front * d * 0.08 + sz * (cd / 2 + 0.2));
+  }
+  for (const y of [coreH * 0.5, coreH + 0.3]) {
+    add(new THREE.BoxGeometry(cw + 0.5, 0.05, 0.3), mats.plank, 0, y, -front * d * 0.08 + front * (cd / 2 + 0.2));
+  }
+  // Cones at the gate and a pile of materials beside it
+  for (const x of [-w * 0.18, w * 0.18]) add(new THREE.ConeGeometry(0.1, 0.28, 10), mats.cone, x, 0.11, front * (hd - 0.15));
+  add(new THREE.BoxGeometry(0.7, 0.18, 0.4), mats.plank, -hw * 0.62, 0.06, front * hd * 0.55);
+  add(new THREE.BoxGeometry(0.5, 0.16, 0.36), mats.concrete, -hw * 0.6, 0.23, front * hd * 0.55);
+  // A tower crane on every third lot: mast, jib, counterweight
+  if (seed % 3 === 0) {
+    const mastH = h + 1.6;
+    const mx = hw * 0.62;
+    const mz = -front * hd * 0.6;
+    add(new THREE.BoxGeometry(0.16, mastH, 0.16), mats.crane, mx, mastH / 2 - 0.04, mz);
+    add(new THREE.BoxGeometry(w * 1.05, 0.1, 0.12), mats.crane, mx - w * 0.38, mastH, mz);
+    add(new THREE.BoxGeometry(0.34, 0.24, 0.24), mats.concrete, mx + 0.45, mastH - 0.12, mz);
+    add(new THREE.BoxGeometry(0.02, 0.9, 0.02), mats.mullion, mx - w * 0.7, mastH - 0.45, mz);
+  }
+}
+
+/** One office: its plot, one of six building styles, one of three doors and its roof beacon (a lot without a
+ *  company is a construction site instead). */
 function buildOffice(office: PlacedOffice, block: PlacedBlock, mats: Materials, accent: THREE.Material): THREE.Group {
   const g = new THREE.Group();
   const add = adder(g);
@@ -152,8 +199,7 @@ function buildOffice(office: PlacedOffice, block: PlacedBlock, mats: Materials, 
   const wall = mats.walls[seed % mats.walls.length];
   const wall2 = mats.walls[(seed + 2) % mats.walls.length];
   const roof = mats.roofs[(seed + 1) % mats.roofs.length];
-  const glass = (lit ? mats.glass : mats.dimGlass)[(seed + block.index) % GLASS.length];
-  const trim = lit ? accent : roof; // empty lots: no accent color
+  const glass = mats.glass[(seed + block.index) % GLASS.length];
   const w = (m.cellW - 0.54) * (archetype === 2 ? 0.96 : 1);
   const d = (m.cellD - 0.62) * (archetype === 2 ? 0.96 : 1);
   const hw = w / 2;
@@ -161,7 +207,9 @@ function buildOffice(office: PlacedOffice, block: PlacedBlock, mats: Materials, 
 
   add(new THREE.BoxGeometry(m.cellW - 0.12, 0.14, m.cellD - 0.12), mats.curb, 0, -0.16, 0);
 
-  if (archetype === 0) {
+  if (!lit) {
+    buildSite(add, w, d, h, seed, doorSign, mats);
+  } else if (archetype === 0) {
     // Curtain-wall glass high-rise: mullions, cornice, helipad, spire
     add(new THREE.BoxGeometry(w, h, d), wall, 0, h / 2 - 0.08, 0);
     for (const s of [1, -1]) add(new THREE.BoxGeometry(w * 0.86, h * 0.76, 0.05), glass, 0, h * 0.54, s * (hd + 0.01));
@@ -238,26 +286,27 @@ function buildOffice(office: PlacedOffice, block: PlacedBlock, mats: Materials, 
     ridge.scale.set(1, 0.42, 1);
   }
 
-  // The door, on the side facing its street
-  const front = (out: number) => doorSign * (hd + out);
-  const doorStyle = seed % 3;
-  if (doorStyle === 0) {
-    // Double glass doors under a canopy
-    add(new THREE.BoxGeometry(1.36, 1.02, 0.06), trim, 0, 0.42, front(0.01));
-    for (const x of [-0.3, 0.3]) add(new THREE.BoxGeometry(0.54, 0.92, 0.08), glass, x, 0.38, front(0.02));
-    add(new THREE.BoxGeometry(1.85, 0.1, 0.62), roof, 0, 0.96, front(0.24));
-  } else if (doorStyle === 1) {
-    // Revolving-door rotunda
-    add(new THREE.CylinderGeometry(0.68, 0.68, 0.98, 16), glass, 0, 0.41, front(0.18));
-    add(new THREE.CylinderGeometry(0.76, 0.76, 0.12, 16), trim, 0, 0.94, front(0.18));
-  } else {
-    // Portal with two columns and a pediment
-    add(new THREE.BoxGeometry(1.05, 0.96, 0.08), trim, 0, 0.4, front(0.02));
-    for (const x of [-0.72, 0.72]) add(new THREE.CylinderGeometry(0.1, 0.12, 1.08, 10), mats.mullion, x, 0.46, front(0.18));
-    add(new THREE.BoxGeometry(1.75, 0.18, 0.48), roof, 0, 1.04, front(0.16));
+  if (lit) {
+    // The door, on the side facing its street
+    const front = (out: number) => doorSign * (hd + out);
+    const doorStyle = seed % 3;
+    if (doorStyle === 0) {
+      // Double glass doors under a canopy
+      add(new THREE.BoxGeometry(1.36, 1.02, 0.06), accent, 0, 0.42, front(0.01));
+      for (const x of [-0.3, 0.3]) add(new THREE.BoxGeometry(0.54, 0.92, 0.08), glass, x, 0.38, front(0.02));
+      add(new THREE.BoxGeometry(1.85, 0.1, 0.62), roof, 0, 0.96, front(0.24));
+    } else if (doorStyle === 1) {
+      // Revolving-door rotunda
+      add(new THREE.CylinderGeometry(0.68, 0.68, 0.98, 16), glass, 0, 0.41, front(0.18));
+      add(new THREE.CylinderGeometry(0.76, 0.76, 0.12, 16), accent, 0, 0.94, front(0.18));
+    } else {
+      // Portal with two columns and a pediment
+      add(new THREE.BoxGeometry(1.05, 0.96, 0.08), accent, 0, 0.4, front(0.02));
+      for (const x of [-0.72, 0.72]) add(new THREE.CylinderGeometry(0.1, 0.12, 1.08, 10), mats.mullion, x, 0.46, front(0.18));
+      add(new THREE.BoxGeometry(1.75, 0.18, 0.48), roof, 0, 1.04, front(0.16));
+    }
+    add(new THREE.OctahedronGeometry(0.24, 0), accent, 0, h + 0.88, 0); // the company's roof beacon
   }
-
-  if (lit) add(new THREE.OctahedronGeometry(0.24, 0), accent, 0, h + 0.88, 0); // the company's roof beacon
   if (office.row === 1 && Math.round((office.x - block.slot.x) / m.colStep) % 2 === 0) {
     add(new THREE.CylinderGeometry(0.12, 0.1, 0.34, 8), mats.bin, hw + 0.18, 0.06, hd - 0.25);
     add(new THREE.CylinderGeometry(0.125, 0.125, 0.06, 8), mats.binLid, hw + 0.18, 0.25, hd - 0.25);

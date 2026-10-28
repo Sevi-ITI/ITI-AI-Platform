@@ -6,12 +6,13 @@ import { displayMessage } from "@/lib/api/api-error";
 import { logOut } from "@/lib/session/actions";
 import { currentAccount } from "@/lib/session/current-account";
 import { autoFrom, PHT_AUTO_COOKIE, PHT_SIM_COOKIE, simFrom } from "@/hq/pht";
+import { EMPTY_PROPS } from "@/hq/scene/props";
 import { shownTheme } from "@/hq/theme";
 import { VIEW_COOKIE, viewFrom } from "@/hq/view";
 
 import HqShell from "./hq-shell";
 import styles from "./hq.module.css";
-import { loadCity } from "./load-city";
+import { loadHq } from "./load-hq";
 
 // Every HQ page sits inside this: who is logged in (GET /v1/console/me) decides which rooms open; the view cookie
 // decides 3D or list, the theme cookie dark or light. A 401 means the session is over → /session-ended clears the cookie.
@@ -44,7 +45,8 @@ export default async function HqLayout({ children }: { children: React.ReactNode
   const theme = shownTheme(store);
   const phtAuto = autoFrom(store.get(PHT_AUTO_COOKIE)?.value);
   const phtSim = simFrom(store.get(PHT_SIM_COOKIE)?.value);
-  const city = view === "3d" ? await loadCity() : []; // the app city blocks: only the 3D HQ shows them
+  // the app city blocks and the live room props: only the 3D HQ shows them
+  const { city, props } = view === "3d" ? await loadHq() : { city: [], props: EMPTY_PROPS };
 
   return (
     <HqShell
@@ -55,6 +57,7 @@ export default async function HqLayout({ children }: { children: React.ReactNode
       phtAuto={phtAuto}
       phtSim={phtSim}
       city={city}
+      roomProps={props}
     >
       {children}
     </HqShell>

@@ -10,6 +10,7 @@ import { buildCity, type City, type CityBlock, disposeCity, layoutCity } from "@
 import { buildClockTower, type ClockTower, updateClock } from "@/hq/scene/clock";
 import { buildEnvironment, updateTraffic } from "@/hq/scene/environment";
 import { recolorTree } from "@/hq/scene/palette";
+import { buildRoomProps, disposeRoomProps, type RoomProps } from "@/hq/scene/props";
 import { buildStaff, updateStaff } from "@/hq/scene/staff";
 import { applySun } from "@/hq/scene/sun";
 import {
@@ -45,6 +46,7 @@ type Props = {
   theme: Theme;
   phtSim: number | null; // simulated time of day in minutes (clock tower), null = live Manila time
   city: CityBlock[]; // V4: the app city blocks (real apps and their linked companies)
+  roomProps: RoomProps; // bookshelves, company models, MCP pipes and tool valves from real data (props.ts)
   active: Station | undefined;
   health: "ok" | "warn" | "error" | null; // the roof beacon's color (null = not checked yet)
   panelOpen: boolean; // the HUD panel covers the right side: rooms are framed to its left
@@ -64,6 +66,7 @@ type Running = {
   xia: Xia;
   tower: ClockTower;
   city: City | null;
+  props: THREE.Group | null; // the rooms' live props (also in world.rooms, so clicks find them)
   travel: (appId: string, companyId: string | null) => void; // walk Xia to a city block or office, frame it
 };
 
@@ -151,7 +154,7 @@ export default function HqScene(props: Props) {
       xia.walkTo(x, z, reduced(), null, true);
       controller.focusOn(x, z, shift(), office ? CITY_FOCUS.office : CITY_FOCUS.block);
     };
-    runningRef.current = { scene, camera, controller, world, xia, tower, city: null, travel };
+    runningRef.current = { scene, camera, controller, world, xia, tower, city: null, props: null, travel };
 
     const shift = () => (latest.current.panelOpen ? 3.4 : 0.8);
     latest.current.onControls({
@@ -196,7 +199,10 @@ export default function HqScene(props: Props) {
       const hit = raycaster.intersectObjects(world.rooms, true)[0];
       const station = STATIONS.find((s) => s.id === hit?.object.userData.stationId);
       if (station) {
-        if (canEnter(station, role)) onOpenRoom(station);
+        // a bookshelf or a company model opens that collection or company; anything else, the room
+        const href = hit?.object.userData.href as string | undefined;
+        if (canEnter(station, role) && href) latest.current.onOpenUrl(href);
+        else if (canEnter(station, role)) onOpenRoom(station);
         else onBlocked(lockedMessage(station.wing));
         return;
       }
@@ -330,6 +336,20 @@ export default function HqScene(props: Props) {
     running.city = buildCity(running.scene, placed.map((p) => p.block));
     recolorTree(running.city.group, running.world.theme);
   }, [placed]);
+
+  // The live props: rebuilt only when their data changes (keyed by content, like the city)
+  const propsKey = JSON.stringify(props.roomProps);
+  useEffect(() => {
+    const running = runningRef.current;
+    if (!running) return;
+    if (running.props) {
+      running.world.rooms.splice(running.world.rooms.indexOf(running.props), 1);
+      disposeRoomProps(running.scene, running.props);
+    }
+    running.props = buildRoomProps(running.scene, JSON.parse(propsKey) as RoomProps);
+    running.world.rooms.push(running.props);
+    recolorTree(running.props, running.world.theme);
+  }, [propsKey]);
 
   useEffect(() => {
     if (runningRef.current) setBeacon(runningRef.current.world, props.health);

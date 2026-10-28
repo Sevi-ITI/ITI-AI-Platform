@@ -6,8 +6,8 @@ import type { Theme } from "@/hq/theme";
 
 // The HQ building: lights, floor, four wings, walls that drop when they hide the view, a ring under every room
 // and each room's prop (a wall of screens for Overview, a vault for Apps & keys...). Built in dark theme colors;
-// applyTheme swaps them (palette.ts). The props are fixed shapes for now (G2): bookshelves and company models
-// follow real data in later steps.
+// applyTheme swaps them (palette.ts). The bookshelves, company models, MCP pipes and tool valves follow real data
+// (props.ts, built on top of these bases).
 
 export type World = {
   /** Room props, clickable: each mesh carries userData.stationId. */
@@ -204,25 +204,8 @@ export function buildWorld(scene: THREE.Scene): World {
   requests.add(mesh(new THREE.BoxGeometry(0.95, 0.12, 0.45), material(COLORS.cream, { roughness: 0.6 }), 0.2, 1.18, 0.1));
   room("requests", requests);
 
-  // Documents: four bookshelves (one per collection later), a few books each
-  const documents = new THREE.Group();
-  const bookColors = [COLORS.accent, COLORS.ok, COLORS.warn, COLORS.cream];
-  for (let shelf = 0; shelf < 4; shelf++) {
-    const x = (shelf - 1.5) * 0.85;
-    documents.add(mesh(new THREE.BoxGeometry(0.72, 1.9, 0.42), material(0x283868, { roughness: 0.6 }), x, 0.95, 0));
-    for (let b = 0; b < 3 + (shelf % 2); b++) {
-      documents.add(
-        mesh(
-          new THREE.BoxGeometry(0.11, 0.34, 0.28),
-          material(bookColors[(shelf + b) % bookColors.length], { roughness: 0.4 }),
-          x - 0.22 + b * 0.13,
-          1.15 + (b % 2) * 0.42,
-          0.08,
-        ),
-      );
-    }
-  }
-  room("documents", documents);
+  // Documents: its bookshelves follow the collections (props.ts); the room itself is the ring
+  room("documents", new THREE.Group());
 
   // Chat: a curved reception desk with the assistant behind it
   const chat = new THREE.Group();
@@ -239,21 +222,9 @@ export function buildWorld(scene: THREE.Scene): World {
   );
   room("chat", chat);
 
-  // Companies: a table of building models (one per company later)
+  // Companies: a table; the building models on it follow the companies (props.ts)
   const companies = new THREE.Group();
   companies.add(mesh(new THREE.BoxGeometry(2.5, 0.72, 1.8), material(0x243461), 0, 0.36, 0));
-  for (let i = 0; i < 4; i++) {
-    const h = 0.45 + (i % 3) * 0.22;
-    companies.add(
-      mesh(
-        new THREE.BoxGeometry(0.38, h, 0.38),
-        material(i === 0 ? COLORS.accent : COLORS.cream, { roughness: 0.35 }),
-        ((i % 3) - 1) * 0.68,
-        0.72 + h / 2,
-        (Math.floor(i / 3) - 0.5) * 0.65,
-      ),
-    );
-  }
   room("companies", companies);
 
   // Apps & keys: a vault with a brass wheel
@@ -276,15 +247,9 @@ export function buildWorld(scene: THREE.Scene): World {
   accounts.add(mesh(new THREE.BoxGeometry(0.55, 0.75, 0.08), glow(COLORS.ok, 0.35), 0, 1.85, 0));
   room("accounts", accounts);
 
-  // Tools & MCP: a machine with three MCP pipes and four tool valves
+  // Tools & MCP: a machine; its MCP pipes and tool valves follow the real connections and tools (props.ts)
   const tools = new THREE.Group();
   tools.add(mesh(new THREE.BoxGeometry(2.2, 1.35, 1.4), material(0x23305a, { metalness: 0.35, roughness: 0.45 }), 0, 0.68, 0));
-  for (const x of [-0.65, 0, 0.65]) {
-    tools.add(mesh(new THREE.CylinderGeometry(0.14, 0.14, 1.9, 16), glow(COLORS.ok, 0.6), x, 1.55, -0.35));
-  }
-  for (const x of [-0.75, -0.25, 0.25, 0.75]) {
-    tools.add(mesh(new THREE.TorusGeometry(0.18, 0.05, 10, 20), glow(COLORS.accent, 0.4), x, 1.05, 0.75));
-  }
   room("tools", tools);
 
   // The Engine Room's blast door, shown to anyone who may not enter the Admin wing
