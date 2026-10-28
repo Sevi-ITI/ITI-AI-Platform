@@ -25,6 +25,8 @@
 		max_size 60MB # the API's upload limit is 50 MB
 	}
 
+	header -Server # S1.1: don't advertise the software; the console's own security headers come from game-ui/next.config.ts
+
 	reverse_proxy {$ITI_CONSOLE_UPSTREAM:127.0.0.1:4000} {
 		# The person's computer for the login throttle (S2.1). Caddy sets it itself and replaces any value a browser
 		# sends; the console passes it on to POST /v1/console/login. No header = the laptop itself (127.0.0.1:4000).
@@ -42,6 +44,16 @@
 
 	request_body {
 		max_size 60MB
+	}
+
+	# S1.1: the API returns only data (JSON), so nothing may run, load or frame from it. HSTS waits for the office PCs
+	# to trust the Caddy root (with HSTS a certificate warning can no longer be clicked past).
+	header {
+		Content-Security-Policy "default-src 'none'; frame-ancestors 'none'"
+		X-Frame-Options DENY
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+		-Server
 	}
 
 	@not_for_apps path /docs /docs/* /redoc /openapi.json /v1/admin/* /v1/console/*
