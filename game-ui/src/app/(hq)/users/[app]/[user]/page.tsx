@@ -1,4 +1,7 @@
-// Copied from admin-ui src/app/(console)/users/[app]/[user]/page.tsx (G5). Same FastAPI calls and data; the user id is an <h2> (the panel has the <h1>).
+// One user's conversations, decluttered for game-ui like Apps & keys (Vince, 2026-10-28). Not a copy of admin-ui's
+// page any more: the same FastAPI calls (check:parity) and the same delete dialog (delete-chats.tsx: a copy,
+// check:rooms), a calmer layout: who they are with the collection filter at the top right, one line per conversation
+// instead of a five-column table, and erasing their chats as a quiet strip at the bottom (was a big red card).
 import Link from "next/link";
 
 import { displayMessage } from "@/lib/api/api-error";
@@ -11,6 +14,7 @@ import Breadcrumbs from "../../../kit/breadcrumbs";
 import Pager from "../../../kit/pager";
 import styles from "../../../kit/dashboard.module.css";
 import { Problem } from "../../../kit/widgets";
+import css from "../../users.module.css";
 import DeleteChats from "./delete-chats";
 
 // The tab title names the person, so several open users can be told apart
@@ -68,8 +72,7 @@ export default async function UserChatsPage({
     const q = new URLSearchParams({ company: companyId });
     if (collection) q.set("collection", collection);
     if (p > 1) q.set("page", String(p));
-    const s = q.toString();
-    return s ? `${base}?${s}` : base;
+    return `${base}?${q.toString()}`;
   };
   const isSuperAdmin = me.ok && me.data.role === "super_admin";
   // With a filter on, an empty page doesn't mean the user has no chats elsewhere
@@ -87,126 +90,104 @@ export default async function UserChatsPage({
           { label: userId },
         ]}
       />
-      {/* who: tile + id, then where they chat (the delete button moved to the danger zone at the bottom) */}
-      <header className={styles.titleRow}>
+
+      {/* who on the left, the collection filter at the top right */}
+      <div className={css.userHead}>
         <span className={styles.appAvatar} aria-hidden="true">
           {initials(userId)}
         </span>
-        <div className={styles.appMain}>
-          <h2 className="mono" translate="no">
+        <div className={css.who}>
+          <h2 className={`mono ${css.userTitle}`} translate="no">
             {userId}
           </h2>
-          <p className={styles.muted}>
+          <span className={styles.kpiNote}>
             chats in{" "}
             <span className="mono" translate="no">
               {appId}
             </span>{" "}
-            at {companyName}
-          </p>
+            | {companyName}
+          </span>
         </div>
-      </header>
-
-      <section className={styles.card} aria-label="Conversations">
-        <div className={styles.toolbar}>
-          {/* Filters (a plain GET form: the filter lands in the URL (shareable, Back works), no JavaScript), then the pager */}
-          <form action={base} className={styles.filters}>
-            <input type="hidden" name="company" value={companyId} />
-            <label>
-              <span>Collection</span>
-              <select name="collection" defaultValue={collection}>
-                <option value="">All collections</option>
-                {collections.ok &&
-                  collections.data.map((c) => (
-                    <option key={c.name} value={c.name}>
-                      {c.name}
-                    </option>
-                  ))}
-              </select>
-            </label>
-            <button type="submit" className={styles.filterApply}>
-              Apply filter
-            </button>
-            {collection && (
-              <Link href={`${base}?company=${encodeURIComponent(companyId)}`} className={styles.clear}>
-                Clear filter
-              </Link>
-            )}
-          </form>
-          {conversations.ok && (
-            <Pager
-              page={page}
-              count={conversations.data.length}
-              pageSize={PAGE_SIZE}
-              noun="Conversations"
-              href={pageHref}
-            />
-          )}
-        </div>
-        {!conversations.ok ? (
-          <Problem message={displayMessage(conversations.error)} />
-        ) : conversations.data.length === 0 ? (
-          <p className={styles.muted}>
-            {page > 1
-              ? "No more conversations."
-              : collection
-                ? "No conversations for this user in this collection."
-                : "No conversations for this user in this app (none yet, or deleted)."}
-          </p>
-        ) : (
-          <div className={styles.tableWrap}>
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th scope="col">First question</th>
-                  <th scope="col">Collection</th>
-                  <th scope="col" className={styles.number}>
-                    Messages
-                  </th>
-                  <th scope="col">Started</th>
-                  <th scope="col" className={styles.nowrap}>
-                    Last message
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {conversations.data.map((c) => (
-                  <tr key={c.conversation_id}>
-                    <td>
-                      <Link
-                        href={`${base}/${encodeURIComponent(c.conversation_id)}?company=${encodeURIComponent(companyId)}`}
-                        className={styles.rowLink}
-                      >
-                        {c.first_question}
-                      </Link>
-                    </td>
-                    <td className={`mono ${styles.nowrap}`} translate="no">
-                      {c.collection}
-                    </td>
-                    <td className={styles.number}>{formatCount(c.messages)}</td>
-                    <td className={styles.nowrap}>{formatDateTime(c.created_at)}</td>
-                    <td className={styles.nowrap}>{c.last_message_at ? formatDateTime(c.last_message_at) : "–"}</td>
-                  </tr>
+        <form action={base} className={css.filters}>
+          <input type="hidden" name="company" value={companyId} />
+          <label>
+            <span className="sr-only">Collection</span>
+            <select name="collection" defaultValue={collection}>
+              <option value="">All collections</option>
+              {collections.ok &&
+                collections.data.map((c) => (
+                  <option key={c.name} value={c.name}>
+                    {c.name}
+                  </option>
                 ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
+            </select>
+          </label>
+          <button type="submit" className={styles.filterApply}>
+            Filter
+          </button>
+          {collection && (
+            <Link href={`${base}?company=${encodeURIComponent(companyId)}`} className={styles.clear}>
+              Clear
+            </Link>
+          )}
+        </form>
+      </div>
+
+      {!conversations.ok ? (
+        <Problem message={displayMessage(conversations.error)} />
+      ) : conversations.data.length === 0 ? (
+        <p className={styles.muted}>
+          {page > 1
+            ? "No more conversations."
+            : collection
+              ? "No conversations for this user in this collection."
+              : "No conversations for this user in this app (none yet, or deleted)."}
+        </p>
+      ) : (
+        <section className={`${styles.card} ${css.list}`} aria-label="Conversations">
+          <p className={css.listTitle}>
+            {formatCount(conversations.data.length)}
+            {conversations.data.length === PAGE_SIZE ? "+" : ""} conversations | newest first
+          </p>
+          <ul className={css.rows}>
+            {conversations.data.map((c) => (
+              <li key={c.conversation_id} className={css.chatRow}>
+                <Link
+                  href={`${base}/${encodeURIComponent(c.conversation_id)}?company=${encodeURIComponent(companyId)}`}
+                  className={css.question}
+                >
+                  {c.first_question}
+                </Link>
+                <span className={`mono ${css.where}`} translate="no">
+                  {c.collection}
+                </span>
+                <span className={css.counts}>
+                  <b>{formatCount(c.messages)}</b> {c.messages === 1 ? "message" : "messages"}
+                </span>
+                <span className={css.when}>
+                  {formatDateTime(c.last_message_at ?? c.created_at)}
+                  {c.last_message_at && c.last_message_at !== c.created_at && (
+                    <span className={styles.kpiNote}> | started {formatDateTime(c.created_at)}</span>
+                  )}
+                </span>
+              </li>
+            ))}
+          </ul>
+          {(page > 1 || conversations.data.length === PAGE_SIZE) && (
+            <Pager page={page} count={conversations.data.length} pageSize={PAGE_SIZE} noun="Conversations" href={pageHref} />
+          )}
+        </section>
+      )}
 
       {/* Hidden for supervisors only as a courtesy: FastAPI refuses them anyway */}
       {isSuperAdmin && hasChats && (
-        <section className={styles.dangerZone} aria-labelledby="danger-title">
-          <div>
-            <h2 id="danger-title" className={styles.panelTitle}>
-              Danger zone
-            </h2>
-            <p className={styles.muted}>
-              Erases every conversation and message of this user in this app, for good. Their request-log rows (no
-              chat text) stay until the 90-day clean-up.
-            </p>
-          </div>
+        <div className={css.danger}>
+          <span className={styles.kpiNote}>
+            Erase every conversation of this user in this app, for good (request-log rows, no chat text, stay until the
+            90-day clean-up)
+          </span>
           <DeleteChats appId={appId} companyId={companyId} userId={userId} />
-        </section>
+        </div>
       )}
     </>
   );

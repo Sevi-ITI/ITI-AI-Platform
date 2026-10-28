@@ -37,7 +37,7 @@ const files = (dir) =>
   });
 for (const room of ROOMS) {
   for (const f of files(A(`(console)/${room}`))) {
-    const rel = relative(A(`(console)/${room}`), f);
+    const rel = relative(A(`(console)/${room}`), f).replace(/\\/g, "/"); // Windows: forward slashes, as in REDESIGNED
     PAIRS.push([`(console)/${room}/${rel}`, `(hq)/${room}/${rel}`]);
   }
 }
@@ -49,6 +49,8 @@ const REDESIGNED = new Set([
   "(hq)/apps/page.tsx",
   "(hq)/apps/app-list.tsx",
   "(hq)/companies/page.tsx",
+  "(hq)/users/page.tsx",
+  "(hq)/users/[app]/[user]/page.tsx",
 ]);
 for (let k = PAIRS.length - 1; k >= 0; k--) {
   if (REDESIGNED.has(PAIRS[k][1])) PAIRS.splice(k, 1);

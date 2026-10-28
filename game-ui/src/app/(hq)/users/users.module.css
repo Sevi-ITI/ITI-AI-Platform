@@ -1,0 +1,195 @@
+/* Users & chats (the list and one user's page), game-ui's own layout like Apps & keys and Companies: a summary with
+   the filters at the top right, one line per user / conversation instead of tables, quiet labels. Tokens only;
+   @container page = the room panel / list view. */
+
+.top,
+.userHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+}
+
+.userHead {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.userTitle {
+  font-size: var(--text-lg);
+  overflow-wrap: anywhere;
+}
+
+/* the filters: small selects side by side, one button */
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.filters select {
+  min-height: 2.25rem;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--text-sm);
+}
+
+.list {
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+}
+
+.listTitle {
+  color: var(--text-subtle);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.rows {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* one user: tile | id + role | company | app | chats | messages | last active (company | app and chats | messages
+   share a cell each) */
+.row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1.2fr) minmax(0, 1.4fr) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-1) var(--space-4);
+  padding: var(--space-3) var(--space-1);
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: var(--text-sm);
+}
+
+.row:last-child,
+.chatRow:last-child {
+  border-bottom: 0;
+}
+
+/* one conversation: first question | collection | messages | when */
+.chatRow {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto minmax(0, 1.2fr);
+  align-items: center;
+  gap: var(--space-1) var(--space-4);
+  padding: var(--space-3) var(--space-1);
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: var(--text-sm);
+}
+
+.who {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.userLink,
+.question {
+  color: var(--text);
+  font-weight: 700;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.userLink:hover,
+.question:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.where {
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.counts {
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.counts b {
+  color: var(--text);
+}
+
+.when {
+  color: var(--text-subtle);
+  font-size: var(--text-xs);
+}
+
+/* erasing a user's chats: a quiet strip at the bottom (was a big red Danger zone card) */
+.danger {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  padding-top: var(--space-2);
+  border-top: 1px dashed var(--border-subtle);
+}
+
+/* a narrow panel (the 3D HQ's room panel, phones): two lines per row */
+@container page (max-width: 44rem) {
+  .userHead {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .userHead > .filters {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+
+  /* two short lines per user (was four, 114 px): id and role on one line, where on one line, cut with "…" */
+  .row {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    padding: var(--space-2) var(--space-1);
+  }
+
+  .row > .who {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0 var(--space-2);
+  }
+
+  .row > .where {
+    grid-column: 2;
+    overflow: hidden;
+    font-size: var(--text-xs);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .row > .counts {
+    grid-column: 3;
+    grid-row: 1;
+  }
+
+  .row > .when {
+    grid-column: 3;
+    grid-row: 2;
+    text-align: right;
+  }
+
+  .chatRow {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .chatRow > .where {
+    grid-column: 1;
+  }
+
+  .chatRow > .when {
+    grid-column: 2;
+    text-align: right;
+  }
+}
