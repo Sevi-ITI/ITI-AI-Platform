@@ -2,7 +2,8 @@
 # the console (443) and the API (8443) themselves stay on 127.0.0.1. No secrets in this file (it is committed).
 # Run:   C:\Tools\caddy\caddy.exe run --config deploy\Caddyfile        (from the repo root)
 # Or as the caddy service of deploy/docker-compose.yaml (9.5.5): there ITI_CONSOLE_UPSTREAM / ITI_API_UPSTREAM point to
-# console:3000 and api:8000; run natively they are unset and the defaults (127.0.0.1) apply.
+# game:4000 and api:8000; run natively they are unset and the defaults (127.0.0.1) apply.
+# The console is game-ui (port 4000) since the G7 switch-over (D1, Vince 2026-10-28); admin-ui (3000) is retired.
 # Check: C:\Tools\caddy\caddy.exe validate --config deploy\Caddyfile
 # Names: the laptop's own DNS name works today; iti-ai / iti-ai-api work once the CNAMEs exist in ho.intellismartinc.com.
 # Another machine sets its own names and certificate in deploy/.env (unset = this laptop's values below):
@@ -14,9 +15,9 @@
 	skip_install_trust # never touch this machine's trust store; the users' PCs get root.crt from IT
 }
 
-# Console, for testers: LAN visitors reach ONLY the login, Chat and what those pages load. Every admin page is
-# redirected to /chat here, even for a super admin; admin work is done on the laptop itself (http://127.0.0.1:3000).
-# FastAPI still checks every permission; this is a second wall.
+# Console: the whole console for everyone on the LAN (Vince, 2026-10-28: the chat-only rule that sent every admin
+# page to /chat is off). Each person sees only what their role allows: game-ui shows testers only Chat, FastAPI
+# checks every permission, and risky actions still need the security password.
 {$ITI_CONSOLE_SITES:https://ITI-Vinas.ho.intellismartinc.com, https://iti-ai.ho.intellismartinc.com} {
 	tls {$ITI_TLS:internal}
 
@@ -24,16 +25,10 @@
 		max_size 60MB # the API's upload limit is 50 MB
 	}
 
-	@chat_only path /login /login/* /chat /chat/* /session-ended /api/chat /api/health /_next/* /favicon.ico
-	handle @chat_only {
-		reverse_proxy {$ITI_CONSOLE_UPSTREAM:127.0.0.1:3000} {
-			transport http {
-				read_timeout 180s # answers can queue for 120 s
-			}
+	reverse_proxy {$ITI_CONSOLE_UPSTREAM:127.0.0.1:4000} {
+		transport http {
+			read_timeout 180s # answers can queue for 120 s
 		}
-	}
-	handle {
-		redir * /chat
 	}
 }
 
