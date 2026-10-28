@@ -1,4 +1,4 @@
-# Build context of the iti-ai-console image (admin-ui/). Mirrors admin-ui/.gitignore: no secrets, nothing generated.
+# Build context of the iti-ai-game image (game-ui/, the console). No secrets, nothing generated.
 # Secrets: .env.local and every other .env except the committed example
 .env*
 !.env.example

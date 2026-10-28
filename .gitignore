@@ -9,8 +9,6 @@ backend/app/rag/fixtures/*.pdf
 lab/
 .env.local
 .env
-admin-ui/node_modules/
-admin-ui/.next/
 ITI-MVP-Progress-Log.md
 docs/
 PostGreQuery.sql
