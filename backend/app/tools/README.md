@@ -38,8 +38,11 @@ the NAME of the `.env` variable with the secret), the status of each server, eac
 in `console_features.py`) tool descriptions and SQL tools. Each part shows only while its switch is True; when False the
 API refuses it too. Secrets stay in `backend\.env`; the console only shows "secret set: yes / no".
 
-SQL tools (switch `sql_tools`, off by default) must be one SELECT on `ai.*` views with `WHERE employee_id = :employee_id`,
-declared arguments only, and run as the read-only `iti_ai_reader`; a check button runs them once as a non-existing
+SQL tools (switch `sql_tools`, off by default) must be one SELECT on ONE `ai.*` view (no JOIN, `,` join, subquery or
+UNION) with `WHERE employee_id = :employee_id`, declared arguments only, and run as the read-only `iti_ai_reader`.
+The author's WHERE is not trusted: when the tool runs, the code turns it into
+`WHERE employee_id = :employee_id AND (<the author's WHERE>)`, so `OR 1=1` or a renamed column can't widen it (S1.3).
+Data from two views needs one `ai.*` view that combines them. A check button runs a tool once as a non-existing
 employee and shows only the column names.
 
 Try it (switch `try_it`, off by default): one question as a test employee ID (it stands in for `ITI-User-Id`) with the

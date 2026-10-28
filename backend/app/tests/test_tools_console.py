@@ -5,6 +5,7 @@ sent; stdio servers only from mcp_servers.py; the https rule; the SQL tool guard
 import json
 
 import pytest
+from sqlalchemy import create_engine, text
 
 import app.tools.console_features as console_features
 import app.tools.host as host
@@ -14,7 +15,7 @@ from app.tools import client as mcp_client
 from app.tools import store
 from app.tools.host import run_tool, tools_for
 from app.tools.mcp_servers import SERVERS
-from app.tools.sql_tools import check_sql_tool
+from app.tools.sql_tools import check_sql_tool, tool_from_row, with_employee_filter
 
 BASE = "/v1/admin/tools"
 GOOD_SQL = "SELECT leave_name, remaining_days FROM ai.v_leave_balances WHERE employee_id = :employee_id AND year = :year"
@@ -171,6 +172,11 @@ def test_descriptions_only_with_their_switch_and_can_be_reset(client, admin, rec
     ("SELECT * FROM ai.v_absences WHERE employee_id = :employee_id -- or 1=1", "only one plain SELECT"),
     ("SELECT * INTO ai.copy FROM ai.v_absences WHERE employee_id = :employee_id", "only one plain SELECT"),
     ("SELECT * FROM ai.v_absences WHERE employee_id = :employee_id AND x = :other", ":other is not a declared parameter"),
+    ("SELECT * FROM ai.v_absences a, ai.v_pay p WHERE a.employee_id = :employee_id", "one view only"),
+    ("SELECT p.* FROM ai.v_pay p JOIN ai.v_absences a ON 1=1 WHERE a.employee_id = :employee_id", "one view only"),
+    ("SELECT * FROM ai.v_pay WHERE employee_id = :employee_id OR employee_id IN (SELECT employee_id FROM ai.v_pay)",
+     "one view only"),
+    ("SELECT * FROM ai.v_pay WHERE employee_id = :employee_id UNION SELECT * FROM ai.v_pay", "one view only"),
 ])
 def test_sql_tool_guards(sql, problem):
     entry = {"name": "my_tool", "description": "The CURRENT USER's own things.", "sql": sql, "parameters": []}
@@ -182,6 +188,31 @@ def test_a_good_sql_tool_passes_the_guards_and_a_builtin_name_is_taken():
              "parameters": [{"name": "year", "type": "integer", "required": True}]}
     assert check_sql_tool(entry, set()) == []
     assert any("already a built-in" in p for p in check_sql_tool({**entry, "name": "get_my_absences"}, {"get_my_absences"}))
+
+@pytest.mark.parametrize("sql, expected", [
+    (GOOD_SQL, "SELECT leave_name, remaining_days FROM ai.v_leave_balances "
+               "WHERE employee_id = :employee_id AND (employee_id = :employee_id AND year = :year)"),
+    ("SELECT * FROM ai.v WHERE employee_id = :employee_id OR 1=1 ORDER BY x;",
+     "SELECT * FROM ai.v WHERE employee_id = :employee_id AND (employee_id = :employee_id OR 1=1) ORDER BY x"),
+])
+def test_the_code_adds_the_employee_filter_around_the_authors_where(sql, expected):
+    assert with_employee_filter(sql) == expected
+
+
+def test_or_1_1_and_a_renamed_column_still_return_only_the_asking_employee():
+    """S1.3: both tricks pass the text checks; the filter the code adds stops them. Real SQL, on SQLite."""
+    sneaky = "SELECT salary, :employee_id AS employee_id FROM ai.v_pay WHERE employee_id = :employee_id OR 1=1"
+    entry = {"name": "my_pay", "description": "The CURRENT USER's own pay.", "sql": sneaky, "parameters": []}
+    assert check_sql_tool(entry, set()) == []  # the text checks alone would let it through
+    engine = create_engine("sqlite://")
+    with engine.connect() as conn:
+        conn.execute(text("ATTACH DATABASE ':memory:' AS ai"))
+        conn.execute(text("CREATE TABLE ai.v_pay (employee_id TEXT, salary INTEGER)"))
+        conn.execute(text("INSERT INTO ai.v_pay VALUES ('E-1', 100), ('E-2', 999)"))
+        tool = tool_from_row({**entry, "scope": "records:read", "topic": "pay"})
+        result = tool.run(conn, "E-1", tool.args())
+    assert result["rows"] == [{"salary": "100", "employee_id": "E-1"}]  # never E-2's 999
+
 
 
 def test_sql_tools_are_offered_only_with_their_switch(client, admin, records_on, switches):
