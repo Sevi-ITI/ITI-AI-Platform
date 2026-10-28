@@ -1,10 +1,13 @@
-// Copied from admin-ui src/app/(console)/requests/page.tsx (G3). Same FastAPI calls and data; the panel header shows the title.
+// Request log, decluttered for game-ui like the other rooms (Vince, 2026-10-28). Not a copy of admin-ui's page any
+// more: the same FastAPI calls (check:parity), a calmer list: a one-line summary with the filters on one row at the
+// right, the requests grouped by day, one line per request (time | request | result | who | how long) instead of a
+// five-column table. Clicking a line opens every detail in the panel beside it (?req=, as before).
 import Link from "next/link";
 
 import { displayMessage } from "@/lib/api/api-error";
 import { callApi, endSessionOn401 } from "@/lib/api/client";
 import type { components } from "@/lib/api/schema";
-import { formatMs, formatStamp } from "@/lib/format";
+import { dayKey, formatDay, formatMs, formatStamp, formatTime } from "@/lib/format";
 import { testersGoToChat } from "@/lib/session/testers-go-to-chat";
 
 import CopyButton from "../kit/copy-button";
@@ -13,6 +16,7 @@ import FocusOnOpen from "../kit/focus-on-open";
 import { StatusErrorIcon, StatusOkIcon, StatusWarnIcon } from "../kit/icons";
 import Pager from "../kit/pager";
 import { Problem } from "../kit/widgets";
+import css from "./requests.module.css";
 
 export const metadata = { title: "Request log" };
 
@@ -20,9 +24,8 @@ const PAGE_SIZE = 100;
 
 type Row = components["schemas"]["RequestLogOut"];
 
-// The request log, newest first. The table keeps five columns (time, request, result, who, total); clicking a time
-// opens every detail of that request in a side panel. The open row lives in the URL (?req=<request id>) like the
-// filters: it survives a reload, can be shared, and Back closes it. No browser JavaScript needed.
+// The request log, newest first. Clicking a line opens every detail of that request in a side panel. The open row
+// lives in the URL (?req=<request id>) like the filters: it survives a reload, can be shared, and Back closes it.
 export default async function RequestLogPage({ searchParams }: PageProps<"/requests">) {
   await testersGoToChat(); // testers have only the Chat page
   const params = await searchParams;
@@ -70,68 +73,70 @@ export default async function RequestLogPage({ searchParams }: PageProps<"/reque
   const filtered = Boolean(app || company || user || errorsOnly);
   const selected = req && rows.ok ? (rows.data.find((r) => r.request_id === req) ?? null) : null;
 
+  // The rows by day (newest first, as they come), each day under its own small heading
+  const days: { key: string; label: string; rows: Row[] }[] = [];
+  for (const r of rows.ok ? rows.data : []) {
+    const key = dayKey(r.created_at);
+    if (days.at(-1)?.key !== key) days.push({ key, label: formatDay(r.created_at), rows: [] });
+    days.at(-1)!.rows.push(r);
+  }
+  const refused = rows.ok ? rows.data.filter((r) => r.status >= 400).length : 0;
+
   return (
     <>
-      <header className={styles.header}>
-        <p className={styles.muted}>Newest first, {PAGE_SIZE} per page. Click a time for every detail.</p>
-      </header>
+      {/* summary on the left, the filters on one row at the right (a plain GET form: no JavaScript) */}
+      <div className={css.top}>
+        <p className={styles.muted}>
+          {rows.ok ? `${rows.data.length}${rows.data.length === PAGE_SIZE ? "+" : ""} requests` : ""}
+          {refused > 0 && <span className={styles.warn}> | {refused} refused or failed</span>} | newest first | click
+          one for every detail
+        </p>
+        <form action="/requests" className={css.filters}>
+          <label>
+            <span className="sr-only">App</span>
+            <select name="app" defaultValue={app}>
+              <option value="">All apps</option>
+              {apps.ok &&
+                apps.data.map((a) => (
+                  <option key={a.app_id} value={a.app_id}>
+                    {a.display_name ?? a.app_id}
+                  </option>
+                ))}
+            </select>
+          </label>
+          <label>
+            <span className="sr-only">Company</span>
+            <select name="company" defaultValue={company}>
+              <option value="">All companies</option>
+              {companies.ok &&
+                companies.data.map((c) => (
+                  <option key={c.company_id} value={c.company_id}>
+                    {c.name}
+                  </option>
+                ))}
+            </select>
+          </label>
+          <label>
+            <span className="sr-only">User id</span>
+            <input name="user" defaultValue={user} placeholder="User id…" autoComplete="off" spellCheck={false} />
+          </label>
+          <label className={css.check}>
+            <input type="checkbox" name="errors" value="1" defaultChecked={errorsOnly} />
+            <span>Refused or failed only</span>
+          </label>
+          <button type="submit" className={styles.filterApply}>
+            Filter
+          </button>
+          {filtered && (
+            <Link href="/requests" className={styles.clear}>
+              Clear
+            </Link>
+          )}
+        </form>
+      </div>
 
       <div className={req ? styles.split : undefined}>
-        <section className={styles.card} aria-label="Requests">
-          <div className={styles.toolbar}>
-            {/* Filters (a plain GET form: the filters land in the URL (shareable, Back works), no JavaScript), then the pager */}
-            <form action="/requests" className={styles.filters}>
-              <label>
-                <span>App</span>
-                <select name="app" defaultValue={app}>
-                  <option value="">All apps</option>
-                  {apps.ok &&
-                    apps.data.map((a) => (
-                      <option key={a.app_id} value={a.app_id}>
-                        {a.display_name ? `${a.display_name} (${a.app_id})` : a.app_id}
-                      </option>
-                    ))}
-                </select>
-              </label>
-              <label>
-                <span>Company</span>
-                <select name="company" defaultValue={company}>
-                  <option value="">All companies</option>
-                  {companies.ok &&
-                    companies.data.map((c) => (
-                      <option key={c.company_id} value={c.company_id}>
-                        {c.name} ({c.company_id})
-                      </option>
-                    ))}
-                </select>
-              </label>
-              <label>
-                <span>User id</span>
-                <input name="user" defaultValue={user} placeholder="e.g. 1042…" autoComplete="off" spellCheck={false} />
-              </label>
-              <label className={styles.check}>
-                <input type="checkbox" name="errors" value="1" defaultChecked={errorsOnly} />
-                <span>Refused or failed only</span>
-              </label>
-              <button type="submit" className={styles.filterApply}>
-                Apply filters
-              </button>
-              {filtered && (
-                <Link href="/requests" className={styles.clear}>
-                  Clear filters
-                </Link>
-              )}
-            </form>
-            {rows.ok && (
-              <Pager
-                page={page}
-                count={rows.data.length}
-                pageSize={PAGE_SIZE}
-                noun="Rows"
-                href={(p) => href({ p })}
-              />
-            )}
-          </div>
+        <section className={`${styles.card} ${css.list}`} aria-label="Requests">
           {!rows.ok ? (
             <Problem message={displayMessage(rows.error)} />
           ) : rows.data.length === 0 ? (
@@ -139,32 +144,29 @@ export default async function RequestLogPage({ searchParams }: PageProps<"/reque
               {page > 1 ? "No more requests." : filtered ? "No requests match these filters." : "No requests yet."}
             </p>
           ) : (
-            <div className={styles.tableWrap}>
-              <table className={styles.table}>
-                <thead>
-                  <tr>
-                    <th scope="col">Time</th>
-                    <th scope="col">Request</th>
-                    <th scope="col">Result</th>
-                    <th scope="col">App · company / user</th>
-                    <th scope="col" className={styles.number}>
-                      Total
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.data.map((r) => (
-                    <RequestRow
-                      key={r.request_id}
-                      row={r}
-                      open={r.request_id === req}
-                      openHref={href({ open: r.request_id })}
-                      companyNames={companyNames}
-                    />
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <>
+              {days.map((d) => (
+                <div key={d.key} className={css.day}>
+                  <h2 className={css.dayTitle}>
+                    {d.label} <span className={css.dayCount}>{d.rows.length}</span>
+                  </h2>
+                  <ul className={css.rows}>
+                    {d.rows.map((r) => (
+                      <RequestRow
+                        key={r.request_id}
+                        row={r}
+                        open={r.request_id === req}
+                        openHref={href({ open: r.request_id })}
+                        companyNames={companyNames}
+                      />
+                    ))}
+                  </ul>
+                </div>
+              ))}
+              {(page > 1 || rows.data.length === PAGE_SIZE) && (
+                <Pager page={page} count={rows.data.length} pageSize={PAGE_SIZE} noun="Rows" href={(p) => href({ p })} />
+              )}
+            </>
           )}
         </section>
 
@@ -180,21 +182,6 @@ export default async function RequestLogPage({ searchParams }: PageProps<"/reque
       </div>
     </>
   );
-}
-
-/** A path that may wrap only after a "/" (never inside a word like {name}): a <wbr> after each slash. */
-function BreakAfterSlashes({ text }: { text: string }) {
-  const parts = text.split("/");
-  return parts.map((part, i) => (
-    <span key={i}>
-      {part}
-      {i < parts.length - 1 && (
-        <>
-          /<wbr />
-        </>
-      )}
-    </span>
-  ));
 }
 
 /** 5xx = failed (red cross), 4xx = refused (amber triangle), else the answer's outcome. Shape + words, color repeats. */
@@ -226,6 +213,7 @@ function Result({ row }: { row: Row }) {
   return <span className={styles.muted}>{row.status}</span>;
 }
 
+/** One request on one line, the whole line a link that opens its details: time | request | result | who | how long. */
 function RequestRow({
   row,
   open,
@@ -237,39 +225,39 @@ function RequestRow({
   openHref: string;
   companyNames: Map<string, string>;
 }) {
+  const who = [
+    row.app_id,
+    row.company_id && (companyNames.get(row.company_id) ?? row.company_id),
+    row.user_id,
+  ].filter(Boolean);
   return (
-    <tr id={row.request_id} className={open ? styles.rowOpen : undefined}>
-      <td className={styles.nowrap}>
-        {/* scroll={false}: the list stays where it was; the panel opens beside it */}
-        <Link href={openHref} scroll={false} aria-current={open ? "true" : undefined} title={row.request_id}>
-          {formatStamp(row.created_at)}
-        </Link>
-      </td>
-      <td className={`mono ${styles.requestCell}`}>
-        {row.method} <BreakAfterSlashes text={row.route ?? row.path} />
-        {row.collection && <span className={styles.muted}> ({row.collection})</span>}
-      </td>
-      <td className={styles.nowrap}>
-        <Result row={row} />
-      </td>
-      <td className={styles.whoCell}>
-        <span className="mono" translate="no">
-          {row.app_id ?? "–"}
+    <li id={row.request_id}>
+      {/* scroll={false}: the list stays where it was; the panel opens beside it */}
+      <Link
+        href={openHref}
+        scroll={false}
+        className={css.row}
+        aria-current={open ? "true" : undefined}
+        title={`${formatStamp(row.created_at)} | ${row.request_id}`}
+      >
+        <span className={css.time}>{formatTime(row.created_at)}</span>
+        <span className={`mono ${css.request}`}>
+          {row.method} {row.route ?? row.path}
+          {row.collection && <span className={css.collection}> {row.collection}</span>}
         </span>
-        {row.company_id && (
-          <span className={styles.muted} title={companyNames.get(row.company_id) ?? row.company_id}>
-            {" "}
-            · {row.company_id}
-          </span>
-        )}
-        {row.user_id && <span className={styles.muted}> / {row.user_id}</span>}
-      </td>
-      <td className={styles.number}>{formatMs(row.duration_ms)}</td>
-    </tr>
+        <span className={css.result}>
+          <Result row={row} />
+        </span>
+        <span className={css.who} translate="no">
+          {who.length ? who.join(" | ") : "–"}
+        </span>
+        <span className={css.duration}>{formatMs(row.duration_ms)}</span>
+      </Link>
+    </li>
   );
 }
 
-/** Every field of one request. Wide windows: a panel beside the table that stays in view; narrow: a floating sheet. */
+/** Every field of one request. Wide windows: a panel beside the list that stays in view; narrow: a floating sheet. */
 function DetailPanel({
   row,
   req,

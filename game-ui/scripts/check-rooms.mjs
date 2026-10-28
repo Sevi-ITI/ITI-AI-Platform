@@ -51,6 +51,7 @@ const REDESIGNED = new Set([
   "(hq)/companies/page.tsx",
   "(hq)/users/page.tsx",
   "(hq)/users/[app]/[user]/page.tsx",
+  "(hq)/requests/page.tsx",
 ]);
 for (let k = PAIRS.length - 1; k >= 0; k--) {
   if (REDESIGNED.has(PAIRS[k][1])) PAIRS.splice(k, 1);
