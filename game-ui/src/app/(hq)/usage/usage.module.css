@@ -1,0 +1,35 @@
+/* Usage, until billing is built: a quiet status line, then what the room will show, one line each */
+
+.status {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.list {
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-2) 0 0;
+  padding: var(--space-3) 0 0;
+  border-top: 1px solid var(--border-subtle);
+  list-style: none;
+}
+
+.list li {
+  display: grid;
+  grid-template-columns: 9rem minmax(0, 1fr);
+  gap: var(--space-1) var(--space-4);
+  line-height: 1.45;
+}
+
+.lead {
+  font-weight: 600;
+}
+
+/* a narrow panel: the lead above its line */
+@container page (max-width: 30rem) {
+  .list li {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

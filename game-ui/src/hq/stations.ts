@@ -98,6 +98,17 @@ export const STATIONS: Station[] = [
     pos: [-3.4, 1.7, 7.2],
   },
   {
+    // Vince, 2026-10-29: the room is ready; its numbers come with token billing (the backend counts tokens since
+    // step 1, the report and the page come later)
+    id: "usage",
+    route: "/usage",
+    title: "Usage",
+    wing: "clients",
+    roomObject: "Token meter",
+    desc: "Tokens used per company, app and key, each key's monthly limit, and the monthly statement.",
+    pos: [-3.2, 2.0, 3.6],
+  },
+  {
     id: "accounts",
     route: "/accounts",
     title: "Accounts",

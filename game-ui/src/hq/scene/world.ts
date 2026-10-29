@@ -267,6 +267,23 @@ export function buildWorld(scene: THREE.Scene): World {
   users.add(mesh(new THREE.BoxGeometry(0.75, 0.95, 0.55), material(COLORS.cream), 0, 0.48, 0.45));
   room("users", users);
 
+  // Usage: a token meter (Vince, 2026-10-29): a cabinet with a round dial and a bar gauge. Static for now; once
+  // billing is built the gauge can show this month's tokens against the limit.
+  const usageRoom = new THREE.Group();
+  usageRoom.add(mesh(new THREE.BoxGeometry(1.1, 1.7, 0.5), material(0x263663), 0, 0.85, 0));
+  const face = 0.26; // the cabinet's front
+  const dial = mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.04, 32), material(COLORS.cream, { roughness: 0.4 }), -0.18, 1.25, face);
+  dial.rotation.x = Math.PI / 2;
+  const rim = mesh(new THREE.TorusGeometry(0.31, 0.03, 10, 32), glow(COLORS.accent, 0.4), -0.18, 1.25, face + 0.02);
+  const usageNeedle = mesh(new THREE.BoxGeometry(0.03, 0.22, 0.02).translate(0, 0.11, 0), glow(COLORS.warn, 0.5), -0.18, 1.25, face + 0.04);
+  usageNeedle.rotation.z = -0.7; // about two thirds of the way round
+  usageRoom.add(dial, rim, usageNeedle);
+  usageRoom.add(mesh(new THREE.BoxGeometry(0.18, 0.86, 0.04), material(0x2b3a6b), 0.3, 0.72, face + 0.01)); // the gauge's slot
+  usageRoom.add(mesh(new THREE.BoxGeometry(0.12, 0.5, 0.05), glow(COLORS.ok, 0.55), 0.3, 0.54, face + 0.02)); // filled part
+  usageRoom.add(mesh(new THREE.BoxGeometry(0.6, 0.1, 0.03), glow(COLORS.accent, 0.3), -0.18, 0.62, face + 0.01)); // counter strip
+  usageRoom.rotation.y = Math.PI / 4; // faces the usual camera (south-east), like the key lockers
+  room("usage", usageRoom);
+
   // Accounts: a badge office with a glowing badge
   const accounts = new THREE.Group();
   accounts.add(mesh(new THREE.BoxGeometry(1.7, 1.6, 1.2), material(0x293766), 0, 0.8, 0));

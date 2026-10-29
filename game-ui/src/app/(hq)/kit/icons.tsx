@@ -29,6 +29,7 @@ export const DocumentsIcon = () => <Icon d="M14 3H6v18h12V7z M14 3v4h4 M9 12h6 M
 export const KeysIcon = () => <Icon d="M8 19a4 4 0 1 0 0-8 4 4 0 0 0 0 8z M11 12l9-9 M16 7l3 3" />;
 export const ChatIcon = () => <Icon d="M4 5h16v11H9l-5 4z" />;
 export const AccountsIcon = () => <Icon d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z M9 12l2 2 4-4" />;
+export const UsageIcon = () => <Icon d="M4 18a8 8 0 1 1 16 0 M12 18l4-5 M4 21h16" />;
 export const ToolsIcon = () => <Icon d="M14.5 5.5a4 4 0 0 0-5 5L4 16l4 4 5.5-5.5a4 4 0 0 0 5-5l-2.5 2.5-2.5-.5-.5-2.5z" />;
 export const SunIcon = () => (
   <Icon d="M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8z M12 2v2 M12 20v2 M4.9 4.9l1.4 1.4 M17.7 17.7l1.4 1.4 M2 12h2 M20 12h2 M4.9 19.1l1.4-1.4 M17.7 6.3l1.4-1.4" />

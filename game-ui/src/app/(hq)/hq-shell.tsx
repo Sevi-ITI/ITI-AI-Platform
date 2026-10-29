@@ -32,6 +32,7 @@ import {
   StatusWarnIcon,
   SunIcon,
   ToolsIcon,
+  UsageIcon,
   UsersIcon,
 } from "./kit/icons";
 import Toaster from "./kit/toast";
@@ -56,6 +57,7 @@ const ROOM_ICONS: Record<string, () => React.ReactElement> = {
   companies: CompaniesIcon,
   apps: KeysIcon,
   users: UsersIcon,
+  usage: UsageIcon,
   accounts: AccountsIcon,
   tools: ToolsIcon,
 };
