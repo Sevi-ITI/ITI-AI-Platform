@@ -7,8 +7,7 @@ from app.core.a_config.get_settings import get_settings
 from app.main import create_app
 
 DEMO = "https://localhost:5173"
-PREFLIGHT = {"Access-Control-Request-Method": "POST", "Access-Control-Request-Headers": "iti-api-key,iti-user-id,content-type"}
-
+PREFLIGHT = {"Access-Control-Request-Method": "POST", "Access-Control-Request-Headers": "iti-api-key,iti-user-id,iti-user-role,content-type"}
 
 def client_with(monkeypatch, origins: list[str]) -> TestClient:
     monkeypatch.setattr(get_settings(), "cors_origins", origins)
@@ -40,6 +39,10 @@ def test_other_origin_refused(monkeypatch):
     reply = client.get("/health", headers={"Origin": "http://evil.example"})
     assert "access-control-allow-origin" not in reply.headers
 
+def test_a_page_may_never_send_a_console_session(monkeypatch):
+    client = client_with(monkeypatch, [DEMO])
+    asks = {"Access-Control-Request-Method": "POST", "Access-Control-Request-Headers": "iti-console-session"}
+    assert client.options("/v1/chat", headers={"Origin": DEMO, **asks}).status_code == 400
 
 @pytest.mark.parametrize("bad", ["*", "https://*.example.com", "localhost:5173", "http://localhost:5173/app", "ftp://x"])
 def test_vague_origins_stop_startup(monkeypatch, bad):

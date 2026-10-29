@@ -48,7 +48,7 @@ def test_a_super_admin_creates_testers_with_collections_and_nobody_else_may(clie
 
 def test_every_admin_route_and_every_upload_is_refused_for_a_tester(client, people):
     routes = list(admin_routes(client))
-    assert len(routes) == 61  # every admin route (test_roles counts them too; +1 delete account, UI-R2g)
+    assert len(routes) == 62  # every admin route (test_roles counts them too; +1 delete account, UI-R2g)
     for method, path in routes:
         r = client.request(method, path, headers=people["tina"], params={"collection": "iti-docs", "filename": "x"})
         assert r.status_code == 403 and r.json()["error"]["code"] == "scope_forbidden", (method, path, r.text)

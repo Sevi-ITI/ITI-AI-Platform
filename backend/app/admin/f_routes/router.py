@@ -19,6 +19,7 @@ from app.admin.a_schemas.key_info import KeyInfo
 from app.admin.a_schemas.metrics_summary import MetricsSummary
 from app.admin.a_schemas.request_log_out import RequestLogOut
 from app.admin.a_schemas.timeseries_point import TimeseriesPoint
+from app.admin.a_schemas.usage_month import UsageMonth  # with the other a_schemas imports
 from app.admin.a_schemas.user_summary import UserSummary
 from app.admin.f_routes.delete_account import delete_account
 from app.admin.f_routes.delete_admin_conversations import delete_admin_conversations
@@ -40,6 +41,7 @@ from app.admin.f_routes.get_keys import get_keys
 from app.admin.f_routes.get_metrics_summary import get_metrics_summary
 from app.admin.f_routes.get_metrics_timeseries import get_metrics_timeseries
 from app.admin.f_routes.get_requests import get_requests
+from app.admin.f_routes.get_usage import get_usage  # with the other f_routes imports
 from app.admin.f_routes.get_users import get_users
 from app.admin.f_routes.patch_account import patch_account
 from app.admin.f_routes.patch_collection import patch_collection
@@ -73,6 +75,7 @@ add(
     response_model=list[AdminMessage],
 )
 add("/v1/admin/requests", get_requests, methods=["GET"], response_model=list[RequestLogOut])
+add("/v1/admin/usage", get_usage, methods=["GET"], response_model=UsageMonth)   # under /v1/admin/requests
 add("/v1/admin/metrics/summary", get_metrics_summary, methods=["GET"], response_model=MetricsSummary)
 add("/v1/admin/metrics/timeseries", get_metrics_timeseries, methods=["GET"], response_model=list[TimeseriesPoint])
 add("/v1/admin/health", get_health_report, methods=["GET"], response_model=HealthReport)

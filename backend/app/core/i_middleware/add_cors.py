@@ -25,7 +25,7 @@ def add_cors(app: FastAPI) -> None:
         CORSMiddleware,
         allow_origins=origins,
         allow_methods=["GET", "POST", "DELETE"],
-        allow_headers=["ITI-Api-Key", "ITI-User-Id", "ITI-Request-Id", "Content-Type"],
+        allow_headers=["ITI-Api-Key", "ITI-User-Id", "ITI-Request-Id", "ITI-User-Role", "Content-Type"],
         expose_headers=["ITI-Request-Id"],  # so the page can show the request id to report problems
         allow_credentials=False,
     )
