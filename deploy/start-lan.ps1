@@ -23,7 +23,7 @@ container shares the project "deploy".
 # "Continue", not "Stop": Windows PowerShell 5.1 would stop on any line a program writes to its error output.
 # Failures are thrown on purpose below instead.
 $ErrorActionPreference = "Continue"
-$Name = "ITI-Vinas.ho.intellismartinc.com"    # Caddy answers only to its configured names
+$Name = "192.168.4.99"    # Caddy answers only to its configured names
 $Root = Split-Path -Parent $PSScriptRoot            # the repository root (this file is in deploy\)
 $Compose = Join-Path $Root "deploy\docker-compose.yaml"
 $Logs = Join-Path $Root "data\logs"
@@ -44,8 +44,10 @@ function Listening([int]$port) {
 function Http-Ok([string]$url) {
     # curl.exe -k: Caddy's own certificate is not in this laptop's trust store, and that is fine for a local check.
     # --resolve: the laptop's name points at 127.0.0.1 for this check only (Caddy answers only to its names).
-    $code = & curl.exe -s -k -o NUL --max-time 5 --resolve "${Name}:2101:127.0.0.1" --resolve "${Name}:2102:127.0.0.1" `
-        -w "%{http_code}" $url 2>$null
+    # Not for an IP address: curl sends no name (SNI) then, and on 127.0.0.1 Caddy has no certificate to pick.
+    $resolve = @()
+    if (-not ($Name -as [ipaddress])) { $resolve = @("--resolve", "${Name}:2101:127.0.0.1", "--resolve", "${Name}:2102:127.0.0.1") }
+    $code = & curl.exe -s -k -o NUL --max-time 5 @resolve -w "%{http_code}" $url 2>$null
     return ($code -eq "200")
 }
 
@@ -86,7 +88,7 @@ try {
     } else { Log "3. something already serves 443 (the native Caddy, or the Caddy container)" }
     Wait-For "Caddy on 2101 and 2102" 60 { (Http-Ok "https://${Name}:2101/login") -and (Http-Ok "https://${Name}:2102/health") }
 
-    Log "=== all up: https://$Name:2101 (console), https://${Name}:2102/v1/docs (API docs), http://127.0.0.1:4000 (console, this laptop)"
+    Log "=== all up: https://${Name}:2101 (console), https://${Name}:2102/v1/docs (API docs), http://127.0.0.1:4000 (console, this laptop)"
 }
 catch {
     Log "!!! FAILED: $($_.Exception.Message)"

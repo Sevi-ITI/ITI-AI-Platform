@@ -18,7 +18,7 @@
 # Console: the whole console for everyone on the LAN (Vince, 2026-10-28: the chat-only rule that sent every admin
 # page to /chat is off). Each person sees only what their role allows: game-ui shows testers only Chat, FastAPI
 # checks every permission, and risky actions still need the security password.
-{$ITI_CONSOLE_SITES:https://ITI-Vinas.ho.intellismartinc.com:2101, https://iti-ai.ho.intellismartinc.com:2101} {
+	{$ITI_CONSOLE_SITES:https://192.168.4.99:2101} {
 	tls {$ITI_TLS:internal}
 
 	request_body {
@@ -39,7 +39,7 @@
 
 # API, for the C# apps (firewall: only their machines reach 8443). Swagger and the admin / console routes are
 # hidden: the C# apps need only the v1 contract (integration-kit/openapi-v1.json).
-{$ITI_API_SITES:https://ITI-Vinas.ho.intellismartinc.com:2102, https://iti-ai-api.ho.intellismartinc.com:2102} {
+{$ITI_API_SITES:https://192.168.4.99:2102} {
 	tls {$ITI_TLS:internal}
 
 	request_body {
