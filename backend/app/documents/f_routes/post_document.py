@@ -5,7 +5,6 @@ from typing import Annotated
 
 from fastapi import BackgroundTasks, Depends, File, Form, UploadFile
 from sqlalchemy.orm import Session
-from sqlalchemy.orm.collections import collection
 
 from app.auth.a_schemas.app_principal import AppPrincipal
 from app.auth.e_dependencies.check_can_change_existing import check_can_change_existing

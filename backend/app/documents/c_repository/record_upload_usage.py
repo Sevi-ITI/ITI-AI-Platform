@@ -9,6 +9,7 @@ from app.core.d_metrics.usage_record import UsageRecord
 from app.core.h_stores.collection_row import CollectionRow
 from app.rag.c_embeddings import EMBED_MODEL
 
+
 def record_upload_usage(db: Session, request_id: str, principal: AppPrincipal, collection: str, embed_tokens: int) -> None:
     owner = db.get(CollectionRow, collection)
 
