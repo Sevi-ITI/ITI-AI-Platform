@@ -5,6 +5,7 @@ from typing import Annotated
 
 from fastapi import BackgroundTasks, Depends, File, Form, UploadFile
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.collections import collection
 
 from app.auth.a_schemas.app_principal import AppPrincipal
 from app.auth.e_dependencies.check_can_change_existing import check_can_change_existing
@@ -30,5 +31,5 @@ def post_document(
         check_can_change_existing(principal)  # supervisors: new files only
     get_store(collection)  # 404 collection_not_found before anything is saved
     accepted, staged = save_upload(db, principal, collection, file, replace)
-    background.add_task(run_ingest, accepted.job_id, staged, collection)
+    background.add_task(run_ingest, accepted.job_id, staged, collection, principal)
     return accepted

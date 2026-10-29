@@ -3,27 +3,34 @@ in the same process, with its own database session.
 
 Option A: read, split and embed happen first; replace_source swaps the chunks in ONE transaction;
 only then does the staged file replace the stored one. On any failure the staged copy is deleted,
-and the old chunks and the old file stay exactly as they were."""
+and the old chunks and the old file stay exactly as they were.
+
+Billing step 3b: the upload's request_logs row is saved before this runs, so the embeddings get their own counter
+and their own usage_records row (record_upload_usage, never billable: D-6)."""
 
 import logging
 import shutil
 from pathlib import Path
 
+from app.auth.a_schemas.app_principal import AppPrincipal
 from app.core.a_config.get_settings import get_settings
+from app.core.b_logging.request_id_var import REQUEST_ID
 from app.core.c_database.get_sessionmaker import get_sessionmaker
 from app.core.g_llm_slots.ingest_lock import INGEST_LOCK
 from app.core.h_stores.get_store import get_store
 from app.documents.c_repository.mark_job import mark_job
+from app.documents.c_repository.record_upload_usage import record_upload_usage
 from app.documents.d_service.garbled_numbers_warning import garbled_numbers_warning
 from app.rag.a_loader import load_pdf
 from app.rag.b_splitter import split_pages
 from app.rag.c_embeddings import embed
 from app.rag.d_vectorstore.replace_source import replace_source
+from app.rag.usage import USAGE
 
 log = logging.getLogger(__name__)
 
 
-def run_ingest(job_id: str, staged: Path, collection: str) -> None:
+def run_ingest(job_id: str, staged: Path, collection: str, principal: AppPrincipal) -> None:
     final = Path(get_settings().upload_dir) / collection / staged.name
     with get_sessionmaker()() as db:
         mark_job(db, job_id, "running")
@@ -33,7 +40,13 @@ def run_ingest(job_id: str, staged: Path, collection: str) -> None:
             if not chunks:
                 raise ValueError("No text found (scanned PDF?). OCR is not available yet.")
             with INGEST_LOCK:  # one document at a time, so uploads never starve chat of the GPU
-                vectors = embed([c.text for c in chunks])
+                counted = {}  # this upload's own counter
+                token = USAGE.set(counted)
+                try:
+                    vectors = embed([c.text for c in chunks])
+                finally:
+                    USAGE.reset(token)
+                record_upload_usage(db, REQUEST_ID.get(), principal, collection, counted.get("embed_tokens", 0))
                 replace_source(get_store(collection), staged.name, chunks, vectors)
         except Exception as exc:
             log.exception("Ingestion failed for %s", staged.name)
