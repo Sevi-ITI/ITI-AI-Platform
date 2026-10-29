@@ -204,6 +204,33 @@ export function buildWorld(scene: THREE.Scene): World {
   requests.add(mesh(new THREE.BoxGeometry(0.95, 0.12, 0.45), material(COLORS.cream, { roughness: 0.6 }), 0.2, 1.18, 0.1));
   room("requests", requests);
 
+  // Reports: a chart easel (Vince, 2026-10-29): three legs, a cream board leaning back slightly, a bar chart and a pie
+  // chart on it. Static for now, like the Usage meter.
+  const reports = new THREE.Group();
+  for (const [x, z, tilt] of [[-0.5, 0.1, 0.12], [0.5, 0.1, 0.12], [0, -0.38, -0.32]] as const) {
+    const leg = mesh(new THREE.BoxGeometry(0.06, 2.0, 0.06), material(0x2b3a6b), x, 0.95, z);
+    leg.rotation.x = tilt;
+    reports.add(leg);
+  }
+  const board = new THREE.Group();
+  board.position.set(0, 1.45, 0.2);
+  board.rotation.x = -0.12; // leans back on the legs
+  board.add(mesh(new THREE.BoxGeometry(1.3, 0.95, 0.05), material(COLORS.cream, { roughness: 0.6 }), 0, 0, 0));
+  board.add(mesh(new THREE.BoxGeometry(1.36, 0.06, 0.12), material(0x2b3a6b), 0, -0.5, 0.04)); // the ledge
+  [[COLORS.accent, 0.3], [COLORS.ok, 0.5], [COLORS.warn, 0.4], [COLORS.accent, 0.62]].forEach(([color, h], i) => {
+    board.add(mesh(new THREE.BoxGeometry(0.1, h, 0.03), glow(color, 0.35), -0.5 + i * 0.15, -0.38 + h / 2, 0.04));
+  });
+  [[COLORS.ok, 0, Math.PI * 0.9], [COLORS.warn, Math.PI * 0.9, Math.PI * 0.7], [COLORS.error, Math.PI * 1.6, Math.PI * 0.4]].forEach(
+    ([color, start, length]) => {
+      const slice = mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.03, 24, 1, false, start, length), glow(color, 0.3), 0.33, 0.08, 0.04);
+      slice.rotation.x = Math.PI / 2;
+      board.add(slice);
+    },
+  );
+  reports.add(board);
+  reports.rotation.y = Math.PI / 4; // faces the usual camera (south-east), like the key lockers
+  room("reports", reports);
+
   // Documents: its bookshelves follow the collections (props.ts); the room itself is the ring
   room("documents", new THREE.Group());
 

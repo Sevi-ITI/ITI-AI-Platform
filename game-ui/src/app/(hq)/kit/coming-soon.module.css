@@ -1,4 +1,4 @@
-/* Usage, until billing is built: a quiet status line, then what the room will show, one line each */
+/* A room whose content comes later (Usage, Reports): a quiet status line, then what the room will show, one line each */
 
 .status {
   color: var(--text-muted);

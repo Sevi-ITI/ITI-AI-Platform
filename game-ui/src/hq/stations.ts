@@ -53,6 +53,17 @@ export const STATIONS: Station[] = [
     pos: [-7.2, 1.8, -3.2],
   },
   {
+    // Vince, 2026-10-29: the room is ready; its charts come later (slower, period-based reports, where Performance
+    // shows the live traffic)
+    id: "reports",
+    route: "/reports",
+    title: "Reports",
+    wing: "monitor",
+    roomObject: "Chart easel",
+    desc: "Charts over weeks and months: questions, answers and the documents behind them, per company and app.",
+    pos: [-1.9, 2.1, -4.4], // off the camera-to-pylon line, so the plaza beacon does not hide it
+  },
+  {
     id: "documents",
     route: "/documents",
     title: "Documents",

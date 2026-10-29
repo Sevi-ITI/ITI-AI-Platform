@@ -23,6 +23,7 @@ function Icon({ d, size = 18 }: IconProps) {
 
 export const OverviewIcon = () => <Icon d="M4 4h7v7H4z M13 4h7v4h-7z M13 10h7v10h-7z M4 13h7v7H4z" />;
 export const PerformanceIcon = () => <Icon d="M4 4v16h16 M7 15l4-5 3 3 5-6" />;
+export const ReportsIcon = () => <Icon d="M4 20h16 M7 16v-4 M12 16V7 M17 16v-6" />;
 export const RequestLogIcon = () => <Icon d="M9 6h11 M9 12h11 M9 18h11 M4.5 6h.01 M4.5 12h.01 M4.5 18h.01" />;
 export const UsersIcon = () => <Icon d="M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z M2 21c0-4 3-6 7-6s7 2 7 6 M16 3.5a4 4 0 0 1 0 7.5 M18 15c2.5.6 4 2.6 4 6" />;
 export const DocumentsIcon = () => <Icon d="M14 3H6v18h12V7z M14 3v4h4 M9 12h6 M9 16h6" />;

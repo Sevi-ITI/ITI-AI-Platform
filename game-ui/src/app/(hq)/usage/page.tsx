@@ -3,8 +3,8 @@
 // (build plan: steps 2–10). Until then it says what will appear here. Super admins and supervisors (Clients wing).
 import { testersGoToChat } from "@/lib/session/testers-go-to-chat";
 
+import soon from "../kit/coming-soon.module.css";
 import styles from "../kit/dashboard.module.css";
-import usage from "./usage.module.css";
 
 export const metadata = { title: "Usage" };
 
@@ -20,16 +20,16 @@ export default async function UsagePage() {
 
   return (
     <section className={styles.card} aria-labelledby="usage-soon">
-      <p className={usage.status}>Coming with token billing</p>
+      <p className={soon.status}>Coming with token billing</p>
       <h2 id="usage-soon">Usage will show here</h2>
       <p className={styles.muted}>
         The AI service already counts the tokens each request uses. This room fills in once the usage report and the
         billing rules are built.
       </p>
-      <ul className={usage.list}>
+      <ul className={soon.list}>
         {COMING.map((item) => (
           <li key={item.lead}>
-            <span className={usage.lead}>{item.lead}</span>
+            <span className={soon.lead}>{item.lead}</span>
             <span className={styles.muted}>{item.text}</span>
           </li>
         ))}
