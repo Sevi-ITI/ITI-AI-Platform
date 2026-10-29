@@ -44,7 +44,7 @@ function Listening([int]$port) {
 function Http-Ok([string]$url) {
     # curl.exe -k: Caddy's own certificate is not in this laptop's trust store, and that is fine for a local check.
     # --resolve: the laptop's name points at 127.0.0.1 for this check only (Caddy answers only to its names).
-    $code = & curl.exe -s -k -o NUL --max-time 5 --resolve "${Name}:443:127.0.0.1" --resolve "${Name}:8443:127.0.0.1" `
+    $code = & curl.exe -s -k -o NUL --max-time 5 --resolve "${Name}:2101:127.0.0.1" --resolve "${Name}:2102:127.0.0.1" `
         -w "%{http_code}" $url 2>$null
     return ($code -eq "200")
 }
@@ -78,15 +78,15 @@ try {
     Wait-For "console /login" 120 { Http-Ok "http://127.0.0.1:4000/login" }
 
     # 3. The native Caddy: the only door to the office network (443 console, 8443 API)
-    if (-not (Listening 443)) {
+    if (-not (Listening 2101)) {
         Log "3. starting the native Caddy"
         Start-Process -FilePath "C:\Tools\caddy\caddy.exe" -ArgumentList "run --config deploy\Caddyfile" -WorkingDirectory $Root `
             -WindowStyle Hidden -RedirectStandardOutput (Join-Path $Logs "caddy-$Day.log") `
             -RedirectStandardError (Join-Path $Logs "caddy-$Day.err.log") | Out-Null
     } else { Log "3. something already serves 443 (the native Caddy, or the Caddy container)" }
-    Wait-For "Caddy on 443 and 8443" 60 { (Http-Ok "https://${Name}/login") -and (Http-Ok "https://${Name}:8443/health") }
+    Wait-For "Caddy on 2101 and 2102" 60 { (Http-Ok "https://${Name}:2101/login") -and (Http-Ok "https://${Name}:2102/health") }
 
-    Log "=== all up: https://$Name (console), https://${Name}:8443/v1/docs (API docs), http://127.0.0.1:4000 (console, this laptop)"
+    Log "=== all up: https://$Name:2101 (console), https://${Name}:2102/v1/docs (API docs), http://127.0.0.1:4000 (console, this laptop)"
 }
 catch {
     Log "!!! FAILED: $($_.Exception.Message)"

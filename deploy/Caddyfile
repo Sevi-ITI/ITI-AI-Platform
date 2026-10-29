@@ -1,5 +1,5 @@
 # ITI AI Platform on the LAN (Phase 9, laptop pilot). Caddy is the ONLY thing reachable from the network:
-# the console (443) and the API (8443) themselves stay on 127.0.0.1. No secrets in this file (it is committed).
+# the console (2101) and the API (2102) themselves stay on 127.0.0.1. No secrets in this file (it is committed).
 # Run:   C:\Tools\caddy\caddy.exe run --config deploy\Caddyfile        (from the repo root)
 # Or as the caddy service of deploy/docker-compose.yaml (9.5.5): there ITI_CONSOLE_UPSTREAM / ITI_API_UPSTREAM point to
 # game:4000 and api:8000; run natively they are unset and the defaults (127.0.0.1) apply.
@@ -18,7 +18,7 @@
 # Console: the whole console for everyone on the LAN (Vince, 2026-10-28: the chat-only rule that sent every admin
 # page to /chat is off). Each person sees only what their role allows: game-ui shows testers only Chat, FastAPI
 # checks every permission, and risky actions still need the security password.
-{$ITI_CONSOLE_SITES:https://ITI-Vinas.ho.intellismartinc.com, https://iti-ai.ho.intellismartinc.com} {
+{$ITI_CONSOLE_SITES:https://ITI-Vinas.ho.intellismartinc.com:2101, https://iti-ai.ho.intellismartinc.com:2101} {
 	tls {$ITI_TLS:internal}
 
 	request_body {
@@ -39,7 +39,7 @@
 
 # API, for the C# apps (firewall: only their machines reach 8443). Swagger and the admin / console routes are
 # hidden: the C# apps need only the v1 contract (integration-kit/openapi-v1.json).
-{$ITI_API_SITES:https://ITI-Vinas.ho.intellismartinc.com:8443, https://iti-ai-api.ho.intellismartinc.com:8443} {
+{$ITI_API_SITES:https://ITI-Vinas.ho.intellismartinc.com:2102, https://iti-ai-api.ho.intellismartinc.com:2102} {
 	tls {$ITI_TLS:internal}
 
 	request_body {
@@ -48,13 +48,18 @@
 
 	# S1.1: the API returns only data (JSON), so nothing may run, load or frame from it. HSTS waits for the office PCs
 	# to trust the Caddy root (with HSTS a certificate warning can no longer be clicked past).
+	@docs path /v1/docs
+	@not_docs not path /v1/docs
+
 	header {
-		Content-Security-Policy "default-src 'none'; frame-ancestors 'none'"
 		X-Frame-Options DENY
 		X-Content-Type-Options nosniff
 		Referrer-Policy no-referrer
 		-Server
 	}
+	header @not_docs Content-Security-Policy "default-src 'none'; frame-ancestors 'none'"
+	# Swagger UI (the C# teams' docs): its script and styles come from jsdelivr, plus one inline start-up script
+	header @docs Content-Security-Policy "default-src 'none'; script-src https://cdn.jsdelivr.net 'unsafe-inline'; style-src https://cdn.jsdelivr.net 'unsafe-inline'; img-src https://fastapi.tiangolo.com https://cdn.jsdelivr.net data:; connect-src 'self'; frame-ancestors 'none'"
 
 	@not_for_apps path /docs /docs/* /redoc /openapi.json /v1/admin/* /v1/console/*
 	respond @not_for_apps 404

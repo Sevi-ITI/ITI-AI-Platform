@@ -20,7 +20,7 @@ function Log([string]$text) {
 Log "=== stop-lan.ps1 (user $env:USERNAME)"
 
 # 1. The native Caddy (only caddy.exe: a port held by Docker is left to step 2)
-foreach ($port in 443, 8443) {
+foreach ($port in 2101, 2102) {
     $owners = Get-NetTCPConnection -State Listen -LocalPort $port -ErrorAction SilentlyContinue |
         Select-Object -ExpandProperty OwningProcess -Unique
     foreach ($id in $owners) {

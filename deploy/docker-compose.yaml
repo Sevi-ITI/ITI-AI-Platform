@@ -126,8 +126,8 @@ services:
       ITI_API_SITES:
       ITI_TLS:
     ports:
-      - "${ITI_CONSOLE_HTTPS_PORT:-443}:443"  # the console for the LAN (each role sees only its own rooms)
-      - "${ITI_API_HTTPS_PORT:-8443}:8443"  # the C# apps
+      - "${ITI_CONSOLE_HTTPS_PORT:-2101}:2101"  # the console for the LAN (each role sees only its own rooms)
+      - "${ITI_API_HTTPS_PORT:-2102}:2102"  # the C# apps
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
