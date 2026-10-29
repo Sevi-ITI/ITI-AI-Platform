@@ -12,7 +12,7 @@ from app.rag.d_vectorstore.pg_store import PgStore
 from app.rag.d_vectorstore.search import search
 from app.rag.e_prompts import build_messages, could_be_refusal, is_refusal, refusal_for
 from app.rag.passage import Passage
-from app.rag.usage import count_chat
+from app.rag.usage import count_chat, count_stream_done, count_stream_piece, count_stream_start, estimate_input
 
 TOP_K = 6  # chunks per question (spec 5.5); used to live in the Chroma d_vectorstore.py
 
@@ -200,22 +200,26 @@ def ask(
     return _finish(question, chat(build_messages(question, found, history)), found)
 
 def stream_from_ollama(messages: list[dict]) -> Iterator[str]:
-    """The model's reply piece by piece. Ollama sends one JSON object per line; the last one has "done": true."""
+    """The model's reply piece by piece. Ollama sends one JSON object per line; the last one has "done": true.
+    Counted as it goes (rag/usage.py): a caller who hangs up still leaves an estimate in the request log (I-3)."""
+    estimated_in, pieces = estimate_input(messages), 0
     with requests.post(
         f"{OLLAMA_URL}/api/chat", json=_chat_request(messages, stream=True), stream=True, timeout=TIMEOUT_SECONDS
     ) as response:
         response.raise_for_status()
+        count_stream_start(estimated_in)
         for line in response.iter_lines():
             if not line:
                 continue
             part = json.loads(line)
             piece = part.get("message", {}).get("content", "")
             if piece:
+                pieces += 1
+                count_stream_piece()
                 yield piece
             if part.get("done"):
-                count_chat(part)  # billing step 1: the last line carries the token counts
+                count_stream_done(part, estimated_in, pieces)  # the real counts replace the estimate
                 break
-
 
 def ask_stream(
         question: str,
@@ -240,3 +244,4 @@ def ask_stream(
             yield "token", held
         sent = len(pieces)
     yield "done", _finish(question, "".join(pieces).strip(), found)
+

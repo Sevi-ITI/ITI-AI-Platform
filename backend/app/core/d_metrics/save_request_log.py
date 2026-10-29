@@ -5,6 +5,7 @@ import logging
 
 from app.core.c_database.get_sessionmaker import get_sessionmaker
 from app.core.d_metrics.request_log import RequestLog
+from app.core.d_metrics.usage_record_for import usage_record_for
 
 log = logging.getLogger(__name__)
 COLUMNS = set(RequestLog.__table__.columns.keys()) - {"id", "created_at"}
@@ -13,6 +14,9 @@ def save_request_log(metrics: dict) -> None:
     try:
         with get_sessionmaker()() as db:
             db.add(RequestLog(**{k: v for k, v in metrics.items() if k in COLUMNS}))
+            record = usage_record_for(metrics)
+            if record is not None:
+                db.add(record)
             db.commit()
     except Exception:
         log.exception("Could not save the request log row.")
